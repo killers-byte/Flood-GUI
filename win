@@ -92,12 +92,19 @@ local function OnMapLoad(Map)
     end
     local Escapee = Map:FindFirstChild("NPC", true)
     if Escapee then
-        Escapee = Escapee.Parent.Contact
-        local OriginalCFrame = HumanoidRootPart.CFrame
-        HumanoidRootPart.CFrame = Escapee.CFrame
-        task.wait()
-        HumanoidRootPart.CFrame = OriginalCFrame
-        Alert("Got Escapee.")
+        Escapee = Escapee.Parent
+        if Escapee then
+            Escapee = Escapee.Contact
+        else
+            Escapee = Map:FindFirstChild("Contact", true)
+        end
+        if Escapee then
+            local OriginalCFrame = HumanoidRootPart.CFrame
+            HumanoidRootPart.CFrame = Escapee.CFrame
+            task.wait()
+            HumanoidRootPart.CFrame = OriginalCFrame
+            Alert("Got Escapee.")
+        end
     end
     -- Auto Farm Loop
     Alert("Commencing Auto Farm")
