@@ -1,5 +1,6 @@
 getgenv().TomatoAutoFarm = false
 
+local ALERTS_ENABLED = true
 local EXITREGION_MAX_ATTEMPTS = 50
 local CHECK_DELAY = 0
 local BUTTON_DELAY = 0
@@ -15,9 +16,11 @@ local gameAlert = CLMAINenv.newAlert
 local Alert
 if CLMAINenv then
     Alert = function(...)
-        local Output = tostring(...)
-        gameAlert(Output, nil, nil, "rainbow")
-        print(Output)
+        if ALERTS_ENABLED then
+            local Output = tostring(...)
+            gameAlert(Output, nil, nil, "rainbow")
+            print(Output)
+        end
     end
 else
     Alert = print
@@ -186,7 +189,7 @@ local function OnMapLoad(Map)
         task.wait()
         HumanoidRootPart.Velocity = Vector3.new(0, 0, 100)
     until Check("InLift")
-    ConnectMap()
+    --ConnectMap()
 end
 
 ConnectMap = function()
