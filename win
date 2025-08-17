@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = true
+getgenv().TomatoAutoFarm = false
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local Multiplayer = Workspace.Multiplayer
 
@@ -77,7 +77,7 @@ local function OnMapLoad(Map)
     local LostPage = Map:FindFirstChild("_LostPage", true)
     if LostPage then
         HumanoidRootPart.CFrame = LostPage.CFrame
-        task.wait(.1)
+        task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Lost Page.")
     end
@@ -86,14 +86,14 @@ local function OnMapLoad(Map)
         Escapee = Escapee.Parent.Contact
         local OriginalCFrame = HumanoidRootPart.CFrame
         HumanoidRootPart.CFrame = Escapee.CFrame
-        task.wait(.1)
+        task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Escapee.")
     end
     -- Auto Farm Loop
     Alert("Commencing Auto Farm")
     local CHECK_DELAY = 0.1
-    local BUTTON_DELAY = 0.5
+    local BUTTON_DELAY = 0
     local CurrentButton = nil
     local Humanoid = GetChar().Humanoid
     local GodMode
@@ -104,6 +104,7 @@ local function OnMapLoad(Map)
     while task.wait(CHECK_DELAY) and Check("InGame") do
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
         local HumanoidRootPart = GetChar().HumanoidRootPart
+        Humanoid.Jump = true
         if not ExitRegion then
             for i, Button in pairs(Buttons) do
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
@@ -112,17 +113,16 @@ local function OnMapLoad(Map)
                     local ButtonID = tostring(i)
                     local ButtonColor = tostring(Button.Hitbox.BrickColor)
                     local TouchFound = Button:FindFirstChild("TouchInterest", true)
+                    local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
                     --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
-                    if TouchFound and ButtonColor ~= "Black" then
+                    if (TouchFound and GuiFound) then
                         -- Teleport to button + bypass button anti-cheat.
                         HumanoidRootPart.Anchored = false
                         local OriginalCFrame = HumanoidRootPart.CFrame
                         HumanoidRootPart.CFrame = CFrame.new(ButtonHitbox.Position)
-                        for i = 1, 5 do
-                            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                            HumanoidRootPart.Velocity = Vector3.new(0, 100, 0)
-                            task.wait()
-                        end
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        HumanoidRootPart.Velocity = Vector3.new(0, 100, 0)
+                        task.wait(.1)
                         HumanoidRootPart.Anchored = true
                         task.wait(BUTTON_DELAY)
                         --task.wait(BUTTON_DELAY)
@@ -152,8 +152,11 @@ local function OnMapLoad(Map)
     Alert("Complete.")
     GodMode:Disconnect()
     GodMode = nil
-    GetChar().Head:Destroy()
-    task.wait(2)
+    if GetChar():FindFirstChild("Head") then
+        GetChar().Head:Destroy()
+    end
+    LocalPlayer.CharacterAdded:Wait()
+    task.wait()
     local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
     HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
     repeat
