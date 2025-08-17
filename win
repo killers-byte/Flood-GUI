@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = true
+getgenv().TomatoAutoFarm = false
 
 local EXITREGION_MAX_ATTEMPTS = 50
 local CHECK_DELAY = 0
@@ -56,7 +56,9 @@ local ConnectMap
 
 local function OnMapLoad(Map)
     local MapName = Map:WaitForChild("Settings"):GetAttribute("MapName")
-    Alert("Map Loaded!" .. MapName)
+    if MapName then
+        Alert("Map Loaded!" .. MapName)
+    end
     if Check("InGame") == false then
         Alert("Skipping due to InGame == false.")
     end
@@ -130,7 +132,7 @@ local function OnMapLoad(Map)
                     local TouchFound = Button:FindFirstChild("TouchInterest", true)
                     local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
                     --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
-                    if (TouchFound and GuiFound) or (DifferentScan and TouchFound) then
+                    if (TouchFound and GuiFound) then
                         FailedScan = false
                         -- Teleport to button + bypass button anti-cheat.
                         HumanoidRootPart.Anchored = false
