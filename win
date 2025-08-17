@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = false
+getgenv().TomatoAutoFarm = true
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local Multiplayer = Workspace.Multiplayer
 
@@ -45,10 +45,11 @@ local function Check(Flag)
     return false
 end
 local MapDetect
+local ConnectMap
 
 local function OnMapLoad(Map)
     local MapName = Map:WaitForChild("Settings"):GetAttribute("MapName")
-    Alert("Map Loaded!", MapName)
+    Alert("Map Loaded!" .. MapName)
     if Check("InGame") == false then
         Alert("Skipping due to InGame == false.")
     end
@@ -101,10 +102,12 @@ local function OnMapLoad(Map)
         Humanoid.Health = 1000
     end)
     local Attempts = 0
+    local DifferentScan = false
     while task.wait(CHECK_DELAY) and Check("InGame") do
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
         local HumanoidRootPart = GetChar().HumanoidRootPart
         Humanoid.Jump = true
+        local FailedScan = true
         if not ExitRegion then
             for i, Button in pairs(Buttons) do
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
@@ -115,7 +118,8 @@ local function OnMapLoad(Map)
                     local TouchFound = Button:FindFirstChild("TouchInterest", true)
                     local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
                     --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
-                    if (TouchFound and GuiFound) then
+                    if (TouchFound and GuiFound) or (DifferentScan and TouchFound) then
+                        FailedScan = false
                         -- Teleport to button + bypass button anti-cheat.
                         HumanoidRootPart.Anchored = false
                         local OriginalCFrame = HumanoidRootPart.CFrame
@@ -129,6 +133,9 @@ local function OnMapLoad(Map)
                         --break
                     end
                 end
+            end
+            if FailedScan == true then
+                DifferentScan = true
             end
             --HumanoidRootPart.Velocity = Vector3.new(0,)
         elseif ExitRegion then
@@ -145,32 +152,29 @@ local function OnMapLoad(Map)
             end
         end
     end
-    if MapDetect then
-        MapDetect:Disconnect()
-        MapDetect = nil
-    end
     Alert("Complete.")
     GodMode:Disconnect()
     GodMode = nil
-    if GetChar():FindFirstChild("Head") then
-        GetChar().Head:Destroy()
-    end
-    LocalPlayer.CharacterAdded:Wait()
-    task.wait()
+    Alert("Preparing for next Map! Resetting..")
+    GetChar().Head:Destroy()
+    Alert("Waiting for Player..")
+    task.wait(2)
     local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
     HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
     repeat
         task.wait()
         HumanoidRootPart.Velocity = Vector3.new(0, 0, 100)
     until Check("InLift")
+    ConnectMap()
 end
 
-local function ConnectMap()
+ConnectMap = function()
     MapDetect = Multiplayer.ChildAdded:Connect(function(NewMap)
         MapDetect:Disconnect()
         MapDetect = nil
         NewMap:GetPropertyChangedSignal("Name"):Wait()
         OnMapLoad(NewMap)
+        Alert("Connecting..")
     end)
 end
 
@@ -190,10 +194,8 @@ while wait() do
         end
     end
     if Check("InLift") == true and not MapDetect then
-        Alert("In lift! Connecting..")
         ConnectMap()
     elseif Check("InLift") == false and MapDetect then
-        print("Not in lift! Disconnecting..")
         MapDetect:Disconnect()
         MapDetect = nil
     end
