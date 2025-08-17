@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = false
+getgenv().TomatoAutoFarm = true
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local Multiplayer = Workspace.Multiplayer
 
@@ -104,33 +104,34 @@ local function OnMapLoad(Map)
     while task.wait(CHECK_DELAY) and Check("InGame") do
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
         local HumanoidRootPart = GetChar().HumanoidRootPart
-        for i, Button in pairs(Buttons) do
-            local ButtonHitbox = Button:FindFirstChild("Hitbox")
-            if ButtonHitbox then
-                CurrentButton = Button
-                local ButtonID = tostring(i)
-                local ButtonColor = tostring(Button.Hitbox.BrickColor)
-                local TouchFound = Button:FindFirstChild("TouchInterest", true)
-                --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
-                if TouchFound and ButtonColor ~= "Black" then
-                    -- Teleport to button + bypass button anti-cheat.
-                    HumanoidRootPart.Anchored = false
-                    local OriginalCFrame = HumanoidRootPart.CFrame
-                    HumanoidRootPart.CFrame = CFrame.new(ButtonHitbox.Position)
-                    for i = 1, 5 do
-                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        HumanoidRootPart.Velocity = Vector3.new(0, 100, 0)
-                        task.wait()
+        if not ExitRegion then
+            for i, Button in pairs(Buttons) do
+                local ButtonHitbox = Button:FindFirstChild("Hitbox")
+                if ButtonHitbox then
+                    CurrentButton = Button
+                    local ButtonID = tostring(i)
+                    local ButtonColor = tostring(Button.Hitbox.BrickColor)
+                    local TouchFound = Button:FindFirstChild("TouchInterest", true)
+                    --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
+                    if TouchFound and ButtonColor ~= "Black" then
+                        -- Teleport to button + bypass button anti-cheat.
+                        HumanoidRootPart.Anchored = false
+                        local OriginalCFrame = HumanoidRootPart.CFrame
+                        HumanoidRootPart.CFrame = CFrame.new(ButtonHitbox.Position)
+                        for i = 1, 5 do
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                            HumanoidRootPart.Velocity = Vector3.new(0, 100, 0)
+                            task.wait()
+                        end
+                        HumanoidRootPart.Anchored = true
+                        task.wait(BUTTON_DELAY)
+                        --task.wait(BUTTON_DELAY)
+                        --break
                     end
-                    HumanoidRootPart.Anchored = true
-                    task.wait(BUTTON_DELAY)
-                    --task.wait(BUTTON_DELAY)
-                    --break
                 end
             end
-        end
-        --HumanoidRootPart.Velocity = Vector3.new(0,)
-        if ExitRegion then
+            --HumanoidRootPart.Velocity = Vector3.new(0,)
+        elseif ExitRegion then
             HumanoidRootPart.Anchored = false
             if Attempts < 50 then
                 Attempts += 1
