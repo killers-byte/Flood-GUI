@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = true
+getgenv().TomatoAutoFarm = false
 
 local EXITREGION_MAX_ATTEMPTS = 50
 local CHECK_DELAY = 0
@@ -111,7 +111,7 @@ local function OnMapLoad(Map)
     local CurrentButton = nil
     local Humanoid = GetChar().Humanoid
     local GodMode
-    GodMode = Humanoid.Changed:Connect(function()
+    GodMode = Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
         Humanoid.Health = 1000
     end)
     local Attempts = 0
