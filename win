@@ -1,0 +1,206 @@
+getgenv().TomatoAutoFarm = true
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Multiplayer = Workspace.Multiplayer
+
+local CLMAIN = LocalPlayer.PlayerScripts.CL_MAIN_GameScript
+local CLMAINenv = getsenv(CLMAIN)
+local gameAlert = CLMAINenv.newAlert
+local Alert
+if CLMAINenv then
+    Alert = function(...)
+        local Output = tostring(...)
+        gameAlert(Output, nil, nil, "rainbow")
+        print(Output)
+    end
+else
+    Alert = print
+end
+
+
+function isRandomString(str)
+    if #str == 0 then return false end
+    for i = 1, #str do
+        local ltr = str:sub(i, i)
+        if ltr:lower() == ltr then
+            return false
+        end
+    end
+    return true
+end
+local function GetChar()
+    return LocalPlayer.Character or (LocalPlayer.CharacterAdded:wait() and LocalPlayer.Character)
+end
+local function Check(Flag)
+    local HumanoidRootPart = GetChar():FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return false end
+    if Flag == "InLift" then
+        if HumanoidRootPart.Position.X < 50 and HumanoidRootPart.Position.Z > 70 then
+            return true
+        end
+    elseif Flag == "InGame" then
+        if HumanoidRootPart.Position.X > 50 then
+            return true
+        end
+    end
+    return false
+end
+local MapDetect
+
+local function OnMapLoad(Map)
+    local MapName = Map:WaitForChild("Settings"):GetAttribute("MapName")
+    Alert("Map Loaded!", MapName)
+    if Check("InGame") == false then
+        Alert("Skipping due to InGame == false.")
+    end
+    -- if Map Loaded and InGame code after this will run.
+    local Buttons = {}
+    -- Single Scan of Map to reduce lag.
+    for i, MapObject in pairs(Map:GetDescendants()) do
+        if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
+            local Hitbox
+            for i, Candidate in pairs(MapObject:GetChildren()) do
+                if Candidate:IsA("BasePart") and tostring(Candidate.BrickColor) ~= "Medium stone grey" then
+                    Hitbox = Candidate
+                    break
+                end
+            end
+            if Hitbox and isRandomString(Hitbox.Name) then
+                -- Confirmed Buttonness
+                Hitbox.Name = "Hitbox"
+                table.insert(Buttons, MapObject)
+            end
+        end
+    end
+    local HumanoidRootPart = GetChar().HumanoidRootPart
+    -- Grab Lost Page and Escapee
+    local OriginalCFrame = HumanoidRootPart.CFrame
+    local LostPage = Map:FindFirstChild("_LostPage", true)
+    if LostPage then
+        HumanoidRootPart.CFrame = LostPage.CFrame
+        task.wait(.1)
+        HumanoidRootPart.CFrame = OriginalCFrame
+        Alert("Got Lost Page.")
+    end
+    local Escapee = Map:FindFirstChild("NPC", true)
+    if Escapee then
+        Escapee = Escapee.Parent.Contact
+        local OriginalCFrame = HumanoidRootPart.CFrame
+        HumanoidRootPart.CFrame = Escapee.CFrame
+        task.wait(.1)
+        HumanoidRootPart.CFrame = OriginalCFrame
+        Alert("Got Escapee.")
+    end
+    -- Auto Farm Loop
+    Alert("Commencing Auto Farm")
+    local CHECK_DELAY = 0.1
+    local BUTTON_DELAY = 0.5
+    local CurrentButton = nil
+    local Humanoid = GetChar().Humanoid
+    local GodMode
+    GodMode = Humanoid.Changed:Connect(function()
+        Humanoid.Health = 1000
+    end)
+    local Attempts = 0
+    while task.wait(CHECK_DELAY) and Check("InGame") do
+        local ExitRegion = Map:FindFirstChild("ExitRegion", true)
+        local HumanoidRootPart = GetChar().HumanoidRootPart
+        for i, Button in pairs(Buttons) do
+            local ButtonHitbox = Button:FindFirstChild("Hitbox")
+            if ButtonHitbox then
+                CurrentButton = Button
+                local ButtonID = tostring(i)
+                local ButtonColor = tostring(Button.Hitbox.BrickColor)
+                local TouchFound = Button:FindFirstChild("TouchInterest", true)
+                --if ButtonColor ~= "Black" and ButtonColor ~= "Bright yellow" then
+                if TouchFound and ButtonColor ~= "Black" then
+                    -- Teleport to button + bypass button anti-cheat.
+                    HumanoidRootPart.Anchored = false
+                    local OriginalCFrame = HumanoidRootPart.CFrame
+                    HumanoidRootPart.CFrame = CFrame.new(ButtonHitbox.Position)
+                    for i = 1, 5 do
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        HumanoidRootPart.Velocity = Vector3.new(0, 100, 0)
+                        task.wait()
+                    end
+                    HumanoidRootPart.Anchored = true
+                    task.wait(BUTTON_DELAY)
+                    --task.wait(BUTTON_DELAY)
+                    --break
+                end
+            end
+        end
+        --HumanoidRootPart.Velocity = Vector3.new(0,)
+        if ExitRegion then
+            HumanoidRootPart.Anchored = false
+            if Attempts < 50 then
+                Attempts += 1
+                -- Teleport to ExitRegion
+                HumanoidRootPart.CFrame = ExitRegion.CFrame -- Vector3.new(0, 10, 0)
+                Humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+                HumanoidRootPart.Velocity = Vector3.new(50, -1, 50)
+            else
+                Alert("Teleported to ExitRegion.")
+                break
+            end
+        end
+    end
+    if MapDetect then
+        MapDetect:Disconnect()
+        MapDetect = nil
+    end
+    Alert("Complete.")
+    GodMode:Disconnect()
+    GodMode = nil
+    GetChar().Head:Destroy()
+    task.wait(2)
+    local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
+    HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
+    repeat
+        task.wait()
+        HumanoidRootPart.Velocity = Vector3.new(0, 0, 100)
+    until Check("InLift")
+end
+
+local function ConnectMap()
+    MapDetect = Multiplayer.ChildAdded:Connect(function(NewMap)
+        MapDetect:Disconnect()
+        MapDetect = nil
+        NewMap:GetPropertyChangedSignal("Name"):Wait()
+        OnMapLoad(NewMap)
+    end)
+end
+
+-- Setup Main Update Loop
+if _G.LoopCancel ~= nil then
+    _G.LoopCancel = true
+    task.wait(.1)
+end
+_G.LoopCancel = false
+Alert("Ready! Starting Update Loop.")
+while wait() do
+    local function Cancel()
+        Alert("Update Loop cancelled.")
+        if MapDetect then
+            MapDetect:Disconnect()
+            MapDetect = nil
+        end
+    end
+    if Check("InLift") == true and not MapDetect then
+        Alert("In lift! Connecting..")
+        ConnectMap()
+    elseif Check("InLift") == false and MapDetect then
+        print("Not in lift! Disconnecting..")
+        MapDetect:Disconnect()
+        MapDetect = nil
+    end
+    if _G.LoopCancel == true then
+        _G.LoopCancel = false
+        Cancel()
+        break
+    end
+    if getgenv().TomatoAutoFarm == false then
+        Alert("Auto Farm Paused!")
+        repeat wait() until getgenv().TomatoAutoFarm == true or _G.LoopCancel == true
+        Alert("Auto Farm Resumed!")
+    end
+end
