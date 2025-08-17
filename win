@@ -1,4 +1,4 @@
-getgenv().TomatoAutoFarm = false
+getgenv().TomatoAutoFarm = true
 
 local EXITREGION_MAX_ATTEMPTS = 50
 local CHECK_DELAY = 0
@@ -8,7 +8,6 @@ local EXITREGION_WAIT = 0
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local Multiplayer = Workspace.Multiplayer
 
-local TimerLabel = LocalPlayer.PlayerGui.GameGui.HUD.Main.GameStats.Ingame.Info.Time.Current.Count
 
 local CLMAIN = LocalPlayer.PlayerScripts.CL_MAIN_GameScript
 local CLMAINenv = getsenv(CLMAIN)
