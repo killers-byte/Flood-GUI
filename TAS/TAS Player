@@ -72,7 +72,6 @@ local function Cleanup()
         RootPart.Velocity = Vector3.new(0, 1, 1000)
         task.wait()
     end
-    error("Cleaned Up!")
 end
 DeathConnect = LP.Character.Humanoid.Died:Connect(Cleanup)
 
