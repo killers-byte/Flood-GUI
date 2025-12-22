@@ -120,7 +120,8 @@ else
         if Map:WaitForChild('Settings'):FindFirstChild("_MirrorMap") then
             Mirrored = false
         else
-            Mirrored = true
+            -- Disable Mirrored because its bugging the player out
+            Mirrored = false
         end
         if Mirrored == true and SkipMirroredMaps[realMapName] then
             CLMAIN.newAlert('Map cannot be mirrored.', Color3.fromRGB(255, 100, 0))
