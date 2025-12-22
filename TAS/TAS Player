@@ -42,6 +42,10 @@ end
 -- IMPORTANT
 local CLMAIN = getsenv(LP.PlayerScripts.CL_MAIN_GameScript) -- {newAlert = print}
 local Alert = CLMAIN.newAlert
+if Alert == nil then
+    warn("Your executor is so bad that it couldnt handle Alerts :(")
+    Alert = print
+end
 Alert("Latest TAS Player built for V64.03", Color3.new(1, 1, 1))
 local Multi = workspace.Multiplayer
 local RS = game:GetService('RunService')
