@@ -50,9 +50,9 @@ Alert("Latest TAS Player built for V64.03", Color3.new(1, 1, 1))
 local Multi = workspace.Multiplayer
 local RS = game:GetService('RunService')
 
-if not getrenv().alreadystarted then
+if not getgenv().alreadystarted then
     Alert("TAS Player Started.", Color3.fromRGB(255, 149, 5))
-    getrenv().alreadystarted = true
+    getgenv().alreadystarted = true
 else
     Alert("TAS Player ready for next map.", Color3.new(0,1,.5))
 end
@@ -243,8 +243,7 @@ else
 
                 LP.Character.Humanoid.Jump = true
                 RootPart.CFrame = NewC(CCFrame[1], CCFrame[2], CCFrame[3]) * AngC(CCFrame[4], CCFrame[5], CCFrame[6]) + Offset
-                RootPart.Velocity = NewV(VVelocity[1], VVelocity[2], VVelocity[3])
-                CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
+                --CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
                 local s, r = pcall(activateAnimation, CurrentInfo.AAnimation)
                 if s == false then
                     warn(r)
