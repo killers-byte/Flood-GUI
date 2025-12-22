@@ -62,7 +62,7 @@ local function Cleanup()
     DeathConnect:Disconnect()
     print("Cleaning Up..")
     Alert("Resetting..", Color3.new(0, 1, 1))
-    if LP.Character and LP.Character.Head then
+    if LP.Character and LP.Character:FindFirstChild("Head") then
         LP.Character.Head:Destroy()
     end
     LP.CharacterAdded:wait()
@@ -246,6 +246,9 @@ else
                 RootPart.Velocity = NewV(VVelocity[1], VVelocity[2], VVelocity[3])
                 CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
                 local s, r = pcall(activateAnimation, CurrentInfo.AAnimation)
+                if s == false then
+                    warn(r)
+                end
             end
         end
     end)
