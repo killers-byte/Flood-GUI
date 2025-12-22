@@ -1,4 +1,4 @@
-print("Latest TAS Player built for V63.21")
+print("Latest TAS Player built for V64.02")
 if Legit == nil then
     Legit = false
 end
@@ -11,8 +11,8 @@ local SkipMirroredMaps = {
     ["Active Volcanic Mines"] = true,
     ["Snowy Stronghold"] = true
 }
-if getgenv().whatthefuckisthisyoumayaskitisaverylongvariblename then
-    for _,v in ipairs(getgenv().whatthefuckisthisyoumayaskitisaverylongvariblename) do
+if State().HighlightOnlyMaps then
+    for _,v in ipairs(State().HighlightOnlyMaps) do
         SkipMirroredMaps[v] = true
     end
 end
