@@ -16,7 +16,7 @@ local CoreGui = game:GetService("CoreGui") -- Added for potential future use or 
 -- // Constants & Configuration //
 local CONFIG = {
     SCRIPT_VERSION_NAME = "Flood GUI v3",
-    LATEST_BUILD = 63.21,
+    LATEST_BUILD = 64.02,
     DEFAULT_BRANCH = "main",
     UI_LIBRARY_URL = "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua",
     TAS_BASE_URL = "https://raw.githubusercontent.com/tomatotxt/Testing/main/Flood-GUI-main/TAS%20FILES/",
@@ -60,6 +60,7 @@ if not LocalPlayer then
 end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+local Multiplayer = workspace.Multiplayer
 
 -- Accessing client environment safely
 local ClientMainScriptEnv = nil
@@ -85,6 +86,7 @@ local State = {
     NoclipEnabled = false,
     AirJumpEnabled = false,
     AutoPlayEnabled = false, -- Formerly 'play'
+    AutoCollectEnabled = false,
     SwimEnabled = false,     -- For TAS recording hook
     AutoLeaveEnabled = false,
     UIEnabled = true,
@@ -94,6 +96,9 @@ local State = {
     KavoLibrary = nil,
     UI = {}                 -- Store references to UI elements if needed later
 }
+getgenv().State = function()
+    return State
+end
 getgenv().FloodGUI_Loaded = false
 -- Check if already executed
 if getgenv().FloodGUI_Loaded then
@@ -275,6 +280,14 @@ local function getRemoteKey()
     end
 end
 
+local function Touch(Character, Part)
+    local RootPart = Character.HumanoidRootPart
+    local OriginalCFrame = RootPart.CFrame
+    RootPart.CFrame = CFrame.new(Part.Position)
+    task.wait()
+    RootPart.CFrame = OriginalCFrame
+end
+
 -- // Core Logic Functions //
 local function updateMovement()
     local char = LocalPlayer.Character
@@ -381,6 +394,15 @@ local function initializeUI()
         -- end
     end)
     State.AutoPlayEnabled = false -- Set initial state
+    secAuto:NewToggle("Auto Collect (Page-Escapee)", "Collects LostPage and Escapee automatically.", function(enabled)
+        State.AutoCollectEnabled = enabled
+        if enabled then
+             showAlert("Auto Collect Enabled", CONFIG.ALERT_COLORS.INFO)
+        else
+             showAlert("Auto Collect Disabled.", CONFIG.ALERT_COLORS.INFO)
+        end
+    end)
+    State.AutoCollectEnabled = false
 
 --[[
     secAuto:NewButton("Download TAS files", "Downloads required TAS files from GitHub.", function()
@@ -675,6 +697,27 @@ local function runTASPlayerLoop()
     end)
 end
 
+local function runAutoCollectLoop()
+    task.spawn(function()
+        while task.wait() do
+            local Map = Multiplayer:WaitForChild("NewMap")
+            Map:GetPropertyChangedSignal("Name"):Wait()
+            print("Map Loaded! V2")
+            local Character = LocalPlayer.Character
+            local Rescue = Map:FindFirstChild("_Rescue", true)
+            local LostPage = Map:FindFirstChild("_LostPage", true)
+            if Rescue then
+                Touch(Character, Rescue.Contact)
+                print("Got Escapee.")
+            end
+            if LostPage then
+                Touch(Character, LostPage)
+                print("Got Lost Page.")
+            end
+        end
+    end)
+end
+
 -- // Main Execution //
 local function main()
     print("Initializing Flood GUI...")
@@ -695,6 +738,8 @@ local function main()
 
     -- Start the TAS player loading loop (only if AutoPlay is intended to work this way)
     runTASPlayerLoop()
+    -- Start the Auto Collect loop.
+    runAutoCollectLoop()
 
     State.IsLoaded = true
     print("Flood GUI Initialized.")
