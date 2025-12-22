@@ -51,17 +51,17 @@ local Multi = workspace.Multiplayer
 local RS = game:GetService('RunService')
 
 if not getrenv().alreadystarted then
-    CLMAIN.newAlert("TAS Player Started.", Color3.fromRGB(255, 149, 5))
+    Alert("TAS Player Started.", Color3.fromRGB(255, 149, 5))
     getrenv().alreadystarted = true
 else
-    CLMAIN.newAlert("TAS Player ready for next map.", Color3.new(0,1,.5))
+    Alert("TAS Player ready for next map.", Color3.new(0,1,.5))
 end
 
 local DeathConnect
 local function Cleanup()
     DeathConnect:Disconnect()
     print("Cleaning Up..")
-    CLMAIN.newAlert("Resetting..", Color3.new(0, 1, 1))
+    Alert("Resetting..", Color3.new(0, 1, 1))
     if LP.Character and LP.Character.Head then
         LP.Character.Head:Destroy()
     end
@@ -104,17 +104,17 @@ if not TAS or Success == false or #TAS < 60 then
     if Success == false then
         warn("JSON DECODE ERROR:", Error)
     end
-    CLMAIN.newAlert("TAS file for "..mapName.." does not exist!", Color3.new(1,0,0))
+    Alert("TAS file for "..mapName.." does not exist!", Color3.new(1,0,0))
     Cleanup()
 else
     print("Total Frames:", #TAS)
-    CLMAIN.newAlert("TAS Loaded!")
+    Alert("TAS Loaded!")
     repeat task.wait() until Map.Name == "Map"
 
     local HighlightPath = game:GetService("Workspace").Multiplayer.Map.Settings:GetAttribute("Highlight")
 
     if HighlightPath then
-        CLMAIN.newAlert("Map cannot be mirrored.", Color3.fromRGB(255, 100, 0))
+        Alert("Map cannot be mirrored.", Color3.fromRGB(255, 100, 0))
         Mirrored = false
     else
         if Map:WaitForChild('Settings'):FindFirstChild("_MirrorMap") then
@@ -124,13 +124,13 @@ else
             Mirrored = false
         end
         if Mirrored == true and SkipMirroredMaps[realMapName] then
-            CLMAIN.newAlert('Map cannot be mirrored.', Color3.fromRGB(255, 100, 0))
+            Alert('Map cannot be mirrored.', Color3.fromRGB(255, 100, 0))
             Mirrored = false
         end
         if Mirrored == true then
-            CLMAIN.newAlert('Map is mirrored, TAS will be played mirrored!', Color3.fromRGB(255, 149, 5))
+            Alert('Map is mirrored, TAS will be played mirrored!', Color3.fromRGB(255, 149, 5))
         else
-            CLMAIN.newAlert('Map is not mirrored.', Color3.fromRGB(255, 149, 5))
+            Alert('Map is not mirrored.', Color3.fromRGB(255, 149, 5))
         end
     end
 
@@ -148,13 +148,13 @@ else
             end
         end
         repeat task.wait() until Spawn or Map:FindFirstChild("Spawn", true)
-        CLMAIN.newAlert("Spawn found!", Color3.fromRGB(0, 255, 0))
+        Alert("Spawn found!", Color3.fromRGB(0, 255, 0))
         return ((Spawn ~= nil) and Spawn) or Map:FindFirstChild("Spawn", true)
     end)()
 
     repeat task.wait() until LP.Character.HumanoidRootPart.Anchored == false
     local TimeStart = tick()
-    CLMAIN.newAlert('TAS Running..', Color3.fromRGB(255, 149, 5))
+    Alert('TAS Running..', Color3.fromRGB(255, 149, 5))
     PlayAnim = Animate.playAnimation
     Animate.playAnimation = function()end
 
@@ -207,7 +207,7 @@ else
         if Change == "Health" and LP.Character.Humanoid.Health == 0 then
             Death:Disconnect()
             Loop:Disconnect()
-            CLMAIN.newAlert('Player Died.', Color3.new(1, 0, 0))
+            Alert('Player Died.', Color3.new(1, 0, 0))
         end
     end)
 
@@ -226,8 +226,8 @@ else
             if (tick() - TimeStart) < CurrentInfo.time then
                 break
             elseif i >= #TAS then
-                CLMAIN.newAlert('TAS Run Finished!', Color3.new(0, 1, 0))
-                CLMAIN.newAlert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
+                Alert('TAS Run Finished!', Color3.new(0, 1, 0))
+                Alert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
                 Death:Disconnect()
                 Loop:Disconnect()
                 DeathConnect:Disconnect()
@@ -245,7 +245,7 @@ else
                 RootPart.CFrame = NewC(CCFrame[1], CCFrame[2], CCFrame[3]) * AngC(CCFrame[4], CCFrame[5], CCFrame[6]) + Offset
                 RootPart.Velocity = NewV(VVelocity[1], VVelocity[2], VVelocity[3])
                 CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
-                activateAnimation(CurrentInfo.AAnimation)
+                local s, r = pcall(activateAnimation, CurrentInfo.AAnimation)
             end
         end
     end)
