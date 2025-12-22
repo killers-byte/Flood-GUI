@@ -1,17 +1,15 @@
-print("Latest TAS Player built for V64.02")
-if Legit == nil then
-    Legit = false
-end
+print("Latest TAS Player built for V64.03")
 local SkipMirroredMaps = {
     ["Retro Coast"] = true,
     ["Zemblanity"] = true,
-    ["Northren Mill"] = true,
+    ["Northern Mill"] = true,
     ["Mysterium"] = true,
     ["Decaying Silo"] = true,
     ["Active Volcanic Mines"] = true,
-    ["Snowy Stronghold"] = true
+    ["Snowy Stronghold"] = true,
+    ["Classic Canyon"] = true
 }
-if State().HighlightOnlyMaps then
+if State and State().HighlightOnlyMaps then
     for _,v in ipairs(State().HighlightOnlyMaps) do
         SkipMirroredMaps[v] = true
     end
@@ -44,7 +42,7 @@ end
 -- IMPORTANT
 local CLMAIN = getsenv(LP.PlayerScripts.CL_MAIN_GameScript) -- {newAlert = print}
 local Alert = CLMAIN.newAlert
-Alert("Latest TAS Player built for V63.21", Color3.new(1, 1, 1))
+Alert("Latest TAS Player built for V64.03", Color3.new(1, 1, 1))
 local Multi = workspace.Multiplayer
 local RS = game:GetService('RunService')
 
@@ -70,7 +68,7 @@ local function Cleanup()
         RootPart.Velocity = Vector3.new(0, 1, 1000)
         task.wait()
     end
-    return
+    error("Cleaned Up!")
 end
 DeathConnect = LP.Character.Humanoid.Died:Connect(Cleanup)
 
@@ -93,198 +91,158 @@ else
     -- Respawn
     -- Set velocity to 0, 0, 1000
 end
-local TAS = game:GetService("HttpService"):JSONDecode(path)
-print("Total Frames:", #TAS)
-if not TAS then
+local TAS
+local Success, Error = pcall(function(...)
+    TAS = game:GetService("HttpService"):JSONDecode(path)
+end)
+
+-- I added 60 frames or more sanity check.
+if not TAS or Success == false or #TAS < 60 then
+    if Success == false then
+        warn("JSON DECODE ERROR:", Error)
+    end
     CLMAIN.newAlert("TAS file for "..mapName.." does not exist!", Color3.new(1,0,0))
     Cleanup()
 else
-CLMAIN.newAlert("TAS Loaded!")
-repeat task.wait() until Map.Name == "Map"
+    print("Total Frames:", #TAS)
+    CLMAIN.newAlert("TAS Loaded!")
+    repeat task.wait() until Map.Name == "Map"
 
-local HighlightPath = game:GetService("Workspace").Multiplayer.Map.Settings:GetAttribute("Highlight")
+    local HighlightPath = game:GetService("Workspace").Multiplayer.Map.Settings:GetAttribute("Highlight")
 
-if HighlightPath then
-    CLMAIN.newAlert("Map cannot be mirrored.", Color3.fromRGB(255, 100, 0))
-    Mirrored = false
-else
-    if Mirrored == true and SkipMirroredMaps[mapName] then
-        CLMAIN.newAlert('Map cannot be mirrored.', Color3.fromRGB(255, 100, 0))
-        Cleanup()
+    if HighlightPath then
+        CLMAIN.newAlert("Map cannot be mirrored.", Color3.fromRGB(255, 100, 0))
+        Mirrored = false
     else
-        --if Map:WaitForChild('Settings'):FindFirstChild("_MirrorMap") then
-        --    CLMAIN.newAlert('Map is not mirrored.', Color3.fromRGB(255, 149, 5))
+        if Map:WaitForChild('Settings'):FindFirstChild("_MirrorMap") then
             Mirrored = false
-        --else
-        --    CLMAIN.newAlert('Map is mirrored, TAS will be played mirrored!', Color3.fromRGB(255, 149, 5))
-        --    Mirrored = true
-        --end
-    end
-end
-
-local Spawn = (function() -- new spawn finder by "tomato.txt" on discord
-    
-    local Spawn = nil
-
-    local connections = {}
-    for _,v in ipairs(Map:GetChildren()) do
-        if v.Name == "Part" then
-            table.insert(connections, v:GetPropertyChangedSignal("Rotation"):Connect(function()
-                for _,v in ipairs(connections) do
-                    v:Disconnect()
-                end
-                Spawn = v
-            end))
+        else
+            Mirrored = true
+        end
+        if Mirrored == true and SkipMirroredMaps[realMapName] then
+            CLMAIN.newAlert('Map cannot be mirrored.', Color3.fromRGB(255, 100, 0))
+            Mirrored = false
+        end
+        if Mirrored == true then
+            CLMAIN.newAlert('Map is mirrored, TAS will be played mirrored!', Color3.fromRGB(255, 149, 5))
+        else
+            CLMAIN.newAlert('Map is not mirrored.', Color3.fromRGB(255, 149, 5))
         end
     end
-    repeat task.wait() until Spawn or Map:FindFirstChild("Spawn", true)
-    CLMAIN.newAlert("Spawn found!", Color3.fromRGB(0, 255, 0))
-    return ((Spawn ~= nil) and Spawn) or Map:FindFirstChild("Spawn", true)
-end)()
 
-
-repeat task.wait() until LP.Character.HumanoidRootPart.Anchored == false
-local TimeStart = tick()
-CLMAIN.newAlert('TAS Running..', Color3.fromRGB(255, 149, 5))
-PlayAnim = Animate.playAnimation
-Animate.playAnimation = function()end
-
-for _, v in next, Map:GetDescendants() do
-    if v.Name == 'ButtonIcon' then
-        local buttonPart = v.Parent.Parent:FindFirstChildOfClass('Part')
-        if buttonPart ~= nil then
-            buttonPart.Size = Vector3.new(6,6,6)
-        end
-    end
-end
-
---[[
-local ToggleSwim = function(val)
-    LP.Character.Animate.ToggleSwim:Fire(val)
-end
-]]
-local FE2_Hitbox = LP.Character.FE2_Hitbox
-FE2_Hitbox.CanTouch = true
-
-local function toggleTouch(bool)
-    FE2_Hitbox.CanTouch = true
-end
-
-function isRandomString(str) -- basicly detects if button 99% of the time just checks if all capital
-    for i = 1, #str do
-        local ltr = str:sub(i, i)
-        if ltr:lower() == ltr then
-            return false
-        end     
-    end
-    return true
-end
-
-
-local function badCheck(Thing) --  NOT walljump or NOT AIRTANK or explodingbutton hitbox :check:
-    local Parent = Thing.Parent
-    if not Thing:FindFirstChild("_Wall") then
-        if Parent and not (Thing.Name == "Part" and isRandomString(Parent.Name)) then
-            if Parent.Name == "AirTank" then
-                return true
+    local Spawn = (function() -- new spawn finder by "tomato.txt" on discord
+        local Spawn = nil
+        local connections = {}
+        for _,v in ipairs(Map:GetChildren()) do
+            if v.Name == "Part" then
+                table.insert(connections, v:GetPropertyChangedSignal("Rotation"):Connect(function()
+                    for _,v in ipairs(connections) do
+                        v:Disconnect()
+                    end
+                    Spawn = v
+                end))
             end
-            return true
+        end
+        repeat task.wait() until Spawn or Map:FindFirstChild("Spawn", true)
+        CLMAIN.newAlert("Spawn found!", Color3.fromRGB(0, 255, 0))
+        return ((Spawn ~= nil) and Spawn) or Map:FindFirstChild("Spawn", true)
+    end)()
+
+    repeat task.wait() until LP.Character.HumanoidRootPart.Anchored == false
+    local TimeStart = tick()
+    CLMAIN.newAlert('TAS Running..', Color3.fromRGB(255, 149, 5))
+    PlayAnim = Animate.playAnimation
+    Animate.playAnimation = function()end
+
+    for _, v in next, Map:GetDescendants() do
+        if v.Name == 'ButtonIcon' then
+            local buttonPart = v.Parent.Parent:FindFirstChildOfClass('Part')
+            if buttonPart ~= nil then
+                buttonPart.Size = Vector3.new(6,6,6)
+                buttonPart.Transparency = 0.5
+            end
+        end
+    end
+
+    function isRandomString(str) -- basicly detects if button works 99% of the time just checks if all capital
+        for i = 1, #str do
+            local ltr = str:sub(i, i)
+            if ltr:lower() == ltr then
+                return false
+            end     
         end
         return true
     end
-    return false
-end
-local walljumpfix
-walljumpfix = LP.Character.HumanoidRootPart.Touched:Connect(function(Thing)
-    if badCheck(Thing) then
-        toggleTouch(true)
-    elseif Thing.Name == "RopeStart" then
-        toggleTouch(true)
-    else
-        --print("Didn't Touch:", Thing:GetFullName())
-    end
-end)
 
-local walljumpfix2
-walljumpfix2 = LP.Character.HumanoidRootPart.TouchEnded:Connect(function(Thing)
-    if badCheck(Thing) then
-        toggleTouch(false)
-    elseif Thing.Name == "RopeStart" then
-        toggleTouch(false)
-    end
-end)
-
-local function activateAnimation(CurrentAnimation)
-    local CurrentAnimation = CurrentAnimation
-    if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then
-        CurrentAnimation[1] = "swing"
-    end
-    if CurrentAnimation and CurrentAnimation[1] and CurrentAnimation[2] and LP.Character and LP.Character.Humanoid then
-        PlayAnim(CurrentAnimation[1],CurrentAnimation[2], LP.Character.Humanoid)
-        if CurrentAnimation[1] == "walk" then
-            Animate.setAnimationSpeed(.76) 
-        elseif CurrentAnimation[1] == "slide" then
-            task.spawn(doSlide, 0.25)
+    local function activateAnimation(CurrentAnimation)
+        local CurrentAnimation = CurrentAnimation
+        if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then
+            CurrentAnimation[1] = "swing"
+        end
+        if CurrentAnimation and CurrentAnimation[1] and CurrentAnimation[2] and LP.Character and LP.Character.Humanoid then
+            Animate.playAnimation = function()end
+            PlayAnim(CurrentAnimation[1],CurrentAnimation[2], LP.Character.Humanoid)
+            if CurrentAnimation[1] == "walk" then
+                Animate.setAnimationSpeed(.76) 
+            elseif CurrentAnimation[1] == "slide" then
+                task.spawn(doSlide, 0.25)
+            end
+        end
+        if CurrentAnimation == nil then
+            Animate.playAnimation = PlayAnim
         end
     end
-end
 
-local Offset = Spawn.Position - NewV(0, 1000, 0)
-local OldFrame = 3
+    local Offset = Spawn.Position - NewV(0, 1000, 0)
+    local OldFrame = 3
 
-local Loop
-local Death
+    local Loop
+    local Death
 
-Death = LP.Character.Humanoid.Changed:Connect(function(Change)
-    if Change == "Health" and LP.Character.Humanoid.Health == 0 then
-        Death:Disconnect()
-        Loop:Disconnect()
-        CLMAIN.newAlert('Player Died.', Color3.new(1, 0, 0))
-    end
-end)
-
-local RootPart = LP.Character.HumanoidRootPart
-if Legit then
-    RootPart.RootJoint.Enabled = false
-end
-
-Loop = RS.Heartbeat:Connect(function(DeltaTime) --Heartbeat
-    -- God Mode may cause problems with other health based features.
-    LP.Character.Humanoid.Health = 99999
-    LP.Character.Humanoid.Jump = true
-    local NewFrame = #TAS
-    local Divider = OldFrame + 60
-    if Divider < #TAS then
-        NewFrame = Divider
-    end
-    for i = OldFrame, NewFrame do
-        local CurrentInfo = TAS[i]
-        if (tick() - TimeStart) < CurrentInfo.time then
-            break
-        elseif i >= #TAS then
-            CLMAIN.newAlert('TAS Run Finished!', Color3.new(0, 1, 0))
-            CLMAIN.newAlert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
+    Death = LP.Character.Humanoid.Changed:Connect(function(Change)
+        if Change == "Health" and LP.Character.Humanoid.Health == 0 then
             Death:Disconnect()
             Loop:Disconnect()
-            DeathConnect:Disconnect()
-            Animate.playAnimation = PlayAnim
-            if LP.Character and LP.Character.Humanoid then
-                Animate.playAnimation("idle", 0.1, LP.Character.Humanoid)
-            end
-            walljumpfix:Disconnect()
-            walljumpfix2:Disconnect()
-            toggleTouch(true)
-            if Legit then
-                RootPart.RootJoint.Enabled = true
-            end
-        elseif (tick() - TimeStart) >= CurrentInfo.time then
-            OldFrame = i
-            local CCFrame = CurrentInfo.CCFrame
-            local CCameraCFrame = CurrentInfo.CCameraCFrame
-            RootPart.CFrame = NewC(CCFrame[1], CCFrame[2], CCFrame[3]) * AngC(CCFrame[4], CCFrame[5], CCFrame[6]) + Offset
-            --CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
-            activateAnimation(CurrentInfo.AAnimation)
+            CLMAIN.newAlert('Player Died.', Color3.new(1, 0, 0))
         end
-    end
-end)
+    end)
+
+    local RootPart = LP.Character.HumanoidRootPart
+
+    Loop = RS.Heartbeat:Connect(function(DeltaTime)
+        -- God Mode may cause problems with other health based features.
+        LP.Character.Humanoid.Health = 99999
+        local NewFrame = #TAS
+        local Divider = OldFrame + 60
+        if Divider < #TAS then
+            NewFrame = Divider
+        end
+        for i = OldFrame, NewFrame do
+            local CurrentInfo = TAS[i]
+            if (tick() - TimeStart) < CurrentInfo.time then
+                break
+            elseif i >= #TAS then
+                CLMAIN.newAlert('TAS Run Finished!', Color3.new(0, 1, 0))
+                CLMAIN.newAlert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
+                Death:Disconnect()
+                Loop:Disconnect()
+                DeathConnect:Disconnect()
+                Animate.playAnimation = PlayAnim
+                if LP.Character and LP.Character.Humanoid then
+                    Animate.playAnimation("idle", 0.1, LP.Character.Humanoid)
+                end
+            elseif (tick() - TimeStart) >= CurrentInfo.time then
+                OldFrame = i
+                local CCFrame = CurrentInfo.CCFrame
+                local VVelocity = CurrentInfo.VVelocity
+                local CCameraCFrame = CurrentInfo.CCameraCFrame
+
+                LP.Character.Humanoid.Jump = true
+                RootPart.CFrame = NewC(CCFrame[1], CCFrame[2], CCFrame[3]) * AngC(CCFrame[4], CCFrame[5], CCFrame[6]) + Offset
+                RootPart.Velocity = NewV(VVelocity[1], VVelocity[2], VVelocity[3])
+                CurrentCamera.CFrame = NewC(CCameraCFrame[1], CCameraCFrame[2], CCameraCFrame[3]) * AngC(CCameraCFrame[4], CCameraCFrame[5], CCameraCFrame[6]) + Offset
+                activateAnimation(CurrentInfo.AAnimation)
+            end
+        end
+    end)
 end
