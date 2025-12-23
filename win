@@ -1,7 +1,7 @@
 getgenv().TomatoAutoFarm = false
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 50
+local EXITREGION_MAX_ATTEMPTS = 250
 local CHECK_DELAY = 0
 local BUTTON_DELAY = 0
 local EXITREGION_WAIT = 0
@@ -14,7 +14,7 @@ local CLMAIN = LocalPlayer.PlayerScripts.CL_MAIN_GameScript
 local CLMAINenv = getsenv(CLMAIN)
 local gameAlert = CLMAINenv.newAlert
 local Alert
-if CLMAINenv then
+if CLMAINenv and gameAlert then
     Alert = function(...)
         if ALERTS_ENABLED then
             local Output = tostring(...)
@@ -23,6 +23,7 @@ if CLMAINenv then
         end
     end
 else
+    print("Your executor does not support Alerts.")
     Alert = print
 end
 
@@ -86,30 +87,22 @@ local function OnMapLoad(Map)
     end
     local HumanoidRootPart = GetChar().HumanoidRootPart
     -- Grab Lost Page and Escapee
-    local OriginalCFrame = HumanoidRootPart.CFrame
     local LostPage = Map:FindFirstChild("_LostPage", true)
+    local Rescue = Map:FindFirstChild("_Rescue", true)
+    local OriginalCFrame = HumanoidRootPart.CFrame
     if LostPage then
         HumanoidRootPart.CFrame = LostPage.CFrame
         task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Lost Page.")
     end
-    local Escapee = Map:FindFirstChild("NPC", true)
-    if Escapee then
-        Escapee = Escapee.Parent
-        if Escapee then
-            Escapee = Escapee.Contact
-        else
-            Escapee = Map:FindFirstChild("Contact", true)
-        end
-        if Escapee then
-            local OriginalCFrame = HumanoidRootPart.CFrame
-            HumanoidRootPart.CFrame = Escapee.CFrame
-            task.wait()
-            HumanoidRootPart.CFrame = OriginalCFrame
-            Alert("Got Escapee.")
-        end
+    if Rescue then
+        HumanoidRootPart.CFrame = Rescue.Contact.CFrame
+        task.wait()
+        HumanoidRootPart.CFrame = OriginalCFrame
+        print("Got Escapee.")
     end
+
     -- Auto Farm Loop
     Alert("Commencing Auto Farm")
     local CurrentButton = nil
@@ -160,9 +153,8 @@ local function OnMapLoad(Map)
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts += 1
                 -- Teleport to ExitRegion
-                HumanoidRootPart.CFrame = ExitRegion.CFrame -- Vector3.new(0, 10, 0)
-                Humanoid:ChangeState(Enum.HumanoidStateType.Landed)
-                HumanoidRootPart.Velocity = Vector3.new(50, -1, 50)
+                HumanoidRootPart.CFrame = CFrame.new(ExitRegion.Position) -- Vector3.new(0, 10, 0)
+                Humanoid:ChangeState(Enum.HumanoidStateType.Running)
                 task.wait()
                 if (HumanoidRootPart.Position - ExitRegion.Position).Magnitude <= 5 then
                     -- Speed it up.
@@ -179,17 +171,10 @@ local function OnMapLoad(Map)
     Alert("Complete.")
     GodMode:Disconnect()
     GodMode = nil
-    Alert("Preparing for next Map! Resetting..")
-    GetChar().Head:Destroy()
-    Alert("Waiting for Player..")
-    task.wait(2)
-    local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
-    HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
-    repeat
-        task.wait()
-        HumanoidRootPart.Velocity = Vector3.new(0, 0, 100)
-    until Check("InLift")
-    --ConnectMap()
+    
+    -- [REMOVED] Reset and Re-entry logic was here. 
+    -- We now just update the status and end the function.
+    Alert("Waiting for next Map...")
 end
 
 ConnectMap = function()
@@ -217,12 +202,12 @@ while wait() do
             MapDetect = nil
         end
     end
-    if Check("InLift") == true and not MapDetect then
+    
+    -- [MODIFIED] Check removed. Always connect if not connected.
+    if not MapDetect then
         ConnectMap()
-    elseif Check("InLift") == false and MapDetect then
-        MapDetect:Disconnect()
-        MapDetect = nil
     end
+    
     if _G.LoopCancel == true then
         _G.LoopCancel = false
         Cancel()
