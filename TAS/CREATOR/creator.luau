@@ -1,7 +1,8 @@
 --[[
-    FE2 TAS Creator (Visuals Updated)
-    - Non-Collidable parts are now set to 0.3 Transparency on load.
-    - All previous fixes preserved.
+    FE2 TAS Creator (Optimized Export)
+    - SaveRun now strictly rounds ALL numbers (Time, CFrame, Velocity) to 3 decimals.
+    - Drastically reduces JSON file size.
+    - All previous functionality (Visuals, Physics, UI) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -63,7 +64,6 @@ local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable, CharConnection
 
 -- // HELPER FUNCTIONS //
 
--- Collision Toggle (Defined early)
 local function ToggleCollision()
     local mouse = LocalPlayer:GetMouse()
     if mouse and mouse.Target then
@@ -254,7 +254,7 @@ local function SetupMap()
     -- Visual Setup
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
-             -- [UPDATED] Reveal triggers/fake walls
+             -- Reveal triggers/fake walls
              if not obj.CanCollide then
                  obj.Transparency = 0.3
              end
@@ -360,38 +360,49 @@ local function PlaybackTAS(Data)
     end)
 end
 
--- // SAVE RUN //
+-- // SAVE RUN (OPTIMIZED ROUNDING) //
 local function SaveRun()
+    local function Round(n)
+        return math.floor(n * 1000 + 0.5) / 1000
+    end
+
     local Export = {}
+    
     for i = 1, #Savestates do
         for j = 1, #Savestates[i] do
             local F = Savestates[i][j]
             local Entry = {}
-            Entry.AAnimationChanged = F.Animation[2]
-            Entry.VVelocity = {F.Velocity.X, F.Velocity.Y, F.Velocity.Z}
-            Entry.CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, F.CameraCFrame:ToEulerAnglesXYZ()}
-            Entry.CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, F.CFrame:ToEulerAnglesXYZ()}
+            
+            -- Round Time
+            Entry.time = Round(F.Time)
+            
+            -- Animation Info
             Entry.AAnimation = F.Animation or {"walk", 0.1}
-            Entry.time = F.Time
+            Entry.AAnimationChanged = F.Animation[2] 
+            
+            -- Round Velocity
+            Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
+            
+            -- Round Player CFrame
+            local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
+            Entry.CCFrame = {
+                Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
+                {Round(rx), Round(ry), Round(rz)}
+            }
+            
+            -- Round Camera CFrame
+            local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
+            Entry.CCameraCFrame = {
+                Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
+                {Round(crx), Round(cry), Round(crz)}
+            }
+            
             table.insert(Export, Entry)
         end
     end
     
-    local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
-    local FinalExport = {}
-    for _, v in ipairs(Export) do
-        local newV = {}
-        for k, val in pairs(v) do
-            if type(val) == "table" then
-                local t = {}
-                for _, n in ipairs(val) do table.insert(t, (type(n) == "number") and Round(n) or n) end
-                newV[k] = t
-            else newV[k] = Round(val) end
-        end
-        table.insert(FinalExport, newV)
-    end
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
-    writefile("Flood-GUI/TAS FILES/" .. ClonedMap.Settings:GetAttribute("MapName") .. ".json", game:GetService("HttpService"):JSONEncode(FinalExport))
+    writefile("Flood-GUI/TAS FILES/" .. ClonedMap.Settings:GetAttribute("MapName") .. ".json", game:GetService("HttpService"):JSONEncode(Export))
     NewAlert("Saved", Color3.fromRGB(0, 255, 0), 1)
 end
 
