@@ -1,8 +1,9 @@
 --[[
-    FE2 TAS Creator (Optimized Export)
-    - SaveRun now strictly rounds ALL numbers (Time, CFrame, Velocity) to 3 decimals.
-    - Drastically reduces JSON file size.
-    - All previous functionality (Visuals, Physics, UI) preserved.
+    FE2 TAS Creator (Alerts Fixed)
+    - Re-implemented the Alert System robustly (waits for game script).
+    - Button Touched alerts are now prioritized.
+    - Added "CanTouch = true" to buttons to ensure detection.
+    - All previous functionality preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -28,12 +29,44 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local NewAlert = getsenv(LocalPlayer.PlayerScripts.CL_MAIN_GameScript).newAlert
+
+-- // ALERT SYSTEM SETUP //
+-- We wait for the game script to ensure NewAlert isn't nil
+local NewAlert = nil
+local function SetupAlerts()
+    local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
+    if GameScript then
+        local success, env = pcall(getsenv, GameScript)
+        if success and env.newAlert then
+            NewAlert = env.newAlert
+        end
+    end
+end
+SetupAlerts()
+
+local function SendAlert(msg, color)
+    if NewAlert then
+        pcall(function() NewAlert(msg, color) end)
+    else
+        -- Try to grab it again if it failed previously
+        SetupAlerts()
+        if NewAlert then pcall(function() NewAlert(msg, color) end) end
+    end
+end
+
+-- // INITIAL ALERT //
+SendAlert("TAS Creator Initialized", Color3.fromRGB(183, 0, 255))
 
 -- // BYPASSES //
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
-    if key == "Archivable" and not checkcaller() then return false end
+    if not checkcaller() then
+        if key == "Archivable" then return false end
+        -- Auto-Swim Hook
+        if getgenv().IsSwimming and key == "Position" and self.Name == "HumanoidRootPart" then
+            return Vector3.new(-23, -153, 0)
+        end
+    end
     return OldIndex(self, key)
 end)
 
@@ -55,6 +88,10 @@ local RunStart
 local SavedVelocity = Vector3.new(0, 0, 0)
 local ButtonDebounce = false
 
+-- Auto-Swim Global
+getgenv().IsSwimming = false
+local WaterParts = {}
+
 -- UI Variables
 local TAS_UI = loadstring(game:HttpGet(UI_API_URL))()
 local UI_Elements, TimeText, FrameCountLabel, StatusLabel
@@ -75,6 +112,14 @@ local function ToggleCollision()
             target.Transparency = 0.8
         end
     end
+end
+
+local function IsPointInPart(part, point)
+    local rel = part.CFrame:PointToObjectSpace(point)
+    local halfSize = part.Size / 2
+    return math.abs(rel.X) <= halfSize.X and 
+           math.abs(rel.Y) <= halfSize.Y and 
+           math.abs(rel.Z) <= halfSize.Z
 end
 
 local function GetPlayerCFrame()
@@ -251,22 +296,33 @@ local function SetupMap()
     
     task.wait(2)
     
-    -- Visual Setup
+    WaterParts = {}
+    
+    -- Visual Setup & Button Logic
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
-             -- Reveal triggers/fake walls
-             if not obj.CanCollide then
-                 obj.Transparency = 0.3
+             -- Cache Water
+             if obj.Name:find("_Water") then
+                 table.insert(WaterParts, obj)
              end
              
-             -- Button Highlighter
+             -- Ghost visuals for non-collidables
+             if not obj.CanCollide then
+                 obj.Transparency = 0.8
+             end
+             
+             -- Button Highlighter & Touch
              if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
                  local sel = Instance.new("SelectionBox", obj)
                  sel.Adornee = obj
                  sel.Color3 = Color3.fromRGB(255, 140, 0)
+                 
+                 -- [CRITICAL] Ensure it can be touched
+                 obj.CanTouch = true 
+                 
                  obj.Touched:Connect(function()
                      if not ButtonDebounce then
-                         NewAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
+                         SendAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
                          ButtonDebounce = true
                          task.wait(1)
                          ButtonDebounce = false
@@ -276,6 +332,7 @@ local function SetupMap()
         end
     end
     if MP:FindFirstChild("Map") then MP.Map:Destroy() end
+    SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
 -- // FAST FORWARD & REWIND //
@@ -360,50 +417,39 @@ local function PlaybackTAS(Data)
     end)
 end
 
--- // SAVE RUN (OPTIMIZED ROUNDING) //
+-- // SAVE RUN //
 local function SaveRun()
     local function Round(n)
         return math.floor(n * 1000 + 0.5) / 1000
     end
 
     local Export = {}
-    
     for i = 1, #Savestates do
         for j = 1, #Savestates[i] do
             local F = Savestates[i][j]
             local Entry = {}
-            
-            -- Round Time
             Entry.time = Round(F.Time)
-            
-            -- Animation Info
             Entry.AAnimation = F.Animation or {"walk", 0.1}
             Entry.AAnimationChanged = F.Animation[2] 
-            
-            -- Round Velocity
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
             
-            -- Round Player CFrame
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
             Entry.CCFrame = {
                 Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
                 {Round(rx), Round(ry), Round(rz)}
             }
-            
-            -- Round Camera CFrame
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
             Entry.CCameraCFrame = {
                 Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
                 {Round(crx), Round(cry), Round(crz)}
             }
-            
             table.insert(Export, Entry)
         end
     end
     
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
     writefile("Flood-GUI/TAS FILES/" .. ClonedMap.Settings:GetAttribute("MapName") .. ".json", game:GetService("HttpService"):JSONEncode(Export))
-    NewAlert("Saved", Color3.fromRGB(0, 255, 0), 1)
+    SendAlert("Saved", Color3.fromRGB(0, 255, 0))
 end
 
 local function ResetToNormal()
@@ -439,6 +485,18 @@ RunService.Heartbeat:Connect(function()
         table.insert(Frames, CaptureFrameData())
         if tick() - LastHeartbeat >= 2 then LastHeartbeat = tick() end
     else LastHeartbeat = tick() end
+    
+    -- Auto-Swim Check
+    local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
+    local InWater = false
+    for _, waterPart in ipairs(WaterParts) do
+        if IsPointInPart(waterPart, PlayerPos) then
+            InWater = true
+            break
+        end
+    end
+    getgenv().IsSwimming = InWater
+    
     UI_Elements.SavestatesCount.Text = "Savestates " .. tostring(#Savestates)
     FrameCountLabel.Text = "Frames " .. tostring(#Frames)
 end)
@@ -449,7 +507,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe then
         local k = input.KeyCode.Name
         if k == Keybinds.UserPause then TogglePause()
-        elseif k == Keybinds.AddSavestate then NewAlert("Added Savestate", Color3.fromRGB(0, 255, 0), 1); table.insert(Savestates, Frames); Frames = {}
+        elseif k == Keybinds.AddSavestate then SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0)); table.insert(Savestates, Frames); Frames = {}
         elseif k == Keybinds.RemoveSavestate then RemoveSavestate()
         elseif k == Keybinds.BackSavestate then task.spawn(LoadLastSavestate)
         elseif k == Keybinds.CollisionToggler then ToggleCollision()
@@ -460,7 +518,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
-                NewAlert("Added Savestate", Color3.fromRGB(0, 255, 0), 1); table.insert(Savestates, Frames); Frames = {}
+                SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0)); table.insert(Savestates, Frames); Frames = {}
                 local Data = {}
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
