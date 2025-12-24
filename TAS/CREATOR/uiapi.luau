@@ -1,5 +1,5 @@
 --[[ 
-    FE2 TAS UI Library (Readable & Fixed Shadows)
+    FE2 TAS UI Library (Fixed Shadows & Alignment)
 ]]
 
 local TAS_UI = {}
@@ -21,8 +21,8 @@ function TAS_UI.Create()
     HUDFrame.AnchorPoint = Vector2.new(0.5, 0)
     HUDFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
     HUDFrame.BackgroundTransparency = 1.000
-    HUDFrame.Position = UDim2.new(0.5, 0, 0.89, 0)
-    HUDFrame.Size = UDim2.new(1, 0, 0.0825, 0)
+    HUDFrame.Position = UDim2.new(0.5, 0, 0.889999986, 0)
+    HUDFrame.Size = UDim2.new(1, 0, 0.0825000033, 0)
     HUDFrame.SizeConstraint = Enum.SizeConstraint.RelativeYY
     HUDFrame.ZIndex = 3
 
@@ -122,7 +122,7 @@ function TAS_UI.Create()
     KeybindButton.TextSize = 20.000
 
     -- // 5. Keybinds Menu (Foreground) //
-    -- Original scale coordinates
+    -- Original scale coordinates from the TAS Creator source
     local KB_Position = UDim2.new(0.54838, 0, -2.4152, 0)
     local KB_Size = UDim2.new(-0.02195, 278, 3.5152, 0)
 
@@ -141,14 +141,15 @@ function TAS_UI.Create()
     KeyList.Padding = UDim.new(0, -4)
 
     -- // 6. Keybinds Shadow (Background) //
-    -- This is the fix: forcing it to match KeyBindFrame properties
+    -- FIX: Force the shadow frame to use the exact same Scale coordinates as the text frame
+    -- The original used Offset which caused it to drift on different resolutions.
     local ShadowFrame = Instance.new("Frame")
     ShadowFrame.Name = "ShadowFrame"
     ShadowFrame.Parent = BackgroundLayer
     ShadowFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
     ShadowFrame.BackgroundTransparency = 0.500
-    ShadowFrame.Position = KB_Position -- Locked to same pos
-    ShadowFrame.Size = KB_Size         -- Locked to same size
+    ShadowFrame.Position = KB_Position -- Matched
+    ShadowFrame.Size = KB_Size         -- Matched
     ShadowFrame.Visible = false
     ShadowFrame.ZIndex = -2
 
