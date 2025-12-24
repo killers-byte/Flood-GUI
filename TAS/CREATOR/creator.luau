@@ -1,9 +1,8 @@
 --[[
-    FE2 TAS Creator (Deobfuscated & Fixed)
-    Includes:
-    - Velocity Preservation
-    - ViewTAS Fixes
-    - Touch Detection
+    FE2 TAS Creator (Runtime Fixes Applied)
+    - Fixed "lacking capability Plugin" crash by spawning UI updates (Original logic restored).
+    - Fixed "Attempt to call nil" for Collision Toggle.
+    - All previous fixes (Velocity, Animations) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -58,13 +57,23 @@ local ButtonDebounce = false
 
 -- UI Variables
 local TAS_UI = loadstring(game:HttpGet(UI_API_URL))()
-local UI_Elements
-local TimeText, FrameCountLabel, StatusLabel
+local UI_Elements, TimeText, FrameCountLabel, StatusLabel
 
 -- Map Variables
 local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable, CharConnection
 
 -- // HELPER FUNCTIONS //
+
+-- Moved up to prevent nil error
+local function ToggleCollision()
+    local mouse = LocalPlayer:GetMouse()
+    if mouse and mouse.Target then
+        local target = mouse.Target
+        target.CanCollide = not target.CanCollide
+        target.Transparency = target.CanCollide and 0 or 0.8
+    end
+end
+
 local function GetPlayerCFrame()
     local Root = LocalPlayer.Character.HumanoidRootPart
     local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = Root.CFrame:GetComponents()
@@ -86,6 +95,14 @@ local function LoadUI()
     TimeText = UI_Elements.TimeText
     FrameCountLabel = UI_Elements.FrameCount
     StatusLabel = UI_Elements.StatusText
+end
+
+local function UpdateTime()
+    local dp = tick() - RunStart - TimeOffset
+    local m = math.floor(dp / 60)
+    local s = math.floor(dp % 60)
+    local ms = math.floor(dp * 1000 % 1000)
+    TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
 end
 
 local function HookAnimations()
@@ -146,11 +163,7 @@ local function LoadLastSavestate()
         OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
         if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
         
-        local dp = tick() - RunStart - TimeOffset
-        local m = math.floor(dp / 60)
-        local s = math.floor(dp % 60)
-        local ms = math.floor(dp * 1000 % 1000)
-        TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
+        task.spawn(UpdateTime) -- Spawned to prevent thread error
     end
 end
 
@@ -283,11 +296,9 @@ local function RewindFrame()
             TimeOffset = 0
             if Frame.Animation[1] then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
-            local dp = tick() - RunStart - TimeOffset
-            local m = math.floor(dp / 60)
-            local s = math.floor(dp % 60)
-            local ms = math.floor(dp * 1000 % 1000)
-            TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
+            
+            task.spawn(UpdateTime) -- [FIX] Spawned to prevent thread security crash
+            
             Frames[#Frames] = nil
         end
     end
@@ -377,6 +388,13 @@ local function SaveRun()
     NewAlert("Saved", Color3.fromRGB(0, 255, 0), 1)
 end
 
+local function ResetToNormal()
+    CharConnection:Disconnect()
+    ClonedMap:Destroy()
+    UI_Elements.ScreenGui:Destroy()
+    LocalPlayer.Character.Humanoid.Health = 0
+end
+
 -- // MAIN EXECUTION //
 task.spawn(function()
     local FE2Char = LocalPlayer.Character:WaitForChild("FE2_Character")
@@ -421,7 +439,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.GoFrameForward then
             if not IsFastForwarding then IsFastForwarding = true; task.spawn(FastForwardLoop) end
         elseif k == Keybinds.GoFrameBack then task.spawn(RewindLoop)
-        elseif k == Keybinds.ResetToNormal then CharConnection:Disconnect(); ClonedMap:Destroy(); UI_Elements.ScreenGui:Destroy(); LocalPlayer.Character.Humanoid.Health = 0
+        elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
                 NewAlert("Added Savestate", Color3.fromRGB(0, 255, 0), 1); table.insert(Savestates, Frames); Frames = {}
