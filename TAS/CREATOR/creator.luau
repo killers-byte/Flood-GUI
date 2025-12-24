@@ -1,8 +1,7 @@
 --[[
-    FE2 TAS Creator (Runtime Fixes Applied)
-    - Fixed "lacking capability Plugin" crash by spawning UI updates (Original logic restored).
-    - Fixed "Attempt to call nil" for Collision Toggle.
-    - All previous fixes (Velocity, Animations) preserved.
+    FE2 TAS Creator (Visuals Updated)
+    - Non-Collidable parts are now set to 0.3 Transparency on load.
+    - All previous fixes preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -64,13 +63,17 @@ local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable, CharConnection
 
 -- // HELPER FUNCTIONS //
 
--- Moved up to prevent nil error
+-- Collision Toggle (Defined early)
 local function ToggleCollision()
     local mouse = LocalPlayer:GetMouse()
     if mouse and mouse.Target then
         local target = mouse.Target
         target.CanCollide = not target.CanCollide
-        target.Transparency = target.CanCollide and 0 or 0.8
+        if target.CanCollide then
+            target.Transparency = 0
+        else
+            target.Transparency = 0.8
+        end
     end
 end
 
@@ -163,7 +166,7 @@ local function LoadLastSavestate()
         OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
         if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
         
-        task.spawn(UpdateTime) -- Spawned to prevent thread error
+        task.spawn(UpdateTime)
     end
 end
 
@@ -247,11 +250,16 @@ local function SetupMap()
     end)
     
     task.wait(2)
+    
+    -- Visual Setup
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
-             if obj.Name ~= "Part" then
-                 pcall(function() obj.Transparency = (obj.CanCollide and 0.5) or 0.8 end)
+             -- [UPDATED] Reveal triggers/fake walls
+             if not obj.CanCollide then
+                 obj.Transparency = 0.3
              end
+             
+             -- Button Highlighter
              if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
                  local sel = Instance.new("SelectionBox", obj)
                  sel.Adornee = obj
@@ -297,8 +305,7 @@ local function RewindFrame()
             if Frame.Animation[1] then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
             
-            task.spawn(UpdateTime) -- [FIX] Spawned to prevent thread security crash
-            
+            task.spawn(UpdateTime)
             Frames[#Frames] = nil
         end
     end
