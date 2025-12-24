@@ -1,12 +1,13 @@
 --[[
-    FE2 TAS Creator (Original Logic Logic - Deobfuscated)
-    - Original "Hold 4/5" loops preserved
-    - Original "View TAS" flattening logic preserved
-    - Velocity Fix Added (No more stopping when unpausing)
-    - Anti-Crash Hooks Preserved
+    FE2 TAS Creator (Feature Complete)
+    - UI Loaded via API
+    - Velocity Fix (Pause doesn't kill momentum)
+    - ViewTAS Animation Fix (No stuttering)
+    - Slide Hitbox Logic Restored
+    - Button Highlighting & Touch Detection Restored
 ]]
 
-local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau" -- PUT YOUR RAW LINK HERE
+local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
 print("Latest TAS Creator built for FE2 v63.21 by tomato.txt")
 
@@ -31,7 +32,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local NewAlert = getsenv(LocalPlayer.PlayerScripts.CL_MAIN_GameScript).newAlert
 
--- // BYPASSES (Critical) //
+-- // BYPASSES //
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
     if key == "Archivable" and not checkcaller() then
@@ -50,20 +51,21 @@ local CurrentAnim = {}
 local Savestates = {}
 local Frames = {}
 local TimeOffset = 0
-local IsPaused = true -- (Originally 't')
+local IsPaused = true
 local PauseStart
 local OriginalPlayAnim
 local AnimEnv
 local RunStart
-local TimeText -- (UI)
-local GameStats -- (UI)
-local FrameCountLabel -- (UI)
-local StatusLabel -- (UI)
+local TimeText
+local GameStats
+local FrameCountLabel
+local StatusLabel
 local MapName
 local CharConnection
 
--- Velocity Fix Variable
+-- Fix Variables
 local SavedVelocity = Vector3.new(0, 0, 0) 
+local ButtonDebounce = false -- Restored for button touch logic
 
 local MapOffset, MapPos, MapX, MapY, MapZ
 
@@ -72,7 +74,6 @@ local MapOffset, MapPos, MapX, MapY, MapZ
 local function GetPlayerCFrame()
     local Root = LocalPlayer.Character.HumanoidRootPart
     local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = Root.CFrame:GetComponents()
-    -- Matches original math: y - MapY + 1000
     local NewCF = CFrame.new(x - MapX, y - MapY + 1000, z - MapZ, R00, R01, R02, R10, R11, R12, R20, R21, R22)
     return NewCF
 end
@@ -88,7 +89,6 @@ local function CaptureFrameData()
 end
 
 local function ToggleObjectVisibility(obj)
-    -- Simplified check from original 'V' function
     obj.CanCollide = not obj.CanCollide
     if obj.CanCollide == false then
         obj.Transparency = 0
@@ -110,7 +110,8 @@ end
 -- // ANIMATION HOOK //
 local function HookAnimations()
     repeat
-        AnimEnv = getsenv(LocalPlayer.Character:WaitForChild("Animate"))
+        local AnimateScript = LocalPlayer.Character:WaitForChild("Animate")
+        AnimEnv = getsenv(AnimateScript)
         task.wait()
     until AnimEnv.playAnimation ~= nil
     
@@ -128,7 +129,6 @@ end
 local RopeTable = {}
 local ClonedMap
 local function SetupMap()
-    -- Wait for map logic (original 'a0')
     local MP = game.Workspace.Multiplayer
     local Map = MP:WaitForChild("Map")
     local Spawn = Map:FindFirstChild("Spawn", true)
@@ -151,7 +151,6 @@ local function SetupMap()
     end
 
     MapName = Map.Settings:GetAttribute("MapName")
-    print(MapName)
     
     for _, desc in pairs(Map:GetDescendants()) do
         desc.Archivable = true
@@ -173,7 +172,6 @@ local function SetupMap()
     local FE2Char = Char:WaitForChild("FE2_Character")
     task.wait(1)
     
-    -- Rope Logic
     local FE2Env = getsenv(FE2Char)
     local startZipline = FE2Env.startZipline
     if #RopeTable >= 1 then
@@ -218,24 +216,37 @@ local function SetupMap()
     end)
     
     task.wait(2)
-    -- Reveal Logic
+    
+    -- // BUTTON HIGHLIGHTER & TOUCH LOGIC //
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
-             -- (Simplifying obfuscated loop checks slightly while keeping logic)
-             if obj.Name ~= "Part" then -- Heuristic from original
+             -- Hide fake parts
+             if obj.Name ~= "Part" then
                  pcall(ToggleObjectVisibility, obj)
              end
              
+             -- Identify Buttons
              if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
+                 -- Highlight (Visual)
                  local sel = Instance.new("SelectionBox", obj)
                  sel.Adornee = obj
                  sel.Color3 = Color3.fromRGB(255, 140, 0)
+                 
+                 -- Touch Detection (Functional - Restored)
+                 obj.Touched:Connect(function()
+                     if not ButtonDebounce then
+                         NewAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
+                         ButtonDebounce = true
+                         task.wait(1)
+                         ButtonDebounce = false
+                     end
+                 end)
              end
         end
     end
     
     if MP:FindFirstChild("Map") then MP.Map:Destroy() end
-    print("Finished setting up map")
+    NewAlert("TAS Creator Loaded", Color3.fromRGB(0, 255, 0), 1)
 end
 
 local function UpdateSavestateCount()
@@ -250,15 +261,14 @@ local function UpdateTime()
     TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
 end
 
--- // CORE TAS FUNCTIONS //
+-- // TAS FUNCTIONS //
 
--- Toggle Pause (dt) - VELOCITY FIX ADDED
 local function TogglePause()
     IsPaused = not IsPaused
     local Root = LocalPlayer.Character.HumanoidRootPart
     
     if IsPaused then
-        SavedVelocity = Root.Velocity -- [FIX] Save speed
+        SavedVelocity = Root.Velocity
         Root.Anchored = true
         TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
         PauseStart = tick()
@@ -266,7 +276,7 @@ local function TogglePause()
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     else
         Root.Anchored = false
-        Root.Velocity = SavedVelocity -- [FIX] Apply speed
+        Root.Velocity = SavedVelocity
         TimeText.TextColor3 = Color3.fromRGB(255, 255, 255)
         TimeOffset = TimeOffset + tick() - PauseStart
         StatusLabel.Text = "CapsLock : Unpaused"
@@ -274,7 +284,6 @@ local function TogglePause()
     end
 end
 
--- Load Savestate (du) - VELOCITY FIX ADDED
 local function LoadLastSavestate()
     local LastState = Savestates[#Savestates]
     if LastState then
@@ -289,7 +298,7 @@ local function LoadLastSavestate()
         
         Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
         Root.Velocity = Frame.Velocity
-        SavedVelocity = Frame.Velocity -- [FIX] Update buffer
+        SavedVelocity = Frame.Velocity
         
         workspace.CurrentCamera.CFrame = Frame.CameraCFrame
         PauseStart = tick()
@@ -307,13 +316,13 @@ local function UpdateFrameCount()
     FrameCountLabel.Text = "Frames " .. tostring(#Frames)
 end
 
-local function AddSavestate() -- (dx)
+local function AddSavestate()
     NewAlert("Added Savestate", Color3.fromRGB(0, 255, 0), 1)
     table.insert(Savestates, Frames)
     Frames = {}
 end
 
-local function RemoveSavestate() -- (dy)
+local function RemoveSavestate()
     if #Savestates > 1 then
         NewAlert("Removed Savestate", Color3.fromRGB(0, 255, 0), 1)
         table.remove(Savestates)
@@ -323,49 +332,44 @@ local function RemoveSavestate() -- (dy)
     end
 end
 
-local function ToggleCollision() -- (dz)
+local function ToggleCollision()
     local target = LocalPlayer:GetMouse().Target
-    target.CanCollide = not target.CanCollide
-    target.Transparency = target.CanCollide and 0 or 0.8
+    if target then
+        target.CanCollide = not target.CanCollide
+        target.Transparency = target.CanCollide and 0 or 0.8
+    end
 end
 
--- Fast Forward Logic
 local IsFastForwarding = false
-local FFTask
-local function StepForward() -- (dD)
+local function StepForward()
     if IsPaused then
         TogglePause()
-        -- Original loop did exactly 2 heartbeats
         for i = 1, 2 do RunService.Heartbeat:Wait() end
         TogglePause()
     end
 end
 
-local function FastForwardLoop() -- (dE)
+local function FastForwardLoop()
     while IsFastForwarding do
         StepForward()
         task.wait(0.1)
     end
 end
 
-local function StartFastForward() -- (dF)
+local function StartFastForward()
     if not IsFastForwarding then
         IsFastForwarding = true
-        FFTask = task.spawn(FastForwardLoop)
+        task.spawn(FastForwardLoop)
     end
 end
 
--- Rewind Logic
 local IsRewinding = false
-local function RewindFrame() -- (dJ) - VELOCITY FIX ADDED
+local function RewindFrame()
     if LocalPlayer.Character then
         local Frame = Frames[#Frames - 1]
         
         if not Frame then
-            -- Logic to grab from previous savestate buffer if current is empty
             if #Savestates > 0 then
-                 -- This logic matches the original script's behavior implicitly
-                 -- by checking Savestates table structure
                  Frame = Savestates[#Savestates][#Savestates[#Savestates] - 1]
             end
         end
@@ -376,7 +380,7 @@ local function RewindFrame() -- (dJ) - VELOCITY FIX ADDED
             local Root = LocalPlayer.Character.HumanoidRootPart
             Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
             Root.Velocity = Frame.Velocity
-            SavedVelocity = Frame.Velocity -- [FIX] Update buffer
+            SavedVelocity = Frame.Velocity
             
             workspace.CurrentCamera.CFrame = Frame.CameraCFrame
             PauseStart = tick()
@@ -389,13 +393,12 @@ local function RewindFrame() -- (dJ) - VELOCITY FIX ADDED
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
             
             task.spawn(UpdateTime)
-            -- Remove last frame
             Frames[#Frames] = nil
         end
     end
 end
 
-local function StartRewind() -- (dK)
+local function StartRewind()
     IsRewinding = true
     RewindFrame()
     while task.wait(0.05) and IsRewinding do
@@ -403,22 +406,50 @@ local function StartRewind() -- (dK)
     end
 end
 
--- View TAS Logic (Restored exact logic structure)
+-- // VIEW TAS (FIXED) //
 local IsViewingTAS = false
-local function PlaybackTAS(Data) -- (dM)
+local function PlaybackTAS(Data)
     IsViewingTAS = true
     local Root = LocalPlayer.Character.HumanoidRootPart
     local Cam = workspace.CurrentCamera
     
+    local LastPlayedAnim = ""
+    
+    local function HandleSlide(isSliding)
+        if isSliding then
+            Root.Size = Vector3.new(2, 1, 1)
+            LocalPlayer.Character.FE2_Hitbox.Size = Vector3.new(2, 1, 1)
+            LocalPlayer.Character.Humanoid.HipHeight = -1.5
+        else
+            Root.Size = Vector3.new(2, 2, 1)
+            LocalPlayer.Character.FE2_Hitbox.Size = Vector3.new(2, 2, 1)
+            LocalPlayer.Character.Humanoid.HipHeight = 0
+        end
+        local Animate = LocalPlayer.Character:FindFirstChild("Animate")
+        if Animate and Animate:FindFirstChild("Sliding") then
+            Animate.Sliding:Fire(isSliding)
+        end
+    end
+
+    local function PerformSlideAnim()
+        HandleSlide(true)
+        task.wait(0.25)
+        HandleSlide(false)
+    end
+
     local function PlayAnim(anim)
-        OriginalPlayAnim(anim[1], anim[2], LocalPlayer.Character.Humanoid)
-        if anim[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
+        if anim[1] ~= LastPlayedAnim then
+            OriginalPlayAnim(anim[1], anim[2], LocalPlayer.Character.Humanoid)
+            if anim[1] == "walk" then 
+                AnimEnv.setAnimationSpeed(0.76) 
+            elseif anim[1] == "slide" then
+                task.spawn(PerformSlideAnim)
+            end
+            LastPlayedAnim = anim[1]
+        end
     end
     
-    -- Hitbox Logic from original
-    local Hitbox = LocalPlayer.Character.FE2_Hitbox
-    Hitbox.CanTouch = false
-    
+    LocalPlayer.Character.FE2_Hitbox.CanTouch = false
     local Offset = ClonedMap.PrimaryPart.Position - Vector3.new(0, 1000, 0)
     local idx = 3
     local PlayStart = tick()
@@ -429,7 +460,6 @@ local function PlaybackTAS(Data) -- (dM)
         LocalPlayer.Character.Humanoid.Jump = true
         if not IsPaused then TogglePause() end
         
-        -- Loop to skip frames if lagging
         for i = idx, #Data do
             local Frame = Data[i]
             if tick() - PlayStart < Frame.time then
@@ -438,6 +468,7 @@ local function PlaybackTAS(Data) -- (dM)
                 Root.Anchored = true
                 Con:Disconnect()
                 IsViewingTAS = false
+                LocalPlayer.Character.FE2_Hitbox.CanTouch = true
             elseif tick() - PlayStart >= Frame.time then
                 idx = i
                 local cf = Frame.CCFrame
@@ -452,7 +483,6 @@ local function PlaybackTAS(Data) -- (dM)
     end)
 end
 
--- // SAVE RUN (cw) //
 local function SaveRun()
     local Export = {}
     for i = 1, #Savestates do
@@ -462,7 +492,6 @@ local function SaveRun()
             Entry.AAnimationChanged = F.Animation[2]
             Entry.VVelocity = {F.Velocity.X, F.Velocity.Y, F.Velocity.Z}
             
-            -- Flatten CFrame
             Entry.CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, F.CameraCFrame:ToEulerAnglesXYZ()}
             Entry.CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, F.CFrame:ToEulerAnglesXYZ()}
             
@@ -477,10 +506,8 @@ local function SaveRun()
         end
     end
     
-    -- Rounding function (original 'es')
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     
-    -- Apply rounding
     local FinalExport = {}
     for _, v in ipairs(Export) do
         local newV = {}
@@ -503,7 +530,6 @@ local function SaveRun()
     NewAlert("Saved", Color3.fromRGB(0, 255, 0), 1)
 end
 
--- // ROPE LISTENER //
 task.spawn(function()
     local FE2Char = LocalPlayer.Character:WaitForChild("FE2_Character")
     local byte = getscriptbytecode(FE2Char)
@@ -517,7 +543,6 @@ task.spawn(function()
     end
 end)
 
--- // MAIN EXECUTION //
 game.Workspace.Multiplayer:WaitForChild("NewMap", 9e99)
 game.Workspace.Multiplayer:WaitForChild("Map", 9e99)
 
@@ -528,7 +553,6 @@ if not isfolder("TAS") then makefolder("TAS") end
 
 local LastHeartbeat = tick()
 
--- Heartbeat Loop (eM)
 RunService.Heartbeat:Connect(function()
     if not IsPaused then
         UpdateTime()
@@ -541,9 +565,8 @@ RunService.Heartbeat:Connect(function()
     task.spawn(UpdateFrameCount)
 end)
 
-SaveRun() -- Initial save (from original)
+SaveRun()
 
--- Input Handling (eN)
 UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe then
         local k = input.KeyCode.Name
@@ -556,7 +579,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.GoFrameForward then task.spawn(StartFastForward)
         elseif k == Keybinds.GoFrameBack then task.spawn(StartRewind)
         elseif k == Keybinds.ResetToNormal then 
-            -- Cleanup logic (original 'eO')
             CharConnection:Disconnect()
             ClonedMap:Destroy()
             UI_Elements.ScreenGui:Destroy()
@@ -564,13 +586,11 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
                 AddSavestate()
-                -- Flatten for viewing
                 local Data = {}
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
                         local F = Savestates[i][j]
                         local Entry = {}
-                        -- (Manual copying logic from original 'ViewTAS' block)
                         Entry.AAnimationChanged = F.Animation[2]
                         Entry.CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, F.CameraCFrame:ToEulerAnglesXYZ()}
                         Entry.CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, F.CFrame:ToEulerAnglesXYZ()}
@@ -585,7 +605,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Input Ended (for holding keys)
 UserInputService.InputEnded:Connect(function(input, gpe)
     if not gpe then
         local k = input.KeyCode.Name
@@ -594,7 +613,6 @@ UserInputService.InputEnded:Connect(function(input, gpe)
     end
 end)
 
--- Death Handler (ee)
 LocalPlayer.Character.Humanoid.Died:Connect(function()
     task.wait(0.1)
     if not IsPaused then TogglePause() end
