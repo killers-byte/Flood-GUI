@@ -1,7 +1,7 @@
 --[[
-    FE2 TAS Creator (Deobfuscated & Optimized)
+    FE2 TAS Creator (Fixed Crash Issue)
     UI Loaded via API
-    Velocity Preserved | Savestates Fixed | Frame Rewinding Added
+    Velocity Preserved | Savestates Fixed | Frame Rewind | Archivable Bypass Restored
 ]]
 
 -- CONFIGURATION
@@ -36,13 +36,27 @@ local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
 local GameScriptEnv = getsenv(PlayerScripts:WaitForChild("CL_MAIN_GameScript"))
 local NewAlert = GameScriptEnv.newAlert
 
+-- // CRITICAL ANTI-CRASH BYPASS //
+-- The game checks if parts are Archivable to detect cloning/stealing.
+-- We must hook this to return false to the game, but true to our script.
+local OldIndex
+OldIndex = hookmetamethod(game, "__index", function(self, key)
+    -- If the game asks "Is this Archivable?", we say "No" (false).
+    -- We use checkcaller() to allow OUR script to see the truth.
+    if key == "Archivable" and not checkcaller() then
+        return false
+    end
+    return OldIndex(self, key)
+end)
+print("Archivable Bypass Hooked")
+
 -- Load UI via API
 local TAS_UI = loadstring(game:HttpGet(UI_API_URL))()
 local UI_Elements = TAS_UI.Create()
 
 -- Variables
-local SaveStates = {}       -- Table of committed savestates (Table of Tables)
-local CurrentRunFrames = {} -- Frames for the current active segment
+local SaveStates = {}       
+local CurrentRunFrames = {} 
 local RopeTable = {}
 
 local IsPaused = true
@@ -74,7 +88,6 @@ local function GetCharacterComponents()
     if not Root then return CFrame.new() end
     
     local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = Root.CFrame:GetComponents()
-    -- Apply offset to save relative to map origin (+1000 Y offset preserved from original script)
     return CFrame.new(x - MapOffsetX, y - MapOffsetY + 1000, z - MapOffsetZ, R00, R01, R02, R10, R11, R12, R20, R21, R22)
 end
 
@@ -95,7 +108,6 @@ local function HookAnimationScript()
 
     OriginalPlayAnimation = AnimationScriptEnv.playAnimation
     
-    -- Override playAnimation to capture data instead of playing when paused
     AnimationScriptEnv.playAnimation = function(animName, speed)
         if not IsPaused then
             CurrentAnimationData = {animName, speed}
@@ -146,6 +158,7 @@ local function SetupMap()
     for _, desc in pairs(Map:GetDescendants()) do
         desc.Archivable = true
     end
+    print("Map processed")
 
     local ClonedMap = Map:Clone()
     for _, child in pairs(Workspace:GetChildren()) do
@@ -168,6 +181,7 @@ local function SetupMap()
     local startZipline = FE2Env.startZipline
 
     if #RopeTable >= 1 then
+        print("Loading RopeTable! Size:", #RopeTable)
         task.spawn(function()
             while Char and Hum.Health >= 1 do
                 setupvalue(startZipline, 2, RopeTable)
@@ -185,7 +199,6 @@ local function SetupMap()
     Hum.WalkSpeed = 20
     Hum.JumpPower = 50
 
-    -- Create Initial State
     table.insert(SaveStates, {{
         CFrame = GetCharacterComponents(),
         CameraCFrame = workspace.CurrentCamera.CFrame * MapOriginCFrame,
@@ -204,10 +217,13 @@ local function SetupMap()
     end)
 
     task.wait(1)
+    -- Reveal logic / Button detection
     for _, obj in pairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
             if not string.match(obj.Name, "Part") then
-                obj.Transparency = (obj.CanCollide and 0.5) or 0.8
+                pcall(function() 
+                    obj.Transparency = (obj.CanCollide and 0.5) or 0.8
+                end)
             end
             if obj.Name:lower():match("button") or obj.Parent.Name:lower():match("button") then
                 local box = Instance.new("SelectionBox", obj)
@@ -220,6 +236,7 @@ local function SetupMap()
     if Multiplayer:FindFirstChild("Map") then
         Multiplayer.Map:Destroy()
     end
+    print("Finished setting up map")
 end
 
 -- Update UI
@@ -235,27 +252,19 @@ local function UpdateUI()
 end
 
 -- Core Functionality
-
 local function RestoreStateFromFrame(frame)
     local Root = LocalPlayer.Character.HumanoidRootPart
     
-    -- 1. Apply Position
     Root.CFrame = frame.CFrame + Vector3.new(MapOffsetX, MapOffsetY - 1000, MapOffsetZ)
-    
-    -- 2. Apply Velocity
     Root.Velocity = frame.Velocity
-    SavedPauseVelocity = frame.Velocity -- IMPORTANT: Ensure unpause uses this velocity
+    SavedPauseVelocity = frame.Velocity
     
-    -- 3. Apply Camera
     workspace.CurrentCamera.CFrame = frame.CameraCFrame
     
-    -- 4. Sync Time
-    -- We reset offsets so that (tick() - RunStartTime) equals exactly frame.Time
     TimeOffset = 0
     RunStartTime = tick() - frame.Time
-    PauseStartTime = tick() -- Since we are paused, ensure this is fresh
+    PauseStartTime = tick()
     
-    -- 5. Apply Animation
     if OriginalPlayAnimation and frame.Animation then
         OriginalPlayAnimation(frame.Animation[1], frame.Animation[2], LocalPlayer.Character.Humanoid)
     end
@@ -269,7 +278,7 @@ local function TogglePause()
     local Root = LocalPlayer.Character.HumanoidRootPart
     
     if IsPaused then
-        SavedPauseVelocity = Root.Velocity -- Save current velocity
+        SavedPauseVelocity = Root.Velocity 
         Root.Anchored = true
         
         UI_Elements.TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
@@ -278,7 +287,7 @@ local function TogglePause()
         UI_Elements.StatusText.TextColor3 = Color3.fromRGB(255, 255, 0)
     else
         Root.Anchored = false
-        Root.Velocity = SavedPauseVelocity -- Restore saved velocity
+        Root.Velocity = SavedPauseVelocity 
         
         UI_Elements.TimeText.TextColor3 = Color3.fromRGB(255, 255, 255)
         TimeOffset = TimeOffset + (tick() - PauseStartTime)
@@ -294,10 +303,8 @@ local function LoadLastSavestate()
     local lastFrame = stateList[#stateList]
     
     if lastFrame then
-        -- Clear current buffer since we are jumping back to a committed state
         CurrentRunFrames = {}
         
-        -- Force Pause
         IsPaused = true
         LocalPlayer.Character.HumanoidRootPart.Anchored = true
         UI_Elements.TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
@@ -309,7 +316,6 @@ local function LoadLastSavestate()
 end
 
 local function AddSavestate()
-    -- Commit the current buffer to the savestate list
     if #CurrentRunFrames > 0 then
         NewAlert("Added Savestate", Color3.fromRGB(0, 255, 0), 1)
         table.insert(SaveStates, CurrentRunFrames)
@@ -341,10 +347,10 @@ end
 
 local function FrameAdvance()
     if IsPaused then
-        TogglePause() -- Unpause (Restores velocity)
+        TogglePause()
         RunService.Heartbeat:Wait()
-        RunService.Heartbeat:Wait() -- Run 2 physics steps
-        TogglePause() -- Pause (Saves new velocity)
+        RunService.Heartbeat:Wait()
+        TogglePause()
     end
 end
 
@@ -353,24 +359,18 @@ local function FrameRewind()
     
     local targetFrame
     
-    -- Logic: Try to get the previous frame from current buffer.
-    -- If buffer is empty, unwrap the last committed savestate into the buffer.
-    
     if #CurrentRunFrames > 0 then
-        table.remove(CurrentRunFrames) -- Remove current frame
+        table.remove(CurrentRunFrames)
         if #CurrentRunFrames > 0 then
             targetFrame = CurrentRunFrames[#CurrentRunFrames]
         end
     end
     
-    -- If we ran out of frames in the buffer, try to grab from SaveStates
     if not targetFrame and #CurrentRunFrames == 0 then
         if #SaveStates > 0 then
-            -- Pop the last savestate list and make it the current buffer
             local lastStateList = table.remove(SaveStates)
             CurrentRunFrames = lastStateList
             
-            -- Now try to remove the last frame of this new buffer
             if #CurrentRunFrames > 0 then
                 table.remove(CurrentRunFrames)
                 if #CurrentRunFrames > 0 then
@@ -389,7 +389,6 @@ end
 local function SaveRunToJson()
     local exportData = {}
     
-    -- Combine all savestates
     for _, stateGroup in ipairs(SaveStates) do
         for _, frame in ipairs(stateGroup) do
             local cleanFrame = {
@@ -412,9 +411,6 @@ local function SaveRunToJson()
         end
     end
     
-    -- Note: We do NOT save CurrentRunFrames automatically to match legacy behavior.
-    -- Users must "Add Savestate" (Press One) before saving.
-    
     if not isfolder("Flood-GUI/TAS FILES") then
         makefolder("Flood-GUI")
         makefolder("Flood-GUI/TAS FILES")
@@ -427,19 +423,17 @@ end
 
 local function ViewTAS()
     if #SaveStates > 0 then
-        -- Flatten data for playback
         local playbackData = {}
         for _, group in ipairs(SaveStates) do
             for _, frame in ipairs(group) do
                 table.insert(playbackData, {
                     AAnimation = frame.Animation,
-                    CCFrame = {frame.CFrame:GetComponents()}, -- Simplified for local playback
+                    CCFrame = {frame.CFrame:GetComponents()},
                     time = frame.Time
                 })
             end
         end
         
-        -- Start simple playback
         local idx = 1
         local start = tick()
         local con
@@ -496,7 +490,7 @@ Connection_InputBegan = UserInputService.InputBegan:Connect(function(input, gpe)
     elseif key == Keybinds.CollisionToggler then ToggleCollision()
     elseif key == Keybinds.SaveRun then SaveRunToJson()
     elseif key == Keybinds.GoFrameForward then task.spawn(FrameAdvance)
-    elseif key == Keybinds.GoFrameBack then task.spawn(FrameRewind) -- Fixed missing bind
+    elseif key == Keybinds.GoFrameBack then task.spawn(FrameRewind)
     elseif key == Keybinds.ViewTAS then task.spawn(ViewTAS)
     elseif key == Keybinds.ResetToNormal then 
         UI_Elements.ScreenGui:Destroy()
