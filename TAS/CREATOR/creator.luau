@@ -1,9 +1,8 @@
 --[[
-    FE2 TAS Creator (Final + 60FPS Cap)
-    - Recording Cap: Strictly records at 60 FPS (1/60th interval) regardless of your FPS.
-    - Safe Reset: "Delete" key cleans up without killing you.
-    - Map Monitor: Prevents overlapping maps.
-    - All other fixes (Visuals, Velocity, Rounding) included.
+    FE2 TAS Creator (Slide Fix Update)
+    - Auto-Swim is now DISABLED while the "slide" animation is playing.
+    - Prevents glitching in shallow water.
+    - Includes 60 FPS Cap, Safe Reset, Map Monitor, and Rounding.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -211,7 +210,6 @@ local function TogglePause()
         TimeOffset = TimeOffset + tick() - PauseStart
         StatusLabel.Text = "CapsLock : Unpaused"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        -- Reset accumulator on unpause to prevent catch-up jumps
         RecordAccumulator = 0
     end
 end
@@ -303,7 +301,6 @@ local function SetupMap()
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     MapOffset = CFrame.new(MapX, MapY, MapZ)
     
-    -- CLEAN DEATH LOGIC
     local Char = LocalPlayer.Character
     if Char and Char:FindFirstChild("Humanoid") then
         Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
@@ -535,20 +532,14 @@ SetupMap()
 if not isfolder("TAS") then makefolder("TAS") end
 local LastHeartbeat = tick()
 
--- MAIN LOOP (With 60 FPS Cap)
 local HBCon = RunService.Heartbeat:Connect(function(dt)
     if not IsPaused then
-        -- Update Timer (Visuals - Uncapped)
         UpdateTime()
         
-        -- Accumulate Time for 60FPS Cap
         RecordAccumulator = RecordAccumulator + dt
-        
         if RecordAccumulator >= RECORD_INTERVAL then
             RecordAccumulator = RecordAccumulator - RECORD_INTERVAL
             if RecordAccumulator > RECORD_INTERVAL then RecordAccumulator = 0 end
-            
-            -- Save Frame (Physics - Capped)
             table.insert(Frames, CaptureFrameData())
         end
         
@@ -557,13 +548,20 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
         LastHeartbeat = tick() 
     end
     
-    -- Auto-Swim Check
+    -- Auto-Swim Check (Updated)
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
-    for _, waterPart in ipairs(WaterParts) do
-        if IsPointInPart(waterPart, PlayerPos) then
-            InWater = true
-            break
+    
+    -- CHECK IF SLIDING
+    local IsSliding = (CurrentAnim and CurrentAnim[1] == "slide")
+    
+    -- ONLY CHECK WATER IF NOT SLIDING
+    if not IsSliding then
+        for _, waterPart in ipairs(WaterParts) do
+            if IsPointInPart(waterPart, PlayerPos) then
+                InWater = true
+                break
+            end
         end
     end
     getgenv().IsSwimming = InWater
