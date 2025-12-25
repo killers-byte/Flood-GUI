@@ -1,9 +1,10 @@
 --[[
-    FE2 TAS Creator (Alerts Fixed)
-    - Re-implemented the Alert System robustly (waits for game script).
-    - Button Touched alerts are now prioritized.
-    - Added "CanTouch = true" to buttons to ensure detection.
-    - All previous functionality preserved.
+    FE2 TAS Creator (Final Stable Build)
+    - Safe Reset: "Delete" key stops script cleanly without killing player.
+    - Map Monitor: Blocks real game maps from overlapping TAS map.
+    - Crash Fixes: Added nil checks for savestates.
+    - Clean Death: Uses ChangeState instead of Destroying Head.
+    - All previous features (Auto-Swim, Velocity, Animation Fixes) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -31,7 +32,6 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 -- // ALERT SYSTEM SETUP //
--- We wait for the game script to ensure NewAlert isn't nil
 local NewAlert = nil
 local function SetupAlerts()
     local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
@@ -48,13 +48,11 @@ local function SendAlert(msg, color)
     if NewAlert then
         pcall(function() NewAlert(msg, color) end)
     else
-        -- Try to grab it again if it failed previously
         SetupAlerts()
         if NewAlert then pcall(function() NewAlert(msg, color) end) end
     end
 end
 
--- // INITIAL ALERT //
 SendAlert("TAS Creator Initialized", Color3.fromRGB(183, 0, 255))
 
 -- // BYPASSES //
@@ -62,7 +60,6 @@ local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
     if not checkcaller() then
         if key == "Archivable" then return false end
-        -- Auto-Swim Hook
         if getgenv().IsSwimming and key == "Position" and self.Name == "HumanoidRootPart" then
             return Vector3.new(-23, -153, 0)
         end
@@ -87,6 +84,7 @@ local AnimEnv
 local RunStart
 local SavedVelocity = Vector3.new(0, 0, 0)
 local ButtonDebounce = false
+local Connections = {} -- Store connections for clean disconnect
 
 -- Auto-Swim Global
 getgenv().IsSwimming = false
@@ -97,9 +95,14 @@ local TAS_UI = loadstring(game:HttpGet(UI_API_URL))()
 local UI_Elements, TimeText, FrameCountLabel, StatusLabel
 
 -- Map Variables
-local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable, CharConnection
+local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable
 
 -- // HELPER FUNCTIONS //
+
+local function AddConnection(con)
+    table.insert(Connections, con)
+    return con
+end
 
 local function ToggleCollision()
     local mouse = LocalPlayer:GetMouse()
@@ -168,6 +171,27 @@ local function HookAnimations()
     end
 end
 
+-- // CLEANUP FUNCTION //
+local function ResetToNormal()
+    -- Disconnect ALL events to stop logic immediately
+    for _, con in pairs(Connections) do
+        con:Disconnect()
+    end
+    Connections = {} -- Clear table
+    
+    -- Cleanup Objects
+    if ClonedMap then ClonedMap:Destroy() end
+    if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
+    
+    -- Unanchor Player (Don't kill)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.Anchored = false
+    end
+    
+    SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
+    script:Destroy() -- Self-destruct script container
+end
+
 -- // CORE LOGIC //
 local function TogglePause()
     IsPaused = not IsPaused
@@ -193,6 +217,10 @@ local function LoadLastSavestate()
     local LastState = Savestates[#Savestates]
     if LastState then
         local Frame = LastState[#LastState]
+        
+        -- CRASH FIX: Ensure frame exists
+        if not Frame then return end
+        
         Frames = {}
         IsPaused = true
         
@@ -212,6 +240,32 @@ local function LoadLastSavestate()
         if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
         
         task.spawn(UpdateTime)
+    end
+end
+
+local function AddSavestate()
+    SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0))
+    table.insert(Savestates, Frames)
+    Frames = {}
+end
+
+local RemoveConfirm = false
+local RemoveConfirmTime = 0
+local function RemoveSavestate()
+    if not RemoveConfirm or (tick() - RemoveConfirmTime > 2) then
+        RemoveConfirm = true
+        RemoveConfirmTime = tick()
+        SendAlert("Press again to remove savestate", Color3.fromRGB(255, 170, 0))
+        return
+    end
+    RemoveConfirm = false
+    
+    if #Savestates > 1 then
+        SendAlert("Removed Savestate", Color3.fromRGB(255, 0, 0))
+        table.remove(Savestates)
+        task.spawn(LoadLastSavestate)
+    else
+        SendAlert("No Savestate to remove", Color3.fromRGB(255, 0, 0))
     end
 end
 
@@ -248,9 +302,15 @@ local function SetupMap()
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     MapOffset = CFrame.new(MapX, MapY, MapZ)
     
-    LocalPlayer.Character.Head:Destroy()
-    LocalPlayer.CharacterAdded:Wait()
+    -- CLEAN DEATH LOGIC
     local Char = LocalPlayer.Character
+    if Char and Char:FindFirstChild("Humanoid") then
+        Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+        Char.Humanoid.Health = 0
+    end
+    
+    LocalPlayer.CharacterAdded:Wait()
+    Char = LocalPlayer.Character
     task.wait(1)
     
     local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
@@ -289,38 +349,36 @@ local function SetupMap()
     PauseStart = tick()
     RunStart = tick()
     HookAnimations()
-    CharConnection = LocalPlayer.CharacterAdded:Connect(function(c)
+    
+    local CharAddedCon
+    CharAddedCon = LocalPlayer.CharacterAdded:Connect(function(c)
         local anim = c:WaitForChild("Animate")
         if anim.Enabled then HookAnimations() end
     end)
+    AddConnection(CharAddedCon)
     
     task.wait(2)
     
     WaterParts = {}
     
-    -- Visual Setup & Button Logic
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
-             -- Cache Water
              if obj.Name:find("_Water") then
                  table.insert(WaterParts, obj)
              end
              
-             -- Ghost visuals for non-collidables
              if not obj.CanCollide then
                  obj.Transparency = 0.8
              end
              
-             -- Button Highlighter & Touch
              if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
                  local sel = Instance.new("SelectionBox", obj)
                  sel.Adornee = obj
                  sel.Color3 = Color3.fromRGB(255, 140, 0)
+                 obj.CanTouch = true
                  
-                 -- [CRITICAL] Ensure it can be touched
-                 obj.CanTouch = true 
-                 
-                 obj.Touched:Connect(function()
+                 local TouchCon
+                 TouchCon = obj.Touched:Connect(function()
                      if not ButtonDebounce then
                          SendAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
                          ButtonDebounce = true
@@ -328,6 +386,7 @@ local function SetupMap()
                          ButtonDebounce = false
                      end
                  end)
+                 AddConnection(TouchCon)
              end
         end
     end
@@ -415,14 +474,12 @@ local function PlaybackTAS(Data)
             end
         end
     end)
+    AddConnection(Con)
 end
 
 -- // SAVE RUN //
 local function SaveRun()
-    local function Round(n)
-        return math.floor(n * 1000 + 0.5) / 1000
-    end
-
+    local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
     for i = 1, #Savestates do
         for j = 1, #Savestates[i] do
@@ -452,12 +509,16 @@ local function SaveRun()
     SendAlert("Saved", Color3.fromRGB(0, 255, 0))
 end
 
-local function ResetToNormal()
-    CharConnection:Disconnect()
-    ClonedMap:Destroy()
-    UI_Elements.ScreenGui:Destroy()
-    LocalPlayer.Character.Humanoid.Health = 0
-end
+-- // MAP MONITOR (Prevent Overlay) //
+local MonitorCon = workspace.Multiplayer.ChildAdded:Connect(function(child)
+    -- If we are in TAS mode, and the game tries to load a real map
+    if ClonedMap and (child.Name == "Map" or child.Name == "NewMap") then
+        task.wait() -- Allow property assignment
+        child:Destroy()
+        -- SendAlert("Blocked overlapping map", Color3.fromRGB(255, 100, 0))
+    end
+end)
+AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
 task.spawn(function()
@@ -475,7 +536,7 @@ SetupMap()
 if not isfolder("TAS") then makefolder("TAS") end
 local LastHeartbeat = tick()
 
-RunService.Heartbeat:Connect(function()
+local HBCon = RunService.Heartbeat:Connect(function()
     if not IsPaused then
         local dp = tick() - RunStart - TimeOffset
         local m = math.floor(dp / 60)
@@ -500,14 +561,15 @@ RunService.Heartbeat:Connect(function()
     UI_Elements.SavestatesCount.Text = "Savestates " .. tostring(#Savestates)
     FrameCountLabel.Text = "Frames " .. tostring(#Frames)
 end)
+AddConnection(HBCon)
 
 SaveRun()
 
-UserInputService.InputBegan:Connect(function(input, gpe)
+local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe then
         local k = input.KeyCode.Name
         if k == Keybinds.UserPause then TogglePause()
-        elseif k == Keybinds.AddSavestate then SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0)); table.insert(Savestates, Frames); Frames = {}
+        elseif k == Keybinds.AddSavestate then AddSavestate()
         elseif k == Keybinds.RemoveSavestate then RemoveSavestate()
         elseif k == Keybinds.BackSavestate then task.spawn(LoadLastSavestate)
         elseif k == Keybinds.CollisionToggler then ToggleCollision()
@@ -518,7 +580,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
-                SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0)); table.insert(Savestates, Frames); Frames = {}
+                AddSavestate()
                 local Data = {}
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
@@ -532,14 +594,24 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         end
     end
 end)
+AddConnection(InputCon)
 
-UserInputService.InputEnded:Connect(function(input, gpe)
+local InputEndCon = UserInputService.InputEnded:Connect(function(input, gpe)
     if not gpe then
         if input.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
         if input.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
     end
 end)
+AddConnection(InputEndCon)
 
-LocalPlayer.Character.Humanoid.Died:Connect(function()
-    task.wait(0.1); if not IsPaused then TogglePause() end; LocalPlayer.CharacterAdded:Wait(); task.wait(0.1); LoadLastSavestate()
+local DiedCon = LocalPlayer.Character.Humanoid.Died:Connect(function()
+    task.wait(0.1)
+    if not IsPaused then TogglePause() end
+    LocalPlayer.CharacterAdded:Wait()
+    task.wait(0.1)
+    -- Safety check inside the event
+    if ClonedMap and ClonedMap.Parent then
+        LoadLastSavestate()
+    end
 end)
+AddConnection(DiedCon)
