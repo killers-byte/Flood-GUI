@@ -1,10 +1,9 @@
 --[[
-    FE2 TAS Creator (Final Stable Build)
-    - Safe Reset: "Delete" key stops script cleanly without killing player.
-    - Map Monitor: Blocks real game maps from overlapping TAS map.
-    - Crash Fixes: Added nil checks for savestates.
-    - Clean Death: Uses ChangeState instead of Destroying Head.
-    - All previous features (Auto-Swim, Velocity, Animation Fixes) preserved.
+    FE2 TAS Creator (Final + 60FPS Cap)
+    - Recording Cap: Strictly records at 60 FPS (1/60th interval) regardless of your FPS.
+    - Safe Reset: "Delete" key cleans up without killing you.
+    - Map Monitor: Prevents overlapping maps.
+    - All other fixes (Visuals, Velocity, Rounding) included.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -84,7 +83,12 @@ local AnimEnv
 local RunStart
 local SavedVelocity = Vector3.new(0, 0, 0)
 local ButtonDebounce = false
-local Connections = {} -- Store connections for clean disconnect
+local Connections = {} 
+
+-- Recording Cap Variables
+local RecordAccumulator = 0
+local TARGET_FPS = 60
+local RECORD_INTERVAL = 1 / TARGET_FPS
 
 -- Auto-Swim Global
 getgenv().IsSwimming = false
@@ -173,23 +177,20 @@ end
 
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
-    -- Disconnect ALL events to stop logic immediately
     for _, con in pairs(Connections) do
         con:Disconnect()
     end
-    Connections = {} -- Clear table
+    Connections = {}
     
-    -- Cleanup Objects
     if ClonedMap then ClonedMap:Destroy() end
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
     
-    -- Unanchor Player (Don't kill)
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         LocalPlayer.Character.HumanoidRootPart.Anchored = false
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-    script:Destroy() -- Self-destruct script container
+    script:Destroy()
 end
 
 -- // CORE LOGIC //
@@ -210,6 +211,8 @@ local function TogglePause()
         TimeOffset = TimeOffset + tick() - PauseStart
         StatusLabel.Text = "CapsLock : Unpaused"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        -- Reset accumulator on unpause to prevent catch-up jumps
+        RecordAccumulator = 0
     end
 end
 
@@ -217,8 +220,6 @@ local function LoadLastSavestate()
     local LastState = Savestates[#Savestates]
     if LastState then
         local Frame = LastState[#LastState]
-        
-        -- CRASH FIX: Ensure frame exists
         if not Frame then return end
         
         Frames = {}
@@ -511,11 +512,9 @@ end
 
 -- // MAP MONITOR (Prevent Overlay) //
 local MonitorCon = workspace.Multiplayer.ChildAdded:Connect(function(child)
-    -- If we are in TAS mode, and the game tries to load a real map
     if ClonedMap and (child.Name == "Map" or child.Name == "NewMap") then
-        task.wait() -- Allow property assignment
+        task.wait()
         child:Destroy()
-        -- SendAlert("Blocked overlapping map", Color3.fromRGB(255, 100, 0))
     end
 end)
 AddConnection(MonitorCon)
@@ -536,16 +535,27 @@ SetupMap()
 if not isfolder("TAS") then makefolder("TAS") end
 local LastHeartbeat = tick()
 
-local HBCon = RunService.Heartbeat:Connect(function()
+-- MAIN LOOP (With 60 FPS Cap)
+local HBCon = RunService.Heartbeat:Connect(function(dt)
     if not IsPaused then
-        local dp = tick() - RunStart - TimeOffset
-        local m = math.floor(dp / 60)
-        local s = math.floor(dp % 60)
-        local ms = math.floor(dp * 1000 % 1000)
-        TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
-        table.insert(Frames, CaptureFrameData())
+        -- Update Timer (Visuals - Uncapped)
+        UpdateTime()
+        
+        -- Accumulate Time for 60FPS Cap
+        RecordAccumulator = RecordAccumulator + dt
+        
+        if RecordAccumulator >= RECORD_INTERVAL then
+            RecordAccumulator = RecordAccumulator - RECORD_INTERVAL
+            if RecordAccumulator > RECORD_INTERVAL then RecordAccumulator = 0 end
+            
+            -- Save Frame (Physics - Capped)
+            table.insert(Frames, CaptureFrameData())
+        end
+        
         if tick() - LastHeartbeat >= 2 then LastHeartbeat = tick() end
-    else LastHeartbeat = tick() end
+    else 
+        LastHeartbeat = tick() 
+    end
     
     -- Auto-Swim Check
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -609,7 +619,6 @@ local DiedCon = LocalPlayer.Character.Humanoid.Died:Connect(function()
     if not IsPaused then TogglePause() end
     LocalPlayer.CharacterAdded:Wait()
     task.wait(0.1)
-    -- Safety check inside the event
     if ClonedMap and ClonedMap.Parent then
         LoadLastSavestate()
     end
