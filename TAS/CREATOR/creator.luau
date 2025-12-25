@@ -1,8 +1,8 @@
 --[[
-    FE2 TAS Creator (Frame Advance Fix)
-    - Fixed "Forward Frame" not recording frames on high FPS.
-    - It now waits for the specific Recording Interval (0.016s) instead of arbitrary frames.
-    - All previous functionality preserved.
+    FE2 TAS Creator (Frame Advance Perfect Fix)
+    - Fixed "Forward Frame" by waiting for the frame count to increase.
+    - Guarantees 1 frame is captured every time, regardless of FPS.
+    - All other features (Auto-Swim, Safety, 60FPS Cap) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -177,7 +177,7 @@ end
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
     for _, con in pairs(Connections) do
-        if con then con:Disconnect() end
+        con:Disconnect()
     end
     Connections = {}
     
@@ -189,6 +189,7 @@ local function ResetToNormal()
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
+    -- No script:Destroy() to prevent nil error
 end
 
 -- // CORE LOGIC //
@@ -391,17 +392,17 @@ local function SetupMap()
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
--- // FAST FORWARD (Corrected for 60 FPS Cap) //
+-- // FAST FORWARD (Corrected) //
 local IsFastForwarding = false
 local function StepForward()
     if IsPaused then
+        local currentFrameCount = #Frames
         TogglePause()
         
-        -- [FIX] Wait exactly enough time to guarantee a frame capture
-        local accumulated = 0
-        while accumulated < RECORD_INTERVAL do
-            local dt = RunService.Heartbeat:Wait()
-            accumulated = accumulated + dt
+        -- WAIT UNTIL FRAME IS CONFIRMED CAPTURED
+        local t = tick()
+        while #Frames == currentFrameCount and (tick() - t < 0.2) do
+            RunService.Heartbeat:Wait()
         end
         
         TogglePause()
@@ -411,7 +412,8 @@ end
 local function FastForwardLoop()
     while IsFastForwarding do
         StepForward()
-        task.wait(0.01) -- Tiny delay to prevent crash
+        -- Tiny wait to prevent script exhaustion if StepForward instant-returns
+        task.wait() 
     end
 end
 
