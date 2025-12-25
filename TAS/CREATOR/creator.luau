@@ -1,8 +1,8 @@
 --[[
-    FE2 TAS Creator (Crash Fix)
-    - Fixed "attempt to index nil with 'Destroy'" error on Delete.
-    - Script now stops cleanly by disconnecting events instead of destroying itself.
-    - All previous features (60FPS Cap, Auto-Swim, Safety) preserved.
+    FE2 TAS Creator (Frame Advance Fix)
+    - Fixed "Forward Frame" not recording frames on high FPS.
+    - It now waits for the specific Recording Interval (0.016s) instead of arbitrary frames.
+    - All previous functionality preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -176,23 +176,19 @@ end
 
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
-    -- Disconnect ALL events (Stops logic)
     for _, con in pairs(Connections) do
         if con then con:Disconnect() end
     end
     Connections = {}
     
-    -- Cleanup Objects
     if ClonedMap then ClonedMap:Destroy() end
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
     
-    -- Unanchor Player
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         LocalPlayer.Character.HumanoidRootPart.Anchored = false
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-    -- Removed script:Destroy() to fix crash
 end
 
 -- // CORE LOGIC //
@@ -304,7 +300,6 @@ local function SetupMap()
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     MapOffset = CFrame.new(MapX, MapY, MapZ)
     
-    -- CLEAN DEATH LOGIC
     local Char = LocalPlayer.Character
     if Char and Char:FindFirstChild("Humanoid") then
         Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
@@ -396,12 +391,27 @@ local function SetupMap()
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
--- // FAST FORWARD & REWIND //
+-- // FAST FORWARD (Corrected for 60 FPS Cap) //
 local IsFastForwarding = false
+local function StepForward()
+    if IsPaused then
+        TogglePause()
+        
+        -- [FIX] Wait exactly enough time to guarantee a frame capture
+        local accumulated = 0
+        while accumulated < RECORD_INTERVAL do
+            local dt = RunService.Heartbeat:Wait()
+            accumulated = accumulated + dt
+        end
+        
+        TogglePause()
+    end
+end
+
 local function FastForwardLoop()
     while IsFastForwarding do
-        if IsPaused then TogglePause(); for i=1,2 do RunService.Heartbeat:Wait() end; TogglePause() end
-        task.wait(0.1)
+        StepForward()
+        task.wait(0.01) -- Tiny delay to prevent crash
     end
 end
 
@@ -621,7 +631,6 @@ local DiedCon = LocalPlayer.Character.Humanoid.Died:Connect(function()
     if not IsPaused then TogglePause() end
     LocalPlayer.CharacterAdded:Wait()
     task.wait(0.1)
-    -- Safety check inside the event
     if ClonedMap and ClonedMap.Parent then
         LoadLastSavestate()
     end
