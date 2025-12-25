@@ -1,8 +1,8 @@
 --[[
-    FE2 TAS Creator (Frame Advance Perfect Fix)
-    - Fixed "Forward Frame" by waiting for the frame count to increase.
-    - Guarantees 1 frame is captured every time, regardless of FPS.
-    - All other features (Auto-Swim, Safety, 60FPS Cap) preserved.
+    FE2 TAS Creator (Zipline Persistence Fix)
+    - Fixed Ziplines breaking after death/reset.
+    - Zipline logic now auto-injects into every new character instance.
+    - 60 FPS Cap, Auto-Swim, and Safety features preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -174,6 +174,26 @@ local function HookAnimations()
     end
 end
 
+-- // ZIPLINE INJECTION (New Persistent Logic) //
+local function InjectZiplines(char)
+    if not RopeTable or #RopeTable == 0 then return end
+    
+    task.spawn(function()
+        local FE2Script = char:WaitForChild("FE2_Character", 10)
+        if not FE2Script then return end
+        
+        -- Wait for script to initialize
+        task.wait(0.5) 
+        
+        local success, env = pcall(getsenv, FE2Script)
+        if success and env.startZipline then
+            -- Inject the RopeTable into the startZipline function (Upvalue 2 usually)
+            debug.setupvalue(env.startZipline, 2, RopeTable)
+            print("Ziplines Injected into new Character")
+        end
+    end)
+end
+
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
     for _, con in pairs(Connections) do
@@ -189,7 +209,7 @@ local function ResetToNormal()
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-    -- No script:Destroy() to prevent nil error
+    script:Destroy()
 end
 
 -- // CORE LOGIC //
@@ -311,16 +331,8 @@ local function SetupMap()
     Char = LocalPlayer.Character
     task.wait(1)
     
-    local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
-    local startZipline = FE2Env.startZipline
-    if RopeTable and #RopeTable >= 1 then
-        task.spawn(function()
-            while Char and Char.Humanoid.Health >= 1 do
-                setupvalue(startZipline, 2, RopeTable)
-                task.wait()
-            end
-        end)
-    end
+    -- Inject Ziplines on Map Setup
+    InjectZiplines(Char)
     
     local Hum = Char:WaitForChild("Humanoid")
     local Root = Char:WaitForChild("HumanoidRootPart")
@@ -352,6 +364,8 @@ local function SetupMap()
     CharAddedCon = LocalPlayer.CharacterAdded:Connect(function(c)
         local anim = c:WaitForChild("Animate")
         if anim.Enabled then HookAnimations() end
+        -- Inject Ziplines on Respawn
+        InjectZiplines(c)
     end)
     AddConnection(CharAddedCon)
     
@@ -412,7 +426,6 @@ end
 local function FastForwardLoop()
     while IsFastForwarding do
         StepForward()
-        -- Tiny wait to prevent script exhaustion if StepForward instant-returns
         task.wait() 
     end
 end
@@ -523,7 +536,7 @@ local function SaveRun()
     SendAlert("Saved", Color3.fromRGB(0, 255, 0))
 end
 
--- // MAP MONITOR (Prevent Overlay) //
+-- // MAP MONITOR //
 local MonitorCon = workspace.Multiplayer.ChildAdded:Connect(function(child)
     if ClonedMap and (child.Name == "Map" or child.Name == "NewMap") then
         task.wait()
@@ -533,6 +546,7 @@ end)
 AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
+-- Capture RopeTable Early
 task.spawn(function()
     local FE2Char = LocalPlayer.Character:WaitForChild("FE2_Character")
     local byte = getscriptbytecode(FE2Char)
@@ -568,10 +582,8 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
     
-    -- CHECK IF SLIDING
     local IsSliding = (CurrentAnim and CurrentAnim[1] == "slide")
     
-    -- ONLY CHECK WATER IF NOT SLIDING
     if not IsSliding then
         for _, waterPart in ipairs(WaterParts) do
             if IsPointInPart(waterPart, PlayerPos) then
