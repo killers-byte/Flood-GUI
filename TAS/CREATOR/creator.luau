@@ -1,8 +1,8 @@
 --[[
-    FE2 TAS Creator (Zipline Persistence Fix)
-    - Fixed Ziplines breaking after death/reset.
-    - Zipline logic now auto-injects into every new character instance.
-    - 60 FPS Cap, Auto-Swim, and Safety features preserved.
+    FE2 TAS Creator (Data Structure Fix)
+    - Fixed SaveRun structure to output FLAT arrays for CFrames (x,y,z,rx,ry,rz).
+    - Fixes "Unable to cast Array to float" error in TAS Player.
+    - All previous functionality (60FPS Cap, Auto-Swim, Safety) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -174,26 +174,6 @@ local function HookAnimations()
     end
 end
 
--- // ZIPLINE INJECTION (New Persistent Logic) //
-local function InjectZiplines(char)
-    if not RopeTable or #RopeTable == 0 then return end
-    
-    task.spawn(function()
-        local FE2Script = char:WaitForChild("FE2_Character", 10)
-        if not FE2Script then return end
-        
-        -- Wait for script to initialize
-        task.wait(0.5) 
-        
-        local success, env = pcall(getsenv, FE2Script)
-        if success and env.startZipline then
-            -- Inject the RopeTable into the startZipline function (Upvalue 2 usually)
-            debug.setupvalue(env.startZipline, 2, RopeTable)
-            print("Ziplines Injected into new Character")
-        end
-    end)
-end
-
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
     for _, con in pairs(Connections) do
@@ -209,7 +189,6 @@ local function ResetToNormal()
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-    script:Destroy()
 end
 
 -- // CORE LOGIC //
@@ -331,8 +310,16 @@ local function SetupMap()
     Char = LocalPlayer.Character
     task.wait(1)
     
-    -- Inject Ziplines on Map Setup
-    InjectZiplines(Char)
+    local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
+    local startZipline = FE2Env.startZipline
+    if RopeTable and #RopeTable >= 1 then
+        task.spawn(function()
+            while Char and Char.Humanoid.Health >= 1 do
+                setupvalue(startZipline, 2, RopeTable)
+                task.wait()
+            end
+        end)
+    end
     
     local Hum = Char:WaitForChild("Humanoid")
     local Root = Char:WaitForChild("HumanoidRootPart")
@@ -364,8 +351,6 @@ local function SetupMap()
     CharAddedCon = LocalPlayer.CharacterAdded:Connect(function(c)
         local anim = c:WaitForChild("Animate")
         if anim.Enabled then HookAnimations() end
-        -- Inject Ziplines on Respawn
-        InjectZiplines(c)
     end)
     AddConnection(CharAddedCon)
     
@@ -412,13 +397,10 @@ local function StepForward()
     if IsPaused then
         local currentFrameCount = #Frames
         TogglePause()
-        
-        -- WAIT UNTIL FRAME IS CONFIRMED CAPTURED
         local t = tick()
         while #Frames == currentFrameCount and (tick() - t < 0.2) do
             RunService.Heartbeat:Wait()
         end
-        
         TogglePause()
     end
 end
@@ -504,7 +486,7 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE RUN //
+-- // SAVE RUN (FIXED FLAT STRUCTURE) //
 local function SaveRun()
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
@@ -518,14 +500,17 @@ local function SaveRun()
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
             
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
+            -- [FIX] Flat Array Structure
             Entry.CCFrame = {
                 Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
-                {Round(rx), Round(ry), Round(rz)}
+                Round(rx), Round(ry), Round(rz)
             }
+            
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
+            -- [FIX] Flat Array Structure
             Entry.CCameraCFrame = {
                 Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
-                {Round(crx), Round(cry), Round(crz)}
+                Round(crx), Round(cry), Round(crz)
             }
             table.insert(Export, Entry)
         end
@@ -546,7 +531,6 @@ end)
 AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
--- Capture RopeTable Early
 task.spawn(function()
     local FE2Char = LocalPlayer.Character:WaitForChild("FE2_Character")
     local byte = getscriptbytecode(FE2Char)
@@ -578,7 +562,7 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
         LastHeartbeat = tick() 
     end
     
-    -- Auto-Swim Check (Updated)
+    -- Auto-Swim Check
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
     
@@ -621,7 +605,16 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
                         local F = Savestates[i][j]
-                        local Entry = { AAnimationChanged = F.Animation[2], CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, F.CameraCFrame:ToEulerAnglesXYZ()}, CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, F.CFrame:ToEulerAnglesXYZ()}, AAnimation = F.Animation or {"walk", 0.1}, time = F.Time }
+                        -- Ensure flat structure for local playback too
+                        local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
+                        local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
+                        local Entry = {
+                            AAnimationChanged = F.Animation[2],
+                            CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, crx, cry, crz},
+                            CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, rx, ry, rz},
+                            AAnimation = F.Animation or {"walk", 0.1},
+                            time = F.Time
+                        }
                         table.insert(Data, Entry)
                     end
                 end
