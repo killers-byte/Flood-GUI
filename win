@@ -1,7 +1,7 @@
 getgenv().TomatoAutoFarm = false
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 250
+local EXITREGION_MAX_ATTEMPTS = 500
 local CHECK_DELAY = 0
 local BUTTON_DELAY = 0
 local EXITREGION_WAIT = 0
