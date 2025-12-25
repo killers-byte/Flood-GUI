@@ -1,8 +1,8 @@
 --[[
-    FE2 TAS Creator (Slide Fix Update)
-    - Auto-Swim is now DISABLED while the "slide" animation is playing.
-    - Prevents glitching in shallow water.
-    - Includes 60 FPS Cap, Safe Reset, Map Monitor, and Rounding.
+    FE2 TAS Creator (Crash Fix)
+    - Fixed "attempt to index nil with 'Destroy'" error on Delete.
+    - Script now stops cleanly by disconnecting events instead of destroying itself.
+    - All previous features (60FPS Cap, Auto-Swim, Safety) preserved.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -176,20 +176,23 @@ end
 
 -- // CLEANUP FUNCTION //
 local function ResetToNormal()
+    -- Disconnect ALL events (Stops logic)
     for _, con in pairs(Connections) do
-        con:Disconnect()
+        if con then con:Disconnect() end
     end
     Connections = {}
     
+    -- Cleanup Objects
     if ClonedMap then ClonedMap:Destroy() end
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
     
+    -- Unanchor Player
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         LocalPlayer.Character.HumanoidRootPart.Anchored = false
     end
     
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-    script:Destroy()
+    -- Removed script:Destroy() to fix crash
 end
 
 -- // CORE LOGIC //
@@ -301,6 +304,7 @@ local function SetupMap()
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     MapOffset = CFrame.new(MapX, MapY, MapZ)
     
+    -- CLEAN DEATH LOGIC
     local Char = LocalPlayer.Character
     if Char and Char:FindFirstChild("Humanoid") then
         Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
@@ -617,6 +621,7 @@ local DiedCon = LocalPlayer.Character.Humanoid.Died:Connect(function()
     if not IsPaused then TogglePause() end
     LocalPlayer.CharacterAdded:Wait()
     task.wait(0.1)
+    -- Safety check inside the event
     if ClonedMap and ClonedMap.Parent then
         LoadLastSavestate()
     end
