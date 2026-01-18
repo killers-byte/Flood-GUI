@@ -1,7 +1,7 @@
 --[[
     FE2 TAS Creator (UpdRopeData Fix)
-    - Targeted Remote: 'UpdRopeData'
-    - Data Structure: Expects table with {positions = {...}, length = ...}
+    - Replaced bytecode scanner with direct UpdRopeData listener.
+    - Captures rope data from live game to inject into cloned TAS run.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -309,46 +309,15 @@ local function SetupMap()
     Char = LocalPlayer.Character
     task.wait(1)
     
-    -- // REMOTE LISTENER SETUP //
-    -- We set this up to catch the data when the server sends it.
-    -- Ideally, you run this script BEFORE the map loads so it catches the event.
-    task.spawn(function()
-        local RopeEvent = ReplicatedStorage.Remote:FindFirstChild("UpdRopeData")
-        if RopeEvent then
-            RopeEvent.OnClientEvent:Connect(function(val)
-                print("TAS Creator: Received UpdRopeData from Server")
-                if type(val) == "table" then
-                    RopeTable = val
-                end
-            end)
-        else
-            warn("TAS Creator: UpdRopeData Remote not found!")
-        end
-    end)
-    
     local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
     local startZipline = FE2Env.startZipline
-    
-    -- Inject the captured RopeTable
-    if RopeTable then
-        print("TAS Creator: Injecting Zipline Data...")
+    if RopeTable and #RopeTable >= 1 then
         task.spawn(function()
-            local upvalueIndex = 2 
-            local upvalues = getupvalues(startZipline)
-            for i, v in pairs(upvalues) do
-                if type(v) == "table" then
-                    upvalueIndex = i 
-                    break 
-                end
-            end
-            
             while Char and Char.Humanoid.Health >= 1 do
-                setupvalue(startZipline, upvalueIndex, RopeTable)
+                setupvalue(startZipline, 2, RopeTable)
                 task.wait()
             end
         end)
-    else
-        print("TAS Creator: RopeTable is empty. Ensure UpdRopeData fired.")
     end
     
     local Hum = Char:WaitForChild("Humanoid")
@@ -421,7 +390,7 @@ local function SetupMap()
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
--- // FAST FORWARD //
+-- // FAST FORWARD (Corrected) //
 local IsFastForwarding = false
 local function StepForward()
     if IsPaused then
@@ -516,7 +485,7 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE RUN //
+-- // SAVE RUN (FIXED FLAT STRUCTURE) //
 local function SaveRun()
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
@@ -528,12 +497,16 @@ local function SaveRun()
             Entry.AAnimation = F.Animation or {"walk", 0.1}
             Entry.AAnimationChanged = F.Animation[2] 
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
+            
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
+            -- [FIX] Flat Array Structure
             Entry.CCFrame = {
                 Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
                 Round(rx), Round(ry), Round(rz)
             }
+            
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
+            -- [FIX] Flat Array Structure
             Entry.CCameraCFrame = {
                 Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
                 Round(crx), Round(cry), Round(crz)
@@ -557,9 +530,9 @@ end)
 AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
--- Setup the listener immediately to catch the event if it fires soon
 task.spawn(function()
-    local RopeEvent = ReplicatedStorage.Remote:FindFirstChild("UpdRopeData")
+    -- UPDRopeData Fix: Listen directly instead of bytecode scanning
+    local RopeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("UpdRopeData")
     if RopeEvent then
         RopeEvent.OnClientEvent:Connect(function(val)
             if type(val) == "table" then
@@ -593,8 +566,10 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
         LastHeartbeat = tick() 
     end
     
+    -- Auto-Swim Check
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
+    
     local IsSliding = (CurrentAnim and CurrentAnim[1] == "slide")
     
     if not IsSliding then
@@ -634,6 +609,7 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
                         local F = Savestates[i][j]
+                        -- Ensure flat structure for local playback too
                         local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
                         local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
                         local Entry = {
