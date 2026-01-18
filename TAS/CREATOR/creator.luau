@@ -1,8 +1,7 @@
 --[[
-    FE2 TAS Creator (Data Structure Fix)
-    - Fixed SaveRun structure to output FLAT arrays for CFrames (x,y,z,rx,ry,rz).
-    - Fixes "Unable to cast Array to float" error in TAS Player.
-    - All previous functionality (60FPS Cap, Auto-Swim, Safety) preserved.
+    FE2 TAS Creator (Remote Fix)
+    - Fixed Zipline data fetching by targeting 'ReqItemData' directly.
+    - Removed broken bytecode scanner.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -391,7 +390,7 @@ local function SetupMap()
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
--- // FAST FORWARD (Corrected) //
+-- // FAST FORWARD //
 local IsFastForwarding = false
 local function StepForward()
     if IsPaused then
@@ -486,7 +485,7 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE RUN (FIXED FLAT STRUCTURE) //
+-- // SAVE RUN //
 local function SaveRun()
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
@@ -498,16 +497,12 @@ local function SaveRun()
             Entry.AAnimation = F.Animation or {"walk", 0.1}
             Entry.AAnimationChanged = F.Animation[2] 
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
-            
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
-            -- [FIX] Flat Array Structure
             Entry.CCFrame = {
                 Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
                 Round(rx), Round(ry), Round(rz)
             }
-            
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-            -- [FIX] Flat Array Structure
             Entry.CCameraCFrame = {
                 Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
                 Round(crx), Round(cry), Round(crz)
@@ -532,10 +527,16 @@ AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
 task.spawn(function()
-    local FE2Char = LocalPlayer.Character:WaitForChild("FE2_Character")
-    local byte = getscriptbytecode(FE2Char)
-    local evt = game:FindFirstChild(string.match(byte, "GetPropertyChangedSignal%s+(%a+)%s+OnClientEvent"), true)
-    if evt then evt.OnClientEvent:Connect(function(val) if #val >= 1 then RopeTable = val end end) end
+    -- REPLACED: Direct Remote Access
+    local evt = game:GetService("ReplicatedStorage").Remote.ReqItemData
+    if evt then
+        evt.OnClientEvent:Connect(function(val)
+            -- Verify if the payload is a valid RopeTable array
+            if type(val) == "table" and #val >= 1 then
+                RopeTable = val
+            end
+        end)
+    end
 end)
 
 game.Workspace.Multiplayer:WaitForChild("NewMap", 9e99)
@@ -562,10 +563,8 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
         LastHeartbeat = tick() 
     end
     
-    -- Auto-Swim Check
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
-    
     local IsSliding = (CurrentAnim and CurrentAnim[1] == "slide")
     
     if not IsSliding then
@@ -605,7 +604,6 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
                         local F = Savestates[i][j]
-                        -- Ensure flat structure for local playback too
                         local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
                         local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
                         local Entry = {
