@@ -175,8 +175,8 @@ else
         if v.Name == 'ButtonIcon' then
             local buttonPart = v.Parent.Parent:FindFirstChildOfClass('Part')
             if buttonPart ~= nil then
-                buttonPart.Size = Vector3.new(6,6,6)
-                buttonPart.Transparency = 0.5
+                buttonPart.Size = Vector3.new(7,7,7)
+                buttonPart.Transparency = 1
             end
         end
     end
