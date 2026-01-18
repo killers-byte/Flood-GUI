@@ -14,7 +14,6 @@ if getgenv().TomatoConnections then
 end
 
 getgenv().TomatoConnections = {}
--- Global flag to track if we are resetting intentionally
 getgenv().IsResettingForDifficulty = false 
 
 local function TrackConnection(connection)
@@ -76,7 +75,7 @@ local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
 local ReqPasskey = RemoteFolder:WaitForChild("ReqPasskey")
 local NewMapVote = RemoteFolder:WaitForChild("NewMapVote")
 local UpdMapVote = RemoteFolder:WaitForChild("UpdMapVote")
-local AddedWaiting = RemoteFolder:WaitForChild("AddedWaiting") -- Remote to join Lift
+local AddedWaiting = RemoteFolder:WaitForChild("AddedWaiting")
 
 -- Anti-AFK
 TrackConnection(LocalPlayer.Idled:Connect(function()
@@ -86,16 +85,11 @@ end))
 
 -- Respawn & Rejoin Lift Handler
 TrackConnection(LocalPlayer.CharacterAdded:Connect(function(char)
-    -- Only run this if we reset because of the Difficulty Checker
     if getgenv().IsResettingForDifficulty then
-        -- Wait for character to load
         char:WaitForChild("HumanoidRootPart", 10)
-        task.wait(0.5) -- Small delay to ensure game registers spawn
-        
+        task.wait(0.5) 
         print("Respawned. Attempting to rejoin Lift...")
         AddedWaiting:FireServer()
-        
-        -- Reset the flag so we don't rejoin randomly
         getgenv().IsResettingForDifficulty = false
     end
 end))
@@ -199,10 +193,7 @@ local function OnMapLoad(Map)
 
     if currentRank > targetRank then
         Alert("Difficulty Too High ("..currentName.."). Resetting...")
-        
-        -- Flag to tell the Respawn Handler to rejoin the lift
         getgenv().IsResettingForDifficulty = true 
-        
         Humanoid.Health = 0
         CurrentlyFarming = false
         return 
@@ -381,8 +372,10 @@ local VoteListener = NewMapVote.OnClientEvent:Connect(function(dataPacket)
 
     local foundTarget = nil
 
+    -- Check if our target map is in the list AND VISIBLE
     for _, map in pairs(maps) do
-        if map.name == TARGET_MAP_NAME then
+        -- ADDED: 'and map.displayMap == true'
+        if map.name == TARGET_MAP_NAME and map.displayMap == true then
             foundTarget = map
             break
         end
@@ -410,7 +403,7 @@ local VoteListener = NewMapVote.OnClientEvent:Connect(function(dataPacket)
 
         task.spawn(ExecuteSecondaryScript)
     else
-        print("Target map ("..TARGET_MAP_NAME..") not found. Checking difficulty...")
+        print("Target map ("..TARGET_MAP_NAME..") not found or not displayed.")
     end
 end)
 
