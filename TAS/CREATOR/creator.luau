@@ -1,7 +1,7 @@
 --[[
-    FE2 TAS Creator (Remote Fix)
-    - Fixed Zipline data fetching by targeting 'ReqItemData' directly.
-    - Removed broken bytecode scanner.
+    FE2 TAS Creator (UpdRopeData Fix)
+    - Targeted Remote: 'UpdRopeData'
+    - Data Structure: Expects table with {positions = {...}, length = ...}
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -309,15 +309,46 @@ local function SetupMap()
     Char = LocalPlayer.Character
     task.wait(1)
     
+    -- // REMOTE LISTENER SETUP //
+    -- We set this up to catch the data when the server sends it.
+    -- Ideally, you run this script BEFORE the map loads so it catches the event.
+    task.spawn(function()
+        local RopeEvent = ReplicatedStorage.Remote:FindFirstChild("UpdRopeData")
+        if RopeEvent then
+            RopeEvent.OnClientEvent:Connect(function(val)
+                print("TAS Creator: Received UpdRopeData from Server")
+                if type(val) == "table" then
+                    RopeTable = val
+                end
+            end)
+        else
+            warn("TAS Creator: UpdRopeData Remote not found!")
+        end
+    end)
+    
     local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
     local startZipline = FE2Env.startZipline
-    if RopeTable and #RopeTable >= 1 then
+    
+    -- Inject the captured RopeTable
+    if RopeTable then
+        print("TAS Creator: Injecting Zipline Data...")
         task.spawn(function()
+            local upvalueIndex = 2 
+            local upvalues = getupvalues(startZipline)
+            for i, v in pairs(upvalues) do
+                if type(v) == "table" then
+                    upvalueIndex = i 
+                    break 
+                end
+            end
+            
             while Char and Char.Humanoid.Health >= 1 do
-                setupvalue(startZipline, 2, RopeTable)
+                setupvalue(startZipline, upvalueIndex, RopeTable)
                 task.wait()
             end
         end)
+    else
+        print("TAS Creator: RopeTable is empty. Ensure UpdRopeData fired.")
     end
     
     local Hum = Char:WaitForChild("Humanoid")
@@ -526,13 +557,12 @@ end)
 AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
+-- Setup the listener immediately to catch the event if it fires soon
 task.spawn(function()
-    -- REPLACED: Direct Remote Access
-    local evt = game:GetService("ReplicatedStorage").Remote.ReqItemData
-    if evt then
-        evt.OnClientEvent:Connect(function(val)
-            -- Verify if the payload is a valid RopeTable array
-            if type(val) == "table" and #val >= 1 then
+    local RopeEvent = ReplicatedStorage.Remote:FindFirstChild("UpdRopeData")
+    if RopeEvent then
+        RopeEvent.OnClientEvent:Connect(function(val)
+            if type(val) == "table" then
                 RopeTable = val
             end
         end)
