@@ -88,11 +88,25 @@ local realMapName = Map:WaitForChild('Settings'):GetAttribute("MapName")
 local mapName = game:GetService("HttpService"):UrlEncode(realMapName)
 print(realMapName)
 
+-- // CHECK FOR LOCAL TAS //
+local success, path
+if isfolder("Flood-GUI") == true and isfolder("Flood-GUI/TAS FILES") == true then
+    local TargetTASPath = "Flood-GUI/TAS FILES/" .. realMapName .. ".json"
+    if isfile(TargetTASPath) == true then
+        print("Found Local")
+        path = readfile(TargetTASPath)
+        success = true
+    end
+end
+
 -- // DOWNLOAD TAS //
-local success, path = 
-    pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS%20FILES/".. mapName .. ".json")
-    end)
+if path == nil then
+    print("Getting Online!")
+    success, path = 
+        pcall(function()
+            return game:HttpGet("https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS%20FILES/".. mapName .. ".json")
+        end)
+end
 
 if success and #path > 50 then
     print("TAS FILE IS REAL")
@@ -173,8 +187,8 @@ else
         if v.Name == 'ButtonIcon' then
             local buttonPart = v.Parent.Parent:FindFirstChildOfClass('Part')
             if buttonPart ~= nil then
-                buttonPart.Size = Vector3.new(6,6,6)
-                buttonPart.Transparency = 0.5
+                buttonPart.Size = Vector3.new(7, 7, 7)
+                buttonPart.Transparency = 1
             end
         end
     end
@@ -233,61 +247,49 @@ else
     local RootPart = LP.Character.HumanoidRootPart
 
     -- // MAIN PLAYBACK LOOP //
-    Loop = RS.Heartbeat:Connect(function(DeltaTime)
+    Loop = RS.Heartbeat:Connect(function()
+        local Elapsed = tick() - TimeStart
         LP.Character.Humanoid.Health = 99999
         
-        local NewFrame = #TAS
-        -- Limit catch-up to 60 frames per tick to prevent crashes on extreme lag
-        local Divider = OldFrame + 60 
-        if Divider < #TAS then
-            NewFrame = Divider
+        -- Advance index based on current time
+        while OldFrame < #TAS and TAS[OldFrame + 1].time <= Elapsed do
+            OldFrame = OldFrame + 1
         end
-        
-        local TargetFrame = nil
-        local TargetIndex = OldFrame
 
-        -- [FIX] Loop calculates latest valid frame, but DOES NOT apply it yet
-        for i = OldFrame, NewFrame do
-            local CurrentInfo = TAS[i]
-            if (tick() - TimeStart) < CurrentInfo.time then
-                break -- We are ahead of time
-            elseif i >= #TAS then
-                -- End of run detected
-                Alert('TAS Run Finished!', Color3.new(0, 1, 0))
-                Alert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
-                Death:Disconnect()
-                Loop:Disconnect()
-                DeathConnect:Disconnect()
-                Animate.playAnimation = PlayAnim
-                if LP.Character and LP.Character.Humanoid then
-                    Animate.playAnimation("idle", 0.1, LP.Character.Humanoid)
-                end
-                return -- Exit loop immediately
-            elseif (tick() - TimeStart) >= CurrentInfo.time then
-                -- Found a frame that should have passed.
-                -- Update index, but don't apply physics inside the loop.
-                TargetIndex = i
-                TargetFrame = CurrentInfo
+        -- Check for end of run
+        if OldFrame >= #TAS then
+            Alert('TAS Run Finished!', Color3.new(0, 1, 0))
+            Alert('TAS Player By Tomato & Moz', Color3.new(0, 1, 0))
+            Death:Disconnect()
+            Loop:Disconnect()
+            DeathConnect:Disconnect()
+            Animate.playAnimation = PlayAnim
+            if LP.Character and LP.Character.Humanoid then
+                Animate.playAnimation("idle", 0.1, LP.Character.Humanoid)
             end
+            return
         end
+
+        -- Frame Interpolation Logic
+        local FrameA = TAS[OldFrame]
+        local FrameB = TAS[OldFrame + 1] or FrameA
         
-        -- [FIX] Apply Physics & Animation ONCE per Heartbeat
-        if TargetFrame then
-            OldFrame = TargetIndex -- Update the tracking index
-            
-            local CCFrame = TargetFrame.CCFrame
-            -- local VVelocity = TargetFrame.VVelocity -- (Optional: Restore velocity if needed)
-            
-            LP.Character.Humanoid.Jump = true
-            
-            -- Apply CFrame
-            RootPart.CFrame = NewC(CCFrame[1], CCFrame[2], CCFrame[3]) * AngC(CCFrame[4], CCFrame[5], CCFrame[6]) + Offset
-            
-            -- Apply Animation (Deduped inside the function)
-            local s, r = pcall(activateAnimation, TargetFrame.AAnimation)
-            if s == false then
-                warn(r)
-            end
-        end
+        local Duration = FrameB.time - FrameA.time
+        local Alpha = (Duration > 0) and math.clamp((Elapsed - FrameA.time) / Duration, 0, 1) or 0
+
+        -- Construct CFrames and Vectors for Lerping
+        local cfA = NewC(FrameA.CCFrame[1], FrameA.CCFrame[2], FrameA.CCFrame[3]) * AngC(FrameA.CCFrame[4], FrameA.CCFrame[5], FrameA.CCFrame[6])
+        local cfB = NewC(FrameB.CCFrame[1], FrameB.CCFrame[2], FrameB.CCFrame[3]) * AngC(FrameB.CCFrame[4], FrameB.CCFrame[5], FrameB.CCFrame[6])
+        local vA = NewV(FrameA.VVelocity[1], FrameA.VVelocity[2], FrameA.VVelocity[3])
+        local vB = NewV(FrameB.VVelocity[1], FrameB.VVelocity[2], FrameB.VVelocity[3])
+
+        -- Apply Physics
+        LP.Character.Humanoid.Jump = true
+        RootPart.CFrame = cfA:Lerp(cfB, Alpha) + Offset
+        RootPart.Velocity = vA:Lerp(vB, Alpha)
+        
+        -- Apply Animation
+        local s, r = pcall(activateAnimation, FrameA.AAnimation)
+        if s == false then warn(r) end
     end)
 end
