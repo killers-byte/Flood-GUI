@@ -263,7 +263,8 @@ local function OnMapLoad(Map)
     Noclip(true)
     
     -- 3. FARM LOOP
-    while task.wait() and Check("InGame") do
+    -- [UPDATE] Added check for getgenv().TomatoAutoFarm
+    while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
         if not CurrentlyFarming then break end 
 
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
@@ -276,6 +277,9 @@ local function OnMapLoad(Map)
         if not ExitRegion then
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
+                -- [UPDATE] Stop inner loop immediately if paused
+                if not getgenv().TomatoAutoFarm then break end
+
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
                 if ButtonHitbox then
                     CurrentButton = Button
@@ -374,7 +378,6 @@ local VoteListener = NewMapVote.OnClientEvent:Connect(function(dataPacket)
 
     -- Check if our target map is in the list AND VISIBLE
     for _, map in pairs(maps) do
-        -- ADDED: 'and map.displayMap == true'
         if map.name == TARGET_MAP_NAME and map.displayMap == true then
             foundTarget = map
             break
@@ -420,34 +423,52 @@ end
 _G.LoopCancel = false
 Alert("Ready! Starting Update Loop.")
 
--- [ADDED] Auto Lift Rejoin Logic
+-- Auto Lift Rejoin Logic (Watchdog)
 task.spawn(function()
     while task.wait(1) do
         if _G.LoopCancel == true then break end
         
-        -- Safely check state
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local inLift = Check("InLift")
             local inGame = Check("InGame")
 
-            -- Logic: If NOT in lift AND NOT in game
-            if not inLift and not inGame then
+            -- Logic: If NOT in lift AND NOT in game -> Fire Remote
+            -- [UPDATE] Only if AutoFarm is Enabled
+            if not inLift and not inGame and getgenv().TomatoAutoFarm then
                 AddedWaiting:FireServer()
             end
         end
     end
 end)
 
+-- Main Connection & Pause Alert Loop
 task.spawn(function()
-    while task.wait() do
+    while task.wait(0.5) do
+        -- 1. Check for Script Kill
         if _G.LoopCancel == true then
             Alert("Script Overridden/Cancelled.")
             if MapDetect then MapDetect:Disconnect() end
             break
         end
         
+        -- 2. Ensure Map Listener is active
         if not MapDetect then
             ConnectMap()
+        end
+
+        -- 3. Check for PAUSE (User toggled false)
+        if getgenv().TomatoAutoFarm == false then
+            Alert("Auto Farm Paused!")
+            
+            -- Wait here until User toggles TRUE or cancels script
+            repeat 
+                task.wait(0.5) 
+            until getgenv().TomatoAutoFarm == true or _G.LoopCancel == true
+            
+            -- If we exited the loop because they turned it back ON (and not because script died)
+            if _G.LoopCancel == false then
+                Alert("Auto Farm Resumed!")
+            end
         end
     end
 end)
