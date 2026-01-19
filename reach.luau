@@ -25,6 +25,10 @@ end
 -- [CONFIGURATION] EDIT THIS SECTION
 -- ==============================================================================
 
+local MODE = "Record" 
+local TARGET_MAP_NAME = "Central Mass Array" -- Exact Case-Sensitive Name
+local TARGET_DIFFICULTY_NAME = "Crazy+" 
+
 getgenv().TomatoAutoFarm = true
 
 -- ==============================================================================
@@ -79,7 +83,7 @@ TrackConnection(LocalPlayer.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end))
 
--- Respawn & Rejoin Lift Handler
+-- Respawn & Rejoin Lift Handler (On Respawn)
 TrackConnection(LocalPlayer.CharacterAdded:Connect(function(char)
     if getgenv().IsResettingForDifficulty then
         char:WaitForChild("HumanoidRootPart", 10)
@@ -415,6 +419,24 @@ if _G.LoopCancel ~= nil then
 end
 _G.LoopCancel = false
 Alert("Ready! Starting Update Loop.")
+
+-- [ADDED] Auto Lift Rejoin Logic
+task.spawn(function()
+    while task.wait(1) do
+        if _G.LoopCancel == true then break end
+        
+        -- Safely check state
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local inLift = Check("InLift")
+            local inGame = Check("InGame")
+
+            -- Logic: If NOT in lift AND NOT in game
+            if not inLift and not inGame then
+                AddedWaiting:FireServer()
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     while task.wait() do
