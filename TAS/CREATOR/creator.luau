@@ -1,11 +1,12 @@
 --[[
-    FE2 TAS Creator (No Auto-Save Fix)
+    FE2 TAS Creator (Rope Data Overwrite Fix)
     - Replaced bytecode scanner with direct UpdRopeData listener.
     - Captures rope data from live game to inject into cloned TAS run.
     - Added Total Button Tracking & Safety Warnings.
     - Added Time-Travel logic for buttons (Un-presses when rewinding).
     - FIXED: Uses "ButtonIcon" detection method from TAS Player to find buttons.
     - REMOVED: Initial SaveRun call on startup.
+    - FIXED: Rope Data now "locks" once TAS starts, preventing new rounds from breaking ziplines.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -204,7 +205,11 @@ local function ResetToNormal()
     TotalButtons = {}
     ButtonRegistry = {}
     
-    if ClonedMap then ClonedMap:Destroy() end
+    if ClonedMap then 
+        ClonedMap:Destroy() 
+        ClonedMap = nil -- [FIX] Set to nil so Rope Data listener knows we aren't busy
+    end
+    
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
     
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -609,7 +614,8 @@ task.spawn(function()
     local RopeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("UpdRopeData")
     if RopeEvent then
         RopeEvent.OnClientEvent:Connect(function(val)
-            if type(val) == "table" then
+            -- [FIX] Only update rope data if we are NOT currently in a TAS session
+            if type(val) == "table" and not ClonedMap then
                 RopeTable = val
             end
         end)
