@@ -1,10 +1,11 @@
 --[[
-    FE2 TAS Creator (Button Detection Fix)
+    FE2 TAS Creator (No Auto-Save Fix)
     - Replaced bytecode scanner with direct UpdRopeData listener.
     - Captures rope data from live game to inject into cloned TAS run.
     - Added Total Button Tracking & Safety Warnings.
     - Added Time-Travel logic for buttons (Un-presses when rewinding).
     - FIXED: Uses "ButtonIcon" detection method from TAS Player to find buttons.
+    - REMOVED: Initial SaveRun call on startup.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -660,7 +661,7 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
 end)
 AddConnection(HBCon)
 
-SaveRun()
+-- Removed SaveRun() call here
 
 local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe then
