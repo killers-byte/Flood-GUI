@@ -1,15 +1,15 @@
 --[[
-    FE2 TAS Creator (Absolute Final v64.03)
-    - FIXED: UI nil index safety.
-    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Step-Forward) loops.
-    - RESTORED: Passkey Handshake, Collision Toggler, and Reset functions.
-    - RESTORED: Zipline Injection (setupvalue) and Map Monitor.
-    - SYNC: Animation and Physics logic synchronized with TAS Player.
+    FE2 TAS Creator (Restored & Fixed v64.03)
+    - FIXED: 'TAS_UI' nil error (UI now loads safely at start).
+    - FIXED: Keybinds 4 (Rewind) and 5 (Fast Forward).
+    - RESTORED: Passkey Handshake, Zipline Injection, Collision, Reset, Map Monitor.
+    - SYNC: Animation and Physics match the TAS Player.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
+local PLAYBACK_SPEED = 1 -- Multiplier for View TAS speed
 
-print("TAS Creator: Absolute Final v64.03 Initialized")
+print("TAS Creator: Restored Build v64.03 Initialized")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -29,7 +29,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
+
+-- // UI LOADER (FIXED) //
+-- We load this immediately so it is ready when SetupMap calls it.
+local TAS_UI_LIB = nil
+local Success, Result = pcall(function()
+    return loadstring(game:HttpGet(UI_API_URL))()
+end)
+
+if Success and Result then
+    TAS_UI_LIB = Result
+else
+    warn("Failed to load TAS UI API: " .. tostring(Result))
+end
 
 -- // STATE VARIABLES //
 local CurrentAnim = {"idle", 0.1}
@@ -50,8 +64,7 @@ local MapReady = false
 
 -- Recording Settings
 local RecordAccumulator = 0
-local TARGET_FPS = 60
-local RECORD_INTERVAL = 1 / TARGET_FPS
+local RECORD_INTERVAL = 1 / 60 -- 60 FPS Cap
 
 -- Environment
 getgenv().IsSwimming = false
@@ -64,8 +77,8 @@ local NewAlert = nil
 local function SetupAlerts()
     local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
     if GameScript then
-        local success, env = pcall(getsenv, GameScript)
-        if success and env.newAlert then NewAlert = env.newAlert end
+        local s, env = pcall(getsenv, GameScript)
+        if s and env.newAlert then NewAlert = env.newAlert end
     end
 end
 SetupAlerts()
@@ -75,7 +88,7 @@ local function SendAlert(msg, color)
     else SetupAlerts() if NewAlert then pcall(function() NewAlert(msg, color) end) end end
 end
 
--- // BYPASS & HANDSHAKE //
+-- // BYPASSES & HANDSHAKE //
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
     if not checkcaller() then
@@ -87,6 +100,7 @@ OldIndex = hookmetamethod(game, "__index", function(self, key)
     return OldIndex(self, key)
 end)
 
+-- RESTORED: Handshake
 pcall(function() ReplicatedStorage.Remote.ReqPasskey:InvokeServer() end)
 
 -- // HELPERS //
@@ -167,20 +181,27 @@ local function ResetToNormal()
     SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
 end
 
--- // KEY 4/5 LOGIC //
+-- // KEY 4/5 LOGIC (Restored) //
 local function RewindFrame()
     if MapReady and IsPaused and #Frames > 1 then
         table.remove(Frames)
         local Frame = Frames[#Frames]
+        
+        -- Restore State
         local Root = LocalPlayer.Character.HumanoidRootPart
         Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
         Root.Velocity = Frame.Velocity
         SavedVelocity = Frame.Velocity
         workspace.CurrentCamera.CFrame = Frame.CameraCFrame
+        
+        -- Restore Time
         PauseStart = tick()
         RunStart = tick() - Frame.Time
         TimeOffset = 0
         UpdateTime()
+    elseif #Frames <= 1 and #Savestates > 0 then
+        -- Optional: Rewind into previous savestate? 
+        -- For now, we stop at the start of current segment
     end
 end
 
@@ -221,12 +242,13 @@ local function LoadLastSavestate()
     end
 end
 
--- // PLAYBACK //
+-- // PLAYBACK (View TAS) //
 local IsViewingTAS = false
 local function PlaybackTAS(Data)
     IsViewingTAS = true
     local Root = LocalPlayer.Character.HumanoidRootPart
     local Hum = LocalPlayer.Character.Humanoid
+    local Cam = workspace.CurrentCamera
     local Offset = ClonedMap.PrimaryPart.Position - Vector3.new(0, 1000, 0)
     local idx = 1
     local PlayStart = tick()
@@ -240,17 +262,20 @@ local function PlaybackTAS(Data)
         for i = idx, #Data do
             local F = Data[i]
             if Elapsed < F.time then break
-            elseif i >= #Data then Con:Disconnect(); IsViewingTAS = false; Root.Anchored = true
+            elseif i >= #Data then Con:Disconnect(); IsViewingTAS = false; Root.Anchored = true; SendAlert("Playback Ended", Color3.new(0,1,0))
             elseif Elapsed >= F.time then
                 idx = i
+                -- Apply Physics
                 local cf = F.CCFrame
                 local ccf = F.CCameraCFrame
                 Root.CFrame = CFrame.new(cf[1], cf[2], cf[3]) * CFrame.fromEulerAnglesXYZ(cf[4], cf[5], cf[6]) + Offset
-                workspace.CurrentCamera.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
+                Cam.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
                 Root.Velocity = Vector3.new(F.VVelocity[1], F.VVelocity[2], F.VVelocity[3])
                 
+                -- Apply Animation (Sync Swing)
                 local animName = F.AAnimation[1]
                 if Hum:GetState() == Enum.HumanoidStateType.Physics then animName = "swing" end
+                
                 if animName ~= LastPlayedAnim and OriginalPlayAnim then
                     OriginalPlayAnim(animName, F.AAnimation[2], Hum)
                     LastPlayedAnim = animName
@@ -261,11 +286,13 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE FUNCTION //
+-- // SAVE RUN //
 local function SaveRun()
     if not MapReady then return end
     local Export = {}
     local AllData = {}
+    
+    -- Combine all savestates + current frames
     for _,chunk in ipairs(Savestates) do for _,f in ipairs(chunk) do table.insert(AllData, f) end end
     for _,f in ipairs(Frames) do table.insert(AllData, f) end
 
@@ -283,14 +310,15 @@ local function SaveRun()
     
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
     local Name = ClonedMap.Settings:GetAttribute("MapName") or "Unknown"
-    writefile("Flood-GUI/TAS FILES/" .. Name .. ".json", game:GetService("HttpService"):JSONEncode(Export))
+    writefile("Flood-GUI/TAS FILES/" .. Name .. ".json", HttpService:JSONEncode(Export))
     SendAlert("Run Saved Successfully", Color3.new(0, 1, 0))
 end
 
 -- // INITIALIZATION //
 local function HookAnimations()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local anim = char:WaitForChild("Animate")
+    local anim = char:WaitForChild("Animate", 10)
+    if not anim then return end
     AnimEnv = getsenv(anim)
     OriginalPlayAnim = AnimEnv.playAnimation
     AnimEnv.playAnimation = function(anim, speed)
@@ -299,10 +327,17 @@ local function HookAnimations()
 end
 
 local function SetupMap()
+    if not TAS_UI_LIB then
+        SendAlert("CRITICAL ERROR: UI Library did not load!", Color3.new(1,0,0))
+        return
+    end
+
     local MP = workspace:WaitForChild("Multiplayer")
     local Map = MP:WaitForChild("Map")
     local Spawn = Map:FindFirstChild("Spawn", true)
+    
     if not Spawn then
+        -- Fallback spawn finder
         local target = nil
         local connections = {}
         for _, child in ipairs(Map:GetChildren()) do
@@ -315,23 +350,26 @@ local function SetupMap()
         end
         repeat task.wait() until target
         Map.PrimaryPart = target
-    else Map.PrimaryPart = Spawn end
+    else 
+        Map.PrimaryPart = Spawn 
+    end
 
     ClonedMap = Map:Clone()
     ClonedMap.Parent = workspace
     MapPos = ClonedMap.PrimaryPart.Position
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     
+    -- Reset Character
     local Char = LocalPlayer.Character
-    if Char and Char:FindFirstChild("Humanoid") then
-        Char.Humanoid.Health = 0
-    end
+    if Char and Char:FindFirstChild("Humanoid") then Char.Humanoid.Health = 0 end
     LocalPlayer.CharacterAdded:Wait()
     Char = LocalPlayer.Character
     task.wait(1)
     
     HookAnimations()
-    UI_Elements = TAS_UI.Create()
+    
+    -- UI CREATION (SAFE CALL)
+    UI_Elements = TAS_UI_LIB.Create()
     TimeText, FrameCountLabel, StatusLabel = UI_Elements.TimeText, UI_Elements.FrameCount, UI_Elements.StatusText
     
     -- RESTORED: Zipline Injection Logic
@@ -345,6 +383,7 @@ local function SetupMap()
         end)
     end
     
+    -- Position Character
     local Root = Char:WaitForChild("HumanoidRootPart")
     Root.CFrame = CFrame.new(MapPos) + Vector3.new(0, 5, 0)
     Root.Anchored = true
@@ -352,6 +391,7 @@ local function SetupMap()
     MapReady = true
     table.insert(Savestates, {{CFrame = GetPlayerCFrame(), CameraCFrame = workspace.CurrentCamera.CFrame, Velocity = Vector3.new(0,0,0), Animation = {"idle", 0.1}, Time = 0}})
     
+    -- Setup Water and Buttons
     WaterParts = {}
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -368,8 +408,8 @@ local function SetupMap()
         end
     end
     
-    MP.Map:Destroy()
-    SendAlert("v64.03 Ready", Color3.new(0,1,0))
+    if MP:FindFirstChild("Map") then MP.Map:Destroy() end
+    SendAlert("System Ready", Color3.new(0,1,0))
 end
 
 -- // LOOPS //
@@ -412,6 +452,7 @@ AddConnection(UserInputService.InputBegan:Connect(function(i, g)
     elseif k == Keybinds.GoFrameForward then IsFastForwarding = true; task.spawn(FastForwardLoop)
     elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
     elseif k == Keybinds.ViewTAS and not IsViewingTAS then
+        -- Combine Data for playback
         local Data = {}
         for _,chunk in ipairs(Savestates) do
             for _,f in ipairs(chunk) do
