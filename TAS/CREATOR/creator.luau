@@ -1,13 +1,15 @@
 --[[
-    FE2 TAS Creator (Fix: UI Nil Error + Keybind 4/5)
-    - FIXED: UI crash during startup (nil check added to Heartbeat).
-    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Forward) logic.
-    - SYNC: Animation/Velocity logic matches Player script.
+    FE2 TAS Creator (Build v64.03)
+    - FIXED: UI nil index safety.
+    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Step-Forward) loops.
+    - FIXED: Keybind execution safety (checks if Map is ready).
+    - FIXED: View TAS now includes the current "active" frames.
+    - SYNC: Animation and Physics logic synchronized with TAS Player.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("Latest TAS Creator (UI + 4/5 Fix) for FE2 v63.21")
+print("TAS Creator: Version v64.03 Initialized")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -29,7 +31,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- // VARIABLES //
+-- // STATE VARIABLES //
 local CurrentAnim = {"idle", 0.1}
 local Savestates = {}
 local Frames = {}
@@ -42,27 +44,22 @@ local RunStart = tick()
 local SavedVelocity = Vector3.new(0, 0, 0)
 local ButtonDebounce = false
 local Connections = {} 
-
 local IsRewinding = false
 local IsFastForwarding = false
+local MapReady = false
 
--- Recording Cap Variables
+-- Recording Settings
 local RecordAccumulator = 0
 local TARGET_FPS = 60
 local RECORD_INTERVAL = 1 / TARGET_FPS
 
--- Auto-Swim Global
+-- Environment
 getgenv().IsSwimming = false
 local WaterParts = {}
-
--- UI Variables
-local TAS_UI = loadstring(game:HttpGet(UI_API_URL))()
 local UI_Elements, TimeText, FrameCountLabel, StatusLabel
-
--- Map Variables
 local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable
 
--- // ALERT SYSTEM //
+-- // ALERTS //
 local NewAlert = nil
 local function SetupAlerts()
     local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
@@ -78,7 +75,7 @@ local function SendAlert(msg, color)
     else SetupAlerts() if NewAlert then pcall(function() NewAlert(msg, color) end) end end
 end
 
--- // BYPASSES //
+-- // BYPASS //
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
     if not checkcaller() then
@@ -91,11 +88,11 @@ OldIndex = hookmetamethod(game, "__index", function(self, key)
 end)
 
 local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
-
--- // CORE HELPERS //
 local function AddConnection(con) table.insert(Connections, con) return con end
 
+-- // CORE LOGIC //
 local function GetPlayerCFrame()
+    if not MapReady then return CFrame.new() end
     local Root = LocalPlayer.Character.HumanoidRootPart
     local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = Root.CFrame:GetComponents()
     return CFrame.new(x - MapX, y - MapY + 1000, z - MapZ, R00, R01, R02, R10, R11, R12, R20, R21, R22)
@@ -120,8 +117,8 @@ local function UpdateTime()
     TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
 end
 
--- // PAUSE / LOGIC //
 local function TogglePause()
+    if not MapReady then return end
     IsPaused = not IsPaused
     local Root = LocalPlayer.Character.HumanoidRootPart
     if IsPaused then
@@ -129,26 +126,20 @@ local function TogglePause()
         Root.Anchored = true
         if TimeText then TimeText.TextColor3 = Color3.fromRGB(255, 255, 0) end
         PauseStart = tick()
-        if StatusLabel then 
-            StatusLabel.Text = "CapsLock : Paused"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-        end
+        if StatusLabel then StatusLabel.Text = "CapsLock : Paused"; StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0) end
     else
         Root.Anchored = false
         Root.Velocity = SavedVelocity
         if TimeText then TimeText.TextColor3 = Color3.fromRGB(255, 255, 255) end
-        TimeOffset = TimeOffset + tick() - PauseStart
-        if StatusLabel then
-            StatusLabel.Text = "CapsLock : Unpaused"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        end
+        TimeOffset = TimeOffset + (tick() - PauseStart)
+        if StatusLabel then StatusLabel.Text = "CapsLock : Unpaused"; StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
         RecordAccumulator = 0
     end
 end
 
--- // REWIND & FORWARD LOGIC (KEY 4 & 5) //
+-- // KEY 4/5 LOGIC //
 local function RewindFrame()
-    if IsPaused and #Frames > 1 then
+    if MapReady and IsPaused and #Frames > 1 then
         table.remove(Frames)
         local Frame = Frames[#Frames]
         local Root = LocalPlayer.Character.HumanoidRootPart
@@ -164,10 +155,7 @@ local function RewindFrame()
 end
 
 local function RewindLoop()
-    while IsRewinding do
-        RewindFrame()
-        task.wait(0.05)
-    end
+    while IsRewinding do RewindFrame(); task.wait(0.05) end
 end
 
 local function FastForwardLoop()
@@ -183,6 +171,7 @@ end
 
 -- // SAVESTATES //
 local function LoadLastSavestate()
+    if not MapReady then return end
     local LastState = Savestates[#Savestates]
     if LastState and #LastState > 0 then
         local Frame = LastState[#LastState]
@@ -202,7 +191,7 @@ local function LoadLastSavestate()
     end
 end
 
--- // VIEW TAS //
+-- // PLAYBACK //
 local IsViewingTAS = false
 local function PlaybackTAS(Data)
     IsViewingTAS = true
@@ -232,7 +221,7 @@ local function PlaybackTAS(Data)
                 
                 local animName = F.AAnimation[1]
                 if Hum:GetState() == Enum.HumanoidStateType.Physics then animName = "swing" end
-                if animName ~= LastPlayedAnim then
+                if animName ~= LastPlayedAnim and OriginalPlayAnim then
                     OriginalPlayAnim(animName, F.AAnimation[2], Hum)
                     LastPlayedAnim = animName
                 end
@@ -242,35 +231,41 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE //
+-- // SAVE FUNCTION //
 local function SaveRun()
+    if not MapReady then return end
     local Export = {}
-    for i = 1, #Savestates do
-        for j = 1, #Savestates[i] do
-            local F = Savestates[i][j]
-            local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
-            local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-            table.insert(Export, {
-                time = Round(F.Time),
-                AAnimation = F.Animation or {"walk", 0.1},
-                VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)},
-                CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)},
-                CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
-            })
-        end
+    -- Combine Savestates and current Frames
+    local AllData = {}
+    for _,chunk in ipairs(Savestates) do for _,f in ipairs(chunk) do table.insert(AllData, f) end end
+    for _,f in ipairs(Frames) do table.insert(AllData, f) end
+
+    for _,F in ipairs(AllData) do
+        local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
+        local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
+        table.insert(Export, {
+            time = Round(F.Time),
+            AAnimation = F.Animation or {"walk", 0.1},
+            VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)},
+            CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)},
+            CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
+        })
     end
+    
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
-    writefile("Flood-GUI/TAS FILES/" .. ClonedMap.Settings:GetAttribute("MapName") .. ".json", game:GetService("HttpService"):JSONEncode(Export))
-    SendAlert("Saved!", Color3.fromRGB(0, 255, 0))
+    local Name = ClonedMap.Settings:GetAttribute("MapName") or "Unknown"
+    writefile("Flood-GUI/TAS FILES/" .. Name .. ".json", game:GetService("HttpService"):JSONEncode(Export))
+    SendAlert("Run Saved Successfully", Color3.new(0, 1, 0))
 end
 
 -- // INITIALIZATION //
 local function HookAnimations()
-    repeat task.wait() until LocalPlayer.Character:FindFirstChild("Animate")
-    AnimEnv = getsenv(LocalPlayer.Character.Animate)
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local anim = char:WaitForChild("Animate")
+    AnimEnv = getsenv(anim)
     OriginalPlayAnim = AnimEnv.playAnimation
     AnimEnv.playAnimation = function(anim, speed)
-        if not IsPaused then CurrentAnim = {anim, speed} OriginalPlayAnim(anim, speed, LocalPlayer.Character.Humanoid) end
+        if not IsPaused then CurrentAnim = {anim, speed}; OriginalPlayAnim(anim, speed, LocalPlayer.Character.Humanoid) end
     end
 end
 
@@ -293,13 +288,15 @@ local function SetupMap()
     Root.CFrame = CFrame.new(MapPos) + Vector3.new(0, 5, 0)
     Root.Anchored = true
     
+    MapReady = true
     table.insert(Savestates, {{CFrame = GetPlayerCFrame(), CameraCFrame = workspace.CurrentCamera.CFrame, Velocity = Vector3.new(0,0,0), Animation = {"idle", 0.1}, Time = 0}})
     workspace.Multiplayer.Map:Destroy()
+    SendAlert("v64.03 Ready", Color3.new(0,1,0))
 end
 
--- // MAIN LOOPS //
+-- // LOOPS //
 AddConnection(RunService.Heartbeat:Connect(function(dt)
-    if not IsPaused then
+    if not IsPaused and MapReady then
         UpdateTime()
         RecordAccumulator = RecordAccumulator + dt
         if RecordAccumulator >= RECORD_INTERVAL then
@@ -308,7 +305,6 @@ AddConnection(RunService.Heartbeat:Connect(function(dt)
         end
     end
     
-    -- [FIX] Nil Check for UI Elements
     if UI_Elements then
         if UI_Elements.SavestatesCount then UI_Elements.SavestatesCount.Text = "Savestates " .. #Savestates end
         if FrameCountLabel then FrameCountLabel.Text = "Frames " .. #Frames end
@@ -316,7 +312,7 @@ AddConnection(RunService.Heartbeat:Connect(function(dt)
 end))
 
 AddConnection(UserInputService.InputBegan:Connect(function(i, g)
-    if g then return end
+    if g or not MapReady then return end
     local k = i.KeyCode.Name
     if k == Keybinds.UserPause then TogglePause()
     elseif k == Keybinds.AddSavestate then SendAlert("Savestate Added", Color3.new(0,1,0)); table.insert(Savestates, Frames); Frames = {}
@@ -325,13 +321,19 @@ AddConnection(UserInputService.InputBegan:Connect(function(i, g)
     elseif k == Keybinds.GoFrameBack then IsRewinding = true; task.spawn(RewindLoop)
     elseif k == Keybinds.GoFrameForward then IsFastForwarding = true; task.spawn(FastForwardLoop)
     elseif k == Keybinds.ViewTAS and not IsViewingTAS then
-        AddSavestate()
         local Data = {}
-        for i,v in pairs(Savestates) do for _,f in pairs(v) do 
+        for _,chunk in ipairs(Savestates) do
+            for _,f in ipairs(chunk) do
+                local rx, ry, rz = f.CFrame:ToEulerAnglesXYZ()
+                local crx, cry, crz = f.CameraCFrame:ToEulerAnglesXYZ()
+                table.insert(Data, {time = Round(f.Time), AAnimation = f.Animation, VVelocity = {Round(f.Velocity.X), Round(f.Velocity.Y), Round(f.Velocity.Z)}, CCFrame = {Round(f.CFrame.X), Round(f.CFrame.Y), Round(f.CFrame.Z), Round(rx), Round(ry), Round(rz)}, CCameraCFrame = {Round(f.CameraCFrame.X), Round(f.CameraCFrame.Y), Round(f.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}})
+            end
+        end
+        for _,f in ipairs(Frames) do
             local rx, ry, rz = f.CFrame:ToEulerAnglesXYZ()
             local crx, cry, crz = f.CameraCFrame:ToEulerAnglesXYZ()
-            table.insert(Data, {time = Round(f.Time), AAnimation = f.Animation, VVelocity = {Round(f.Velocity.X), Round(f.Velocity.Y), Round(f.Velocity.Z)}, CCFrame = {Round(f.CFrame.X), Round(f.CFrame.Y), Round(f.CFrame.Z), Round(rx), Round(ry), Round(rz)}, CCameraCFrame = {Round(f.CameraCFrame.X), Round(f.CameraCFrame.Y), Round(f.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}}) 
-        end end
+            table.insert(Data, {time = Round(f.Time), AAnimation = f.Animation, VVelocity = {Round(f.Velocity.X), Round(f.Velocity.Y), Round(f.Velocity.Z)}, CCFrame = {Round(f.CFrame.X), Round(f.CFrame.Y), Round(f.CFrame.Z), Round(rx), Round(ry), Round(rz)}, CCameraCFrame = {Round(f.CameraCFrame.X), Round(f.CameraCFrame.Y), Round(f.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}})
+        end
         PlaybackTAS(Data)
     end
 end))
@@ -340,10 +342,5 @@ AddConnection(UserInputService.InputEnded:Connect(function(i, g)
     if i.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
     if i.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
 end))
-
-task.spawn(function()
-    local RopeEvent = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("UpdRopeData")
-    RopeEvent.OnClientEvent:Connect(function(val) if type(val) == "table" then RopeTable = val end end)
-end)
 
 SetupMap()
