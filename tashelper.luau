@@ -1,5 +1,5 @@
 -- ==============================================================================
--- [FLOOD ESCAPE 2: TAS MANAGER + AUTO FARM (MERGED VERSION)]
+-- [FLOOD ESCAPE 2: TAS MANAGER + EXACT WIN.TXT FARM (ANCHOR FIXED)]
 -- ==============================================================================
 
 -- [1] INSTANCE CLEARING & SETUP
@@ -29,8 +29,8 @@ end
 -- ==============================================================================
 
 local CONFIG = {
-    MODE = "Farm",               -- "Farm" = Auto Farm default, "Play" = Play TAS if available
-    TARGET_DIFFICULTY = "None",  -- "None", "Easy", "Normal", "Hard", "Insane", "Crazy", "Crazy+"
+    MODE = "Farm",               
+    TARGET_DIFFICULTY = "None",  
     LOG_FILE = "TomatoTAS_MapLog.json",
     GITHUB_BASE = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/main/TAS%20FILES/",
     TAS_CREATOR_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/creator.luau",
@@ -58,7 +58,6 @@ local DIFFICULTY_RANKS = {
     ["None"] = 999, ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"] = 4, ["Crazy"] = 5, ["Crazy+"] = 6
 }
 
--- [Alert System]
 local function Alert(msg)
     print("[TOMATO]: " .. tostring(msg))
     pcall(function()
@@ -67,53 +66,18 @@ local function Alert(msg)
     end)
 end
 
--- [Helper: Random String Detection from win.txt]
-local function isRandomString(str)
+-- [EXACT HELPERS FROM WIN.TXT]
+function isRandomString(str)
     if #str == 0 then return false end
     for i = 1, #str do
         local ltr = str:sub(i, i)
-        if ltr:lower() == ltr then return false end
+        if ltr:lower() == ltr then
+            return false
+        end
     end
     return true
 end
 
--- [Helper: Clean Map Name]
-local function CleanMapName(name)
-    if not name then return "" end
-    -- Remove non-breaking spaces (\160) and standard spaces from ends
-    local clean = name:gsub("\160", " "):gsub("^%s*(.-)%s*$", "%1")
-    return clean
-end
-
-local function UrlEncode(str)
-    if not str then return "" end
-    str = str:gsub("([^%w %-%_%.%~])", function(c) return string.format("%%%02X", string.byte(c)) end)
-    return str:gsub(" ", "%%20")
-end
-
--- [Helper: GitHub Checker]
-local function CheckGithubForFile(rawName)
-    local mapName = CleanMapName(rawName)
-    
-    if getgenv().TasFileCache[mapName] ~= nil then
-        return getgenv().TasFileCache[mapName]
-    end
-
-    local encoded = UrlEncode(mapName)
-    local url = CONFIG.GITHUB_BASE .. encoded .. ".json"
-    
-    local success, response = pcall(function() return game:HttpGet(url) end)
-    
-    local exists = false
-    if success and #response > 200 and not response:find("404: Not Found") then
-        exists = true
-    end
-
-    getgenv().TasFileCache[mapName] = exists
-    return exists
-end
-
--- [Helper: Character & Noclip]
 local function GetChar()
     return LocalPlayer.Character or (LocalPlayer.CharacterAdded:wait() and LocalPlayer.Character)
 end
@@ -130,15 +94,45 @@ end
 local function Check(Flag)
     local char = GetChar()
     if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
+    local HumanoidRootPart = char:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return false end
+
     if Flag == "InLift" then
-        if hrp.Position.X < 50 and hrp.Position.Z > 70 then return true end
+        if HumanoidRootPart.Position.X < 50 and HumanoidRootPart.Position.Z > 70 then
+            return true
+        end
     elseif Flag == "InGame" then
-        if hrp.Position.X > 50 then return true end
+        if HumanoidRootPart.Position.X > 50 then
+            return true
+        end
     end
     return false
+end
+
+-- [TAS MANAGER HELPERS]
+local function CleanMapName(name)
+    if not name then return "" end
+    local clean = name:gsub("\160", " "):gsub("^%s*(.-)%s*$", "%1")
+    return clean
+end
+
+local function UrlEncode(str)
+    if not str then return "" end
+    str = str:gsub("([^%w %-%_%.%~])", function(c) return string.format("%%%02X", string.byte(c)) end)
+    return str:gsub(" ", "%%20")
+end
+
+local function CheckGithubForFile(rawName)
+    local mapName = CleanMapName(rawName)
+    if getgenv().TasFileCache[mapName] ~= nil then return getgenv().TasFileCache[mapName] end
+    
+    local encoded = UrlEncode(mapName)
+    local url = CONFIG.GITHUB_BASE .. encoded .. ".json"
+    local success, response = pcall(function() return game:HttpGet(url) end)
+    local exists = (success and #response > 200 and not response:find("404: Not Found"))
+    
+    getgenv().TasFileCache[mapName] = exists
+    return exists
 end
 
 -- ==============================================================================
@@ -172,11 +166,9 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
             local hasFile = CheckGithubForFile(cleanName)
             local mapRank = DIFFICULTY_RANKS[map.difficulty] or 0
             
-            -- Priority 1: Record Missing Maps
             if not hasFile then
                 missingTarget = map
                 break 
-            -- Priority 2: Play Existing Maps (If Mode is Play)
             elseif CONFIG.MODE == "Play" and hasFile and mapRank <= maxRank then
                 if not playableTarget or mapRank > (DIFFICULTY_RANKS[playableTarget.difficulty] or 0) then
                     playableTarget = map
@@ -202,16 +194,44 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
 end))
 
 -- ==============================================================================
--- [LOGIC 2: AUTO FARM (FROM WIN.TXT)]
+-- [LOGIC 2: EXACT AUTO FARM FROM WIN.TXT]
 -- ==============================================================================
 
 local function StartAutoFarm(Map)
-    local char = GetChar()
-    local HRP = char:WaitForChild("HumanoidRootPart")
-    local Humanoid = char:WaitForChild("Humanoid")
+    -- PHASE 1: Wait for Teleport (Position Check)
+    Alert("Waiting for Teleport...")
+    local t = 0
+    repeat 
+        task.wait(0.2)
+        t = t + 0.2
+        if t > 60 then return end -- Timeout
+    until Check("InGame") and getgenv().TomatoAutoFarm
 
-    -- 1. Identify Buttons (Using strict win.txt logic)
+    if not getgenv().TomatoAutoFarm then return end
+
+    -- PHASE 2: Wait for Round Start (Anchor Check)
+    Alert("Waiting for Unanchor...")
+    local char = GetChar()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    
+    repeat 
+        task.wait(0.1)
+    until (hrp and hrp.Anchored == false) or not getgenv().TomatoAutoFarm
+
+    if not getgenv().TomatoAutoFarm then return end
+    Alert("Round Started! Farming...")
+
+    -- === BELOW IS THE EXACT LOGIC FROM WIN.TXT ===
+    
+    local CurrentlyFarming = true
+    local EXITREGION_MAX_ATTEMPTS = 1300
+    
+    if Check("InGame") == false then
+        Alert("Skipping due to InGame == false.")
+    end
+
     local Buttons = {}
+    -- Single Scan of Map to reduce lag.
     for i, MapObject in pairs(Map:GetDescendants()) do
         if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
             local Hitbox
@@ -222,41 +242,53 @@ local function StartAutoFarm(Map)
                 end
             end
             if Hitbox and isRandomString(Hitbox.Name) then
+                -- Confirmed Buttonness
                 Hitbox.Name = "Hitbox"
                 table.insert(Buttons, MapObject)
             end
         end
     end
 
-    -- 2. Collectables
+    local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
+    -- Grab Lost Page and Escapee
     local LostPage = Map:FindFirstChild("_LostPage", true)
     local Rescue = Map:FindFirstChild("_Rescue", true)
-    local OriginalCFrame = HRP.CFrame
+    local OriginalCFrame = HumanoidRootPart.CFrame
     
     if LostPage then
-        HRP.CFrame = LostPage.CFrame
+        HumanoidRootPart.CFrame = LostPage.CFrame
         task.wait(LocalPlayer:GetNetworkPing())
-        HRP.CFrame = OriginalCFrame
-        Alert("Got Lost Page")
+        HumanoidRootPart.CFrame = OriginalCFrame
+        Alert("Got Lost Page.")
     end
     if Rescue then
-        HRP.CFrame = Rescue.Contact.CFrame
+        HumanoidRootPart.CFrame = Rescue.Contact.CFrame
         task.wait(LocalPlayer:GetNetworkPing())
-        HRP.CFrame = OriginalCFrame
-        print("Got Escapee")
+        HumanoidRootPart.CFrame = OriginalCFrame
+        print("Got Escapee.")
     end
 
-    -- 3. Farm Loop
+    -- Auto Farm Loop
+    Alert("Commencing Auto Farm")
+    local CurrentButton = nil
+    local Humanoid = GetChar():WaitForChild("Humanoid")
+    
     local GodMode = Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
         Humanoid.Health = 1000
     end)
     TrackConnection(GodMode)
     
-    local Attempts = 0
+    local Attempts = 0 
+    local DifferentScan = false
+    
     Noclip(true)
     
-    while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm and not _G.LoopCancel do
+    while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
+        if not CurrentlyFarming then break end
+
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
+        local HRP = GetChar():FindFirstChild("HumanoidRootPart")
+        if not HRP then break end
         
         Humanoid.Jump = true
         local FailedScan = true
@@ -264,10 +296,12 @@ local function StartAutoFarm(Map)
         if not ExitRegion then
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
-                if not getgenv().TomatoAutoFarm then break end
-                
+                -- Stop immediately if paused
+                if not getgenv().TomatoAutoFarm then break end 
+
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
                 if ButtonHitbox then
+                    CurrentButton = Button
                     local TouchFound = Button:FindFirstChild("TouchInterest", true)
                     local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
                     
@@ -275,29 +309,37 @@ local function StartAutoFarm(Map)
                         FailedScan = false
                         HRP.Anchored = false
                         HRP.Velocity = Vector3.zero
-                        -- Exact CFrame logic from win.txt
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position) * CFrame.Angles(0, math.random() * (math.pi * 2), 0)
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                         task.wait(0.255/15)
                     end
                 end
             end
-            if FailedScan == true then task.wait() end
+            if FailedScan == true then
+                DifferentScan = true
+                task.wait()
+            end
         elseif ExitRegion then
             HRP.Anchored = false
-            if Attempts < 1300 then
+            if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
                 HRP.CFrame = CFrame.new(ExitRegion.Position)
                 HRP.Velocity = Vector3.new(0, 100, 0)
                 task.wait()
+                if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
+                    Attempts = Attempts + 1
+                end
             else
+                Alert("Teleported to ExitRegion.")
                 break
             end
         end
     end
     
     Noclip(false)
+    Alert("Complete.")
     if GodMode then GodMode:Disconnect() end
+    CurrentlyFarming = false
 end
 
 -- ==============================================================================
@@ -307,7 +349,6 @@ end
 TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
     if _G.LoopCancel or not getgenv().TomatoAutoFarm then return end
 
-    -- Wait for Attributes to load properly
     local Settings = NewMap:WaitForChild("Settings", 10)
     local MapName = "Unknown"
     
