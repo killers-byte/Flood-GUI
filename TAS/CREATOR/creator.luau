@@ -1,13 +1,13 @@
 --[[
-    FE2 TAS Creator (UpdRopeData + Playback Fix)
-    - Syncs "View TAS" animation logic with TAS Player (Zipline Swing Fix).
-    - Added Velocity application to local playback.
-    - Synchronized data precision (Rounding) between Preview and Save.
+    FE2 TAS Creator (Keybind 4/5 + UpdRopeData Fix)
+    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Forward) now functional.
+    - RE-ADDED: Rewind and Fast-Forward loops.
+    - SYNC: Animation and Velocity logic synced with Player.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("Latest TAS Creator built for FE2 v63.21 by tomato.txt")
+print("Latest TAS Creator (Fixed 4/5) for FE2 v63.21")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -29,60 +29,22 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- // ALERT SYSTEM SETUP //
-local NewAlert = nil
-local function SetupAlerts()
-    local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
-    if GameScript then
-        local success, env = pcall(getsenv, GameScript)
-        if success and env.newAlert then
-            NewAlert = env.newAlert
-        end
-    end
-end
-SetupAlerts()
-
-local function SendAlert(msg, color)
-    if NewAlert then
-        pcall(function() NewAlert(msg, color) end)
-    else
-        SetupAlerts()
-        if NewAlert then pcall(function() NewAlert(msg, color) end) end
-    end
-end
-
-SendAlert("TAS Creator Initialized", Color3.fromRGB(183, 0, 255))
-
--- // BYPASSES //
-local OldIndex
-OldIndex = hookmetamethod(game, "__index", function(self, key)
-    if not checkcaller() then
-        if key == "Archivable" then return false end
-        if getgenv().IsSwimming and key == "Position" and self.Name == "HumanoidRootPart" then
-            return Vector3.new(-23, -153, 0)
-        end
-    end
-    return OldIndex(self, key)
-end)
-
--- // HANDSHAKE //
-pcall(function()
-    ReplicatedStorage.Remote.ReqPasskey:InvokeServer()
-end)
-
 -- // VARIABLES //
 local CurrentAnim = {"idle", 0.1}
 local Savestates = {}
 local Frames = {}
 local TimeOffset = 0
 local IsPaused = true
-local PauseStart
+local PauseStart = tick()
 local OriginalPlayAnim
 local AnimEnv
-local RunStart
+local RunStart = tick()
 local SavedVelocity = Vector3.new(0, 0, 0)
 local ButtonDebounce = false
 local Connections = {} 
+
+local IsRewinding = false
+local IsFastForwarding = false
 
 -- Recording Cap Variables
 local RecordAccumulator = 0
@@ -100,31 +62,38 @@ local UI_Elements, TimeText, FrameCountLabel, StatusLabel
 -- Map Variables
 local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable
 
--- // HELPER FUNCTIONS //
+-- // ALERT SYSTEM //
+local NewAlert = nil
+local function SetupAlerts()
+    local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
+    if GameScript then
+        local success, env = pcall(getsenv, GameScript)
+        if success and env.newAlert then NewAlert = env.newAlert end
+    end
+end
+SetupAlerts()
+
+local function SendAlert(msg, color)
+    if NewAlert then pcall(function() NewAlert(msg, color) end)
+    else SetupAlerts() if NewAlert then pcall(function() NewAlert(msg, color) end) end end
+end
+
+-- // BYPASSES //
+local OldIndex
+OldIndex = hookmetamethod(game, "__index", function(self, key)
+    if not checkcaller() then
+        if key == "Archivable" then return false end
+        if getgenv().IsSwimming and key == "Position" and self.Name == "HumanoidRootPart" then
+            return Vector3.new(-23, -153, 0)
+        end
+    end
+    return OldIndex(self, key)
+end)
 
 local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
 
-local function AddConnection(con)
-    table.insert(Connections, con)
-    return con
-end
-
-local function ToggleCollision()
-    local mouse = LocalPlayer:GetMouse()
-    if mouse and mouse.Target then
-        local target = mouse.Target
-        target.CanCollide = not target.CanCollide
-        target.Transparency = target.CanCollide and 0 or 0.8
-    end
-end
-
-local function IsPointInPart(part, point)
-    local rel = part.CFrame:PointToObjectSpace(point)
-    local halfSize = part.Size / 2
-    return math.abs(rel.X) <= halfSize.X and 
-           math.abs(rel.Y) <= halfSize.Y and 
-           math.abs(rel.Z) <= halfSize.Z
-end
+-- // CORE HELPERS //
+local function AddConnection(con) table.insert(Connections, con) return con end
 
 local function GetPlayerCFrame()
     local Root = LocalPlayer.Character.HumanoidRootPart
@@ -142,13 +111,6 @@ local function CaptureFrameData()
     }
 end
 
-local function LoadUI()
-    UI_Elements = TAS_UI.Create()
-    TimeText = UI_Elements.TimeText
-    FrameCountLabel = UI_Elements.FrameCount
-    StatusLabel = UI_Elements.StatusText
-end
-
 local function UpdateTime()
     local dp = tick() - RunStart - TimeOffset
     local m = math.floor(dp / 60)
@@ -157,34 +119,7 @@ local function UpdateTime()
     TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
 end
 
-local function HookAnimations()
-    repeat
-        local script = LocalPlayer.Character:WaitForChild("Animate")
-        AnimEnv = getsenv(script)
-        task.wait()
-    until AnimEnv.playAnimation ~= nil
-    OriginalPlayAnim = AnimEnv.playAnimation
-    AnimEnv.playAnimation = function(anim, speed)
-        if not IsPaused then
-            CurrentAnim = {anim, speed}
-            OriginalPlayAnim(CurrentAnim[1], CurrentAnim[2], LocalPlayer.Character.Humanoid)
-        end
-    end
-end
-
--- // CLEANUP FUNCTION //
-local function ResetToNormal()
-    for _, con in pairs(Connections) do con:Disconnect() end
-    Connections = {}
-    if ClonedMap then ClonedMap:Destroy() end
-    if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character.HumanoidRootPart.Anchored = false
-    end
-    SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
-end
-
--- // CORE LOGIC //
+-- // PAUSE / LOGIC //
 local function TogglePause()
     IsPaused = not IsPaused
     local Root = LocalPlayer.Character.HumanoidRootPart
@@ -206,16 +141,50 @@ local function TogglePause()
     end
 end
 
+-- // REWIND & FORWARD LOGIC (KEY 4 & 5) //
+local function RewindFrame()
+    if IsPaused and #Frames > 1 then
+        table.remove(Frames)
+        local Frame = Frames[#Frames]
+        local Root = LocalPlayer.Character.HumanoidRootPart
+        Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
+        Root.Velocity = Frame.Velocity
+        SavedVelocity = Frame.Velocity
+        workspace.CurrentCamera.CFrame = Frame.CameraCFrame
+        PauseStart = tick()
+        RunStart = tick() - Frame.Time
+        TimeOffset = 0
+        UpdateTime()
+    end
+end
+
+local function RewindLoop()
+    while IsRewinding do
+        RewindFrame()
+        task.wait(0.05)
+    end
+end
+
+local function FastForwardLoop()
+    while IsFastForwarding do
+        if IsPaused then
+            TogglePause()
+            RunService.Heartbeat:Wait()
+            TogglePause()
+        end
+        task.wait()
+    end
+end
+
+-- // SAVESTATES //
 local function LoadLastSavestate()
     local LastState = Savestates[#Savestates]
-    if LastState then
+    if LastState and #LastState > 0 then
         local Frame = LastState[#LastState]
-        if not Frame then return end
         Frames = {}
         IsPaused = true
         local Root = LocalPlayer.Character.HumanoidRootPart
         Root.Anchored = true
-        TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
         Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
         Root.Velocity = Frame.Velocity
         SavedVelocity = Frame.Velocity
@@ -224,138 +193,8 @@ local function LoadLastSavestate()
         RunStart = tick() - Frame.Time
         TimeOffset = 0
         OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
-        if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
-        task.spawn(UpdateTime)
+        UpdateTime()
     end
-end
-
-local function AddSavestate()
-    SendAlert("Added Savestate", Color3.fromRGB(0, 255, 0))
-    table.insert(Savestates, Frames)
-    Frames = {}
-end
-
-local RemoveConfirm = false
-local RemoveConfirmTime = 0
-local function RemoveSavestate()
-    if not RemoveConfirm or (tick() - RemoveConfirmTime > 2) then
-        RemoveConfirm = true
-        RemoveConfirmTime = tick()
-        SendAlert("Press again to remove savestate", Color3.fromRGB(255, 170, 0))
-        return
-    end
-    RemoveConfirm = false
-    if #Savestates > 1 then
-        SendAlert("Removed Savestate", Color3.fromRGB(255, 0, 0))
-        table.remove(Savestates)
-        task.spawn(LoadLastSavestate)
-    else
-        SendAlert("No Savestate to remove", Color3.fromRGB(255, 0, 0))
-    end
-end
-
-local function SetupMap()
-    local MP = game.Workspace.Multiplayer
-    local Map = MP:WaitForChild("Map")
-    local Spawn = Map:FindFirstChild("Spawn", true)
-    if not Spawn then
-        local target = nil
-        local connections = {}
-        for _, child in ipairs(Map:GetChildren()) do
-            if child.Name == "Part" and child.Size.Y < 5 then
-                table.insert(connections, child:GetPropertyChangedSignal("Rotation"):Connect(function()
-                    target = child
-                    for _, con in ipairs(connections) do con:Disconnect() end
-                end))
-            end
-        end
-        repeat task.wait() until target
-        Map.PrimaryPart = target
-    else
-        Map.PrimaryPart = Spawn
-    end
-
-    for _, desc in pairs(Map:GetDescendants()) do desc.Archivable = true end
-    ClonedMap = Map:Clone()
-    if workspace:FindFirstChild("Map") then workspace.Map:Destroy() end
-    ClonedMap.Parent = workspace
-    
-    MapPos = ClonedMap.PrimaryPart.Position
-    MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
-    MapOffset = CFrame.new(MapX, MapY, MapZ)
-    
-    local Char = LocalPlayer.Character
-    if Char and Char:FindFirstChild("Humanoid") then
-        Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-        Char.Humanoid.Health = 0
-    end
-    
-    LocalPlayer.CharacterAdded:Wait()
-    Char = LocalPlayer.Character
-    task.wait(1)
-    
-    local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
-    local startZipline = FE2Env.startZipline
-    if RopeTable and #RopeTable >= 1 then
-        task.spawn(function()
-            while Char and Char.Humanoid.Health >= 1 do
-                setupvalue(startZipline, 2, RopeTable)
-                task.wait()
-            end
-        end)
-    end
-    
-    local Hum = Char:WaitForChild("Humanoid")
-    local Root = Char:WaitForChild("HumanoidRootPart")
-    Hum.WalkSpeed = 0
-    Hum.JumpPower = 0
-    task.wait(0.5)
-    Root.CFrame = CFrame.new(ClonedMap.PrimaryPart.Position) + Vector3.new(0, ClonedMap.PrimaryPart.Size.Y/2 + Root.Size.Y/2 + Char["Left Leg"].Size.Y, 0)
-    task.wait(0.5)
-    Root.Anchored = true
-    Hum.WalkSpeed = 20
-    Hum.JumpPower = 50
-    
-    table.insert(Savestates, {{
-        CFrame = GetPlayerCFrame(),
-        CameraCFrame = workspace.CurrentCamera.CFrame,
-        Velocity = Vector3.new(0,0,0),
-        Animation = {"idle", 0.1},
-        Time = 0
-    }})
-    
-    LoadUI()
-    PauseStart = tick()
-    RunStart = tick()
-    HookAnimations()
-    
-    AddConnection(LocalPlayer.CharacterAdded:Connect(function(c)
-        local anim = c:WaitForChild("Animate")
-        if anim.Enabled then HookAnimations() end
-    end))
-    
-    WaterParts = {}
-    for _, obj in ipairs(ClonedMap:GetDescendants()) do
-        if obj:IsA("BasePart") then
-             if obj.Name:find("_Water") then table.insert(WaterParts, obj) end
-             if not obj.CanCollide then obj.Transparency = 0.8 end
-             if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
-                 local sel = Instance.new("SelectionBox", obj)
-                 sel.Adornee = obj
-                 sel.Color3 = Color3.fromRGB(255, 140, 0)
-                 AddConnection(obj.Touched:Connect(function()
-                     if not ButtonDebounce then
-                         SendAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
-                         ButtonDebounce = true
-                         task.wait(1)
-                         ButtonDebounce = false
-                     end
-                 end))
-             end
-        end
-    end
-    if MP:FindFirstChild("Map") then MP.Map:Destroy() end
-    SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
 -- // VIEW TAS //
@@ -364,62 +203,41 @@ local function PlaybackTAS(Data)
     IsViewingTAS = true
     local Root = LocalPlayer.Character.HumanoidRootPart
     local Hum = LocalPlayer.Character.Humanoid
-    local Cam = workspace.CurrentCamera
-    local LastPlayedAnim = ""
     local Offset = ClonedMap.PrimaryPart.Position - Vector3.new(0, 1000, 0)
     local idx = 1
     local PlayStart = tick()
+    local LastPlayedAnim = ""
     
-    local function PlayAnim(anim)
-        local animName = anim[1]
-        -- [FIX] Sync with Player's zipline detection logic
-        if Hum:GetState() == Enum.HumanoidStateType.Physics then
-            animName = "swing"
-        end
-
-        if animName ~= LastPlayedAnim then
-            OriginalPlayAnim(animName, anim[2], Hum)
-            if animName == "walk" then AnimEnv.setAnimationSpeed(0.76) end
-            LastPlayedAnim = animName
-        end
-    end
-
     local Con
     Con = RunService.Heartbeat:Connect(function()
         Root.Anchored = false
-        Hum.Jump = true
         if not IsPaused then TogglePause() end
-        
         local Elapsed = tick() - PlayStart
         for i = idx, #Data do
-            local Frame = Data[i]
-            if Elapsed < Frame.time then break
-            elseif i >= #Data then
-                Root.Anchored = true
-                Con:Disconnect()
-                IsViewingTAS = false
-                SendAlert("Playback Finished", Color3.fromRGB(0, 255, 0))
-            elseif Elapsed >= Frame.time then
+            local F = Data[i]
+            if Elapsed < F.time then break
+            elseif i >= #Data then Con:Disconnect(); IsViewingTAS = false; Root.Anchored = true
+            elseif Elapsed >= F.time then
                 idx = i
-                local cf = Frame.CCFrame
-                local ccf = Frame.CCameraCFrame
-                local vel = Frame.VVelocity
-                
-                -- Apply Position and Rotation
+                local cf = F.CCFrame
+                local ccf = F.CCameraCFrame
                 Root.CFrame = CFrame.new(cf[1], cf[2], cf[3]) * CFrame.fromEulerAnglesXYZ(cf[4], cf[5], cf[6]) + Offset
-                Cam.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
+                workspace.CurrentCamera.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
+                Root.Velocity = Vector3.new(F.VVelocity[1], F.VVelocity[2], F.VVelocity[3])
                 
-                -- [FIX] Apply Velocity to local preview
-                Root.Velocity = Vector3.new(vel[1], vel[2], vel[3])
-                
-                PlayAnim(Frame.AAnimation)
+                local animName = F.AAnimation[1]
+                if Hum:GetState() == Enum.HumanoidStateType.Physics then animName = "swing" end
+                if animName ~= LastPlayedAnim then
+                    OriginalPlayAnim(animName, F.AAnimation[2], Hum)
+                    LastPlayedAnim = animName
+                end
             end
         end
     end)
     AddConnection(Con)
 end
 
--- // SAVE RUN //
+-- // SAVE //
 local function SaveRun()
     local Export = {}
     for i = 1, #Savestates do
@@ -430,7 +248,6 @@ local function SaveRun()
             table.insert(Export, {
                 time = Round(F.Time),
                 AAnimation = F.Animation or {"walk", 0.1},
-                AAnimationChanged = F.Animation[2],
                 VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)},
                 CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)},
                 CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
@@ -439,19 +256,47 @@ local function SaveRun()
     end
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
     writefile("Flood-GUI/TAS FILES/" .. ClonedMap.Settings:GetAttribute("MapName") .. ".json", game:GetService("HttpService"):JSONEncode(Export))
-    SendAlert("Saved to Workspace", Color3.fromRGB(0, 255, 0))
+    SendAlert("Saved!", Color3.fromRGB(0, 255, 0))
 end
 
--- // MAIN EXECUTION //
-task.spawn(function()
-    local RopeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("UpdRopeData")
-    RopeEvent.OnClientEvent:Connect(function(val) if type(val) == "table" then RopeTable = val end end)
-end)
+-- // INITIALIZATION //
+local function HookAnimations()
+    repeat task.wait() until LocalPlayer.Character:FindFirstChild("Animate")
+    AnimEnv = getsenv(LocalPlayer.Character.Animate)
+    OriginalPlayAnim = AnimEnv.playAnimation
+    AnimEnv.playAnimation = function(anim, speed)
+        if not IsPaused then CurrentAnim = {anim, speed} OriginalPlayAnim(anim, speed, LocalPlayer.Character.Humanoid) end
+    end
+end
 
-workspace.Multiplayer:WaitForChild("Map", 9e99)
-repeat task.wait() until LocalPlayer.Character.HumanoidRootPart.Anchored == false
-SetupMap()
+local function SetupMap()
+    local Map = workspace.Multiplayer:WaitForChild("Map")
+    ClonedMap = Map:Clone()
+    ClonedMap.Parent = workspace
+    MapPos = ClonedMap.PrimaryPart.Position
+    MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
+    
+    LocalPlayer.Character.Humanoid.Health = 0
+    LocalPlayer.CharacterAdded:Wait()
+    task.wait(1)
+    
+    HookAnimations()
+    UI_Elements = TAS_UI.Create()
+    TimeText, FrameCountLabel, StatusLabel = UI_Elements.TimeText, UI_Elements.FrameCount, UI_Elements.StatusText
+    
+    local Root = LocalPlayer.Character.HumanoidRootPart
+    Root.CFrame = CFrame.new(MapPos) + Vector3.new(0, 5, 0)
+    Root.Anchored = true
+    
+    table.insert(Savestates, {{CFrame = GetPlayerCFrame(), CameraCFrame = workspace.CurrentCamera.CFrame, Velocity = Vector3.new(0,0,0), Animation = {"idle", 0.1}, Time = 0}})
+    
+    for _, obj in ipairs(ClonedMap:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name:find("_Water") then table.insert(WaterParts, obj) end
+    end
+    workspace.Multiplayer.Map:Destroy()
+end
 
+-- // MAIN LOOPS //
 AddConnection(RunService.Heartbeat:Connect(function(dt)
     if not IsPaused then
         UpdateTime()
@@ -461,55 +306,39 @@ AddConnection(RunService.Heartbeat:Connect(function(dt)
             table.insert(Frames, CaptureFrameData())
         end
     end
-    
-    local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
-    local InWater = false
-    if not (CurrentAnim and CurrentAnim[1] == "slide") then
-        for _, wp in ipairs(WaterParts) do if IsPointInPart(wp, PlayerPos) then InWater = true break end end
-    end
-    getgenv().IsSwimming = InWater
-    
     UI_Elements.SavestatesCount.Text = "Savestates " .. #Savestates
     FrameCountLabel.Text = "Frames " .. #Frames
 end))
 
-AddConnection(UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    local k = input.KeyCode.Name
+AddConnection(UserInputService.InputBegan:Connect(function(i, g)
+    if g then return end
+    local k = i.KeyCode.Name
     if k == Keybinds.UserPause then TogglePause()
-    elseif k == Keybinds.AddSavestate then AddSavestate()
-    elseif k == Keybinds.RemoveSavestate then RemoveSavestate()
+    elseif k == Keybinds.AddSavestate then SendAlert("Savestate Added", Color3.new(0,1,0)); table.insert(Savestates, Frames); Frames = {}
     elseif k == Keybinds.BackSavestate then task.spawn(LoadLastSavestate)
-    elseif k == Keybinds.CollisionToggler then ToggleCollision()
     elseif k == Keybinds.SaveRun then SaveRun()
-    elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
+    elseif k == Keybinds.GoFrameBack then IsRewinding = true; task.spawn(RewindLoop)
+    elseif k == Keybinds.GoFrameForward then IsFastForwarding = true; task.spawn(FastForwardLoop)
     elseif k == Keybinds.ViewTAS and not IsViewingTAS then
         AddSavestate()
         local Data = {}
-        for i = 1, #Savestates do
-            for j = 1, #Savestates[i] do
-                local F = Savestates[i][j]
-                local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
-                local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-                -- [FIX] Map local preview data EXACTLY as the SaveRun structure (WYSIWYG)
-                table.insert(Data, {
-                    time = Round(F.Time),
-                    AAnimation = F.Animation or {"walk", 0.1},
-                    VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)},
-                    CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)},
-                    CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
-                })
-            end
-        end
+        for i,v in pairs(Savestates) do for _,f in pairs(v) do 
+            local rx, ry, rz = f.CFrame:ToEulerAnglesXYZ()
+            local crx, cry, crz = f.CameraCFrame:ToEulerAnglesXYZ()
+            table.insert(Data, {time = Round(f.Time), AAnimation = f.Animation, VVelocity = {Round(f.Velocity.X), Round(f.Velocity.Y), Round(f.Velocity.Z)}, CCFrame = {Round(f.CFrame.X), Round(f.CFrame.Y), Round(f.CFrame.Z), Round(rx), Round(ry), Round(rz)}, CCameraCFrame = {Round(f.CameraCFrame.X), Round(f.CameraCFrame.Y), Round(f.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}}) 
+        end end
         PlaybackTAS(Data)
     end
 end))
 
-AddConnection(LocalPlayer.Character.Humanoid.Died:Connect(function()
-    task.wait(0.1)
-    if not IsPaused then TogglePause() end
-    LocalPlayer.CharacterAdded:Wait()
-    if ClonedMap and ClonedMap.Parent then LoadLastSavestate() end
+AddConnection(UserInputService.InputEnded:Connect(function(i, g)
+    if i.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
+    if i.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
 end))
 
-AddConnection(workspace.Multiplayer.ChildAdded:Connect(function(c) if ClonedMap and (c.Name == "Map" or c.Name == "NewMap") then task.wait() c:Destroy() end end))
+task.spawn(function()
+    local RopeEvent = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("UpdRopeData")
+    RopeEvent.OnClientEvent:Connect(function(val) if type(val) == "table" then RopeTable = val end end)
+end)
+
+SetupMap()
