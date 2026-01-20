@@ -1,15 +1,15 @@
 --[[
-    FE2 TAS Creator (Build v64.03)
+    FE2 TAS Creator (Absolute Final v64.03)
     - FIXED: UI nil index safety.
     - FIXED: Keybind 4 (Rewind) and Keybind 5 (Step-Forward) loops.
-    - FIXED: Keybind execution safety (checks if Map is ready).
-    - FIXED: View TAS now includes the current "active" frames.
+    - RESTORED: Passkey Handshake, Collision Toggler, and Reset functions.
+    - RESTORED: Zipline Injection (setupvalue) and Map Monitor.
     - SYNC: Animation and Physics logic synchronized with TAS Player.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("TAS Creator: Version v64.03 Initialized")
+print("TAS Creator: Absolute Final v64.03 Initialized")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -59,7 +59,7 @@ local WaterParts = {}
 local UI_Elements, TimeText, FrameCountLabel, StatusLabel
 local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable
 
--- // ALERTS //
+-- // ALERT SYSTEM //
 local NewAlert = nil
 local function SetupAlerts()
     local GameScript = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript", 5)
@@ -75,7 +75,7 @@ local function SendAlert(msg, color)
     else SetupAlerts() if NewAlert then pcall(function() NewAlert(msg, color) end) end end
 end
 
--- // BYPASS //
+-- // BYPASS & HANDSHAKE //
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
     if not checkcaller() then
@@ -87,8 +87,26 @@ OldIndex = hookmetamethod(game, "__index", function(self, key)
     return OldIndex(self, key)
 end)
 
+pcall(function() ReplicatedStorage.Remote.ReqPasskey:InvokeServer() end)
+
+-- // HELPERS //
 local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
 local function AddConnection(con) table.insert(Connections, con) return con end
+
+local function ToggleCollision()
+    local mouse = LocalPlayer:GetMouse()
+    if mouse and mouse.Target then
+        local target = mouse.Target
+        target.CanCollide = not target.CanCollide
+        target.Transparency = target.CanCollide and 0 or 0.8
+    end
+end
+
+local function IsPointInPart(part, point)
+    local rel = part.CFrame:PointToObjectSpace(point)
+    local halfSize = part.Size / 2
+    return math.abs(rel.X) <= halfSize.X and math.abs(rel.Y) <= halfSize.Y and math.abs(rel.Z) <= halfSize.Z
+end
 
 -- // CORE LOGIC //
 local function GetPlayerCFrame()
@@ -135,6 +153,18 @@ local function TogglePause()
         if StatusLabel then StatusLabel.Text = "CapsLock : Unpaused"; StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
         RecordAccumulator = 0
     end
+end
+
+-- // CLEANUP //
+local function ResetToNormal()
+    for _, con in pairs(Connections) do con:Disconnect() end
+    Connections = {}
+    if ClonedMap then ClonedMap:Destroy() end
+    if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.Anchored = false
+    end
+    SendAlert("TAS Creator Stopped", Color3.fromRGB(255, 0, 0))
 end
 
 -- // KEY 4/5 LOGIC //
@@ -235,7 +265,6 @@ end
 local function SaveRun()
     if not MapReady then return end
     local Export = {}
-    -- Combine Savestates and current Frames
     local AllData = {}
     for _,chunk in ipairs(Savestates) do for _,f in ipairs(chunk) do table.insert(AllData, f) end end
     for _,f in ipairs(Frames) do table.insert(AllData, f) end
@@ -270,27 +299,76 @@ local function HookAnimations()
 end
 
 local function SetupMap()
-    local Map = workspace.Multiplayer:WaitForChild("Map")
+    local MP = workspace:WaitForChild("Multiplayer")
+    local Map = MP:WaitForChild("Map")
+    local Spawn = Map:FindFirstChild("Spawn", true)
+    if not Spawn then
+        local target = nil
+        local connections = {}
+        for _, child in ipairs(Map:GetChildren()) do
+            if child.Name == "Part" and child.Size.Y < 5 then
+                table.insert(connections, child:GetPropertyChangedSignal("Rotation"):Connect(function()
+                    target = child
+                    for _, con in ipairs(connections) do con:Disconnect() end
+                end))
+            end
+        end
+        repeat task.wait() until target
+        Map.PrimaryPart = target
+    else Map.PrimaryPart = Spawn end
+
     ClonedMap = Map:Clone()
     ClonedMap.Parent = workspace
     MapPos = ClonedMap.PrimaryPart.Position
     MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
     
-    LocalPlayer.Character.Humanoid.Health = 0
+    local Char = LocalPlayer.Character
+    if Char and Char:FindFirstChild("Humanoid") then
+        Char.Humanoid.Health = 0
+    end
     LocalPlayer.CharacterAdded:Wait()
+    Char = LocalPlayer.Character
     task.wait(1)
     
     HookAnimations()
     UI_Elements = TAS_UI.Create()
     TimeText, FrameCountLabel, StatusLabel = UI_Elements.TimeText, UI_Elements.FrameCount, UI_Elements.StatusText
     
-    local Root = LocalPlayer.Character.HumanoidRootPart
+    -- RESTORED: Zipline Injection Logic
+    local FE2Env = getsenv(Char:WaitForChild("FE2_Character"))
+    if RopeTable then
+        task.spawn(function()
+            while Char and Char.Humanoid.Health >= 1 do
+                setupvalue(FE2Env.startZipline, 2, RopeTable)
+                task.wait(1)
+            end
+        end)
+    end
+    
+    local Root = Char:WaitForChild("HumanoidRootPart")
     Root.CFrame = CFrame.new(MapPos) + Vector3.new(0, 5, 0)
     Root.Anchored = true
     
     MapReady = true
     table.insert(Savestates, {{CFrame = GetPlayerCFrame(), CameraCFrame = workspace.CurrentCamera.CFrame, Velocity = Vector3.new(0,0,0), Animation = {"idle", 0.1}, Time = 0}})
-    workspace.Multiplayer.Map:Destroy()
+    
+    WaterParts = {}
+    for _, obj in ipairs(ClonedMap:GetDescendants()) do
+        if obj:IsA("BasePart") then
+             if obj.Name:find("_Water") then table.insert(WaterParts, obj) end
+             if not obj.CanCollide then obj.Transparency = 0.8 end
+             if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
+                 local sel = Instance.new("SelectionBox", obj)
+                 sel.Adornee = obj
+                 sel.Color3 = Color3.fromRGB(255, 140, 0)
+                 AddConnection(obj.Touched:Connect(function()
+                     if not ButtonDebounce then SendAlert("Button Touched!", Color3.fromRGB(255, 140, 0)); ButtonDebounce = true; task.wait(1); ButtonDebounce = false end
+                 end))
+             end
+        end
+    end
+    
+    MP.Map:Destroy()
     SendAlert("v64.03 Ready", Color3.new(0,1,0))
 end
 
@@ -305,6 +383,16 @@ AddConnection(RunService.Heartbeat:Connect(function(dt)
         end
     end
     
+    -- RESTORED: Auto-Swim Logic
+    if MapReady and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
+        local InWater = false
+        if not (CurrentAnim and CurrentAnim[1] == "slide") then
+            for _, wp in ipairs(WaterParts) do if IsPointInPart(wp, PlayerPos) then InWater = true break end end
+        end
+        getgenv().IsSwimming = InWater
+    end
+
     if UI_Elements then
         if UI_Elements.SavestatesCount then UI_Elements.SavestatesCount.Text = "Savestates " .. #Savestates end
         if FrameCountLabel then FrameCountLabel.Text = "Frames " .. #Frames end
@@ -316,10 +404,13 @@ AddConnection(UserInputService.InputBegan:Connect(function(i, g)
     local k = i.KeyCode.Name
     if k == Keybinds.UserPause then TogglePause()
     elseif k == Keybinds.AddSavestate then SendAlert("Savestate Added", Color3.new(0,1,0)); table.insert(Savestates, Frames); Frames = {}
+    elseif k == Keybinds.RemoveSavestate then table.remove(Savestates); LoadLastSavestate()
     elseif k == Keybinds.BackSavestate then task.spawn(LoadLastSavestate)
+    elseif k == Keybinds.CollisionToggler then ToggleCollision()
     elseif k == Keybinds.SaveRun then SaveRun()
     elseif k == Keybinds.GoFrameBack then IsRewinding = true; task.spawn(RewindLoop)
     elseif k == Keybinds.GoFrameForward then IsFastForwarding = true; task.spawn(FastForwardLoop)
+    elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
     elseif k == Keybinds.ViewTAS and not IsViewingTAS then
         local Data = {}
         for _,chunk in ipairs(Savestates) do
@@ -342,5 +433,20 @@ AddConnection(UserInputService.InputEnded:Connect(function(i, g)
     if i.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
     if i.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
 end))
+
+AddConnection(LocalPlayer.Character.Humanoid.Died:Connect(function()
+    task.wait(0.1)
+    if not IsPaused then TogglePause() end
+    LocalPlayer.CharacterAdded:Wait()
+    if ClonedMap and ClonedMap.Parent then LoadLastSavestate() end
+end))
+
+-- RESTORED: Map overlap monitor
+AddConnection(workspace.Multiplayer.ChildAdded:Connect(function(c) if ClonedMap and (c.Name == "Map" or c.Name == "NewMap") then task.wait() c:Destroy() end end))
+
+task.spawn(function()
+    local RopeEvent = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("UpdRopeData")
+    RopeEvent.OnClientEvent:Connect(function(val) if type(val) == "table" then RopeTable = val end end)
+end)
 
 SetupMap()
