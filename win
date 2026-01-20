@@ -206,7 +206,7 @@ local function OnMapLoad(Map)
                         FailedScan = false
                         HRP.Anchored = false
                         HRP.Velocity = Vector3.zero
-                        HRP.CFrame = CFrame.new(ButtonHitbox.Position) * CFrame.Angles(0, math.random() * (math.pi * 2), 0)
+                        HRP.CFrame = CFrame.new(ButtonHitbox.Position)
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                         task.wait(0.255/15)
                     end
