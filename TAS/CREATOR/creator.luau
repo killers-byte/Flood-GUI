@@ -1,9 +1,10 @@
 --[[
-    FE2 TAS Creator (Button Logic Update)
+    FE2 TAS Creator (Button Detection Fix)
     - Replaced bytecode scanner with direct UpdRopeData listener.
     - Captures rope data from live game to inject into cloned TAS run.
     - Added Total Button Tracking & Safety Warnings.
     - Added Time-Travel logic for buttons (Un-presses when rewinding).
+    - FIXED: Uses "ButtonIcon" detection method from TAS Player to find buttons.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -384,6 +385,9 @@ local function SetupMap()
     TotalButtons = {}
     ButtonRegistry = {}
     
+    -- // IMPROVED BUTTON DETECTION (Using ButtonIcon method from Player) //
+    local CheckedButtonParts = {}
+
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
              if obj.Name:find("_Water") then
@@ -393,39 +397,53 @@ local function SetupMap()
              if not obj.CanCollide then
                  obj.Transparency = 0.8
              end
-             
-             -- BUTTON LOGIC --
-             if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
-                 table.insert(TotalButtons, obj)
-                 
-                 local sel = Instance.new("SelectionBox", obj)
-                 sel.Adornee = obj
-                 sel.Color3 = Color3.fromRGB(255, 140, 0) -- Default Orange
-                 obj.CanTouch = true
-                 
-                 ButtonRegistry[obj] = {
-                     IsPressed = false,
-                     PressTime = nil,
-                     SelectionBox = sel
-                 }
-                 
-                 local TouchCon
-                 TouchCon = obj.Touched:Connect(function(hit)
-                     if hit.Parent == LocalPlayer.Character and not ButtonRegistry[obj].IsPressed then
-                         -- Mark as pressed
-                         ButtonRegistry[obj].IsPressed = true
-                         ButtonRegistry[obj].PressTime = tick() - RunStart - TimeOffset
-                         
-                         -- Visuals
-                         sel.Color3 = Color3.fromRGB(0, 255, 0) -- Green
-                         
-                         SendAlert("Button Touched!", Color3.fromRGB(0, 255, 0))
-                     end
-                 end)
-                 AddConnection(TouchCon)
-             end
+        end
+
+        -- NEW DETECTION: Look for ButtonIcon, then find the parent part
+        if obj.Name == "ButtonIcon" then
+            local ButtonPart = nil
+            
+            -- Method 1: The standard hierarchy (Part -> SurfaceGui -> ButtonIcon)
+            if obj.Parent and obj.Parent.Parent and obj.Parent.Parent:IsA("BasePart") then
+                ButtonPart = obj.Parent.Parent
+            -- Method 2: The Player Script method (Model -> Part -> SurfaceGui -> Icon)
+            elseif obj.Parent and obj.Parent.Parent and obj.Parent.Parent:IsA("Model") then
+                ButtonPart = obj.Parent.Parent:FindFirstChildOfClass("Part") or obj.Parent.Parent:FindFirstChildOfClass("BasePart")
+            end
+
+            if ButtonPart and not CheckedButtonParts[ButtonPart] then
+                CheckedButtonParts[ButtonPart] = true -- Prevent duplicates
+                table.insert(TotalButtons, ButtonPart)
+
+                local sel = Instance.new("SelectionBox", ButtonPart)
+                sel.Adornee = ButtonPart
+                sel.Color3 = Color3.fromRGB(255, 140, 0) -- Default Orange
+                ButtonPart.CanTouch = true
+                
+                ButtonRegistry[ButtonPart] = {
+                    IsPressed = false,
+                    PressTime = nil,
+                    SelectionBox = sel
+                }
+                
+                local TouchCon
+                TouchCon = ButtonPart.Touched:Connect(function(hit)
+                    if hit.Parent == LocalPlayer.Character and not ButtonRegistry[ButtonPart].IsPressed then
+                        -- Mark as pressed
+                        ButtonRegistry[ButtonPart].IsPressed = true
+                        ButtonRegistry[ButtonPart].PressTime = tick() - RunStart - TimeOffset
+                        
+                        -- Visuals
+                        sel.Color3 = Color3.fromRGB(0, 255, 0) -- Green
+                        
+                        SendAlert("Button Touched!", Color3.fromRGB(0, 255, 0))
+                    end
+                end)
+                AddConnection(TouchCon)
+            end
         end
     end
+
     if MP:FindFirstChild("Map") then MP.Map:Destroy() end
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
