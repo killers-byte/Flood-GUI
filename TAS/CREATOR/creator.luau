@@ -1,7 +1,9 @@
 --[[
-    FE2 TAS Creator (UpdRopeData Fix)
+    FE2 TAS Creator (Button Logic Update)
     - Replaced bytecode scanner with direct UpdRopeData listener.
     - Captures rope data from live game to inject into cloned TAS run.
+    - Added Total Button Tracking & Safety Warnings.
+    - Added Time-Travel logic for buttons (Un-presses when rewinding).
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -80,8 +82,11 @@ local OriginalPlayAnim
 local AnimEnv
 local RunStart
 local SavedVelocity = Vector3.new(0, 0, 0)
-local ButtonDebounce = false
 local Connections = {} 
+
+-- Button Tracking Variables
+local TotalButtons = {}
+local ButtonRegistry = {} -- Structure: [Part] = {IsPressed = bool, PressTime = number, SelectionBox = Instance}
 
 -- Recording Cap Variables
 local RecordAccumulator = 0
@@ -158,6 +163,20 @@ local function UpdateTime()
     TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
 end
 
+-- // BUTTON SYNC LOGIC //
+local function SyncButtonState(CurrentRunTime)
+    for part, data in pairs(ButtonRegistry) do
+        -- If button was pressed "in the future" relative to now, unpress it
+        if data.IsPressed and data.PressTime > CurrentRunTime then
+            data.IsPressed = false
+            data.PressTime = nil
+            if data.SelectionBox then
+                data.SelectionBox.Color3 = Color3.fromRGB(255, 140, 0) -- Back to Orange
+            end
+        end
+    end
+end
+
 local function HookAnimations()
     repeat
         local script = LocalPlayer.Character:WaitForChild("Animate")
@@ -179,6 +198,9 @@ local function ResetToNormal()
         con:Disconnect()
     end
     Connections = {}
+    
+    TotalButtons = {}
+    ButtonRegistry = {}
     
     if ClonedMap then ClonedMap:Destroy() end
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
@@ -232,6 +254,9 @@ local function LoadLastSavestate()
         PauseStart = tick()
         RunStart = tick() - Frame.Time
         TimeOffset = 0
+        
+        -- SYNC BUTTONS TO SAVESTATE TIME
+        SyncButtonState(Frame.Time)
         
         OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
         if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
@@ -356,6 +381,8 @@ local function SetupMap()
     task.wait(2)
     
     WaterParts = {}
+    TotalButtons = {}
+    ButtonRegistry = {}
     
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -367,19 +394,32 @@ local function SetupMap()
                  obj.Transparency = 0.8
              end
              
+             -- BUTTON LOGIC --
              if obj.Name:lower():match("button") or (obj.Parent and obj.Parent.Name:lower():match("button")) then
+                 table.insert(TotalButtons, obj)
+                 
                  local sel = Instance.new("SelectionBox", obj)
                  sel.Adornee = obj
-                 sel.Color3 = Color3.fromRGB(255, 140, 0)
+                 sel.Color3 = Color3.fromRGB(255, 140, 0) -- Default Orange
                  obj.CanTouch = true
                  
+                 ButtonRegistry[obj] = {
+                     IsPressed = false,
+                     PressTime = nil,
+                     SelectionBox = sel
+                 }
+                 
                  local TouchCon
-                 TouchCon = obj.Touched:Connect(function()
-                     if not ButtonDebounce then
-                         SendAlert("Button Touched!", Color3.fromRGB(255, 140, 0))
-                         ButtonDebounce = true
-                         task.wait(1)
-                         ButtonDebounce = false
+                 TouchCon = obj.Touched:Connect(function(hit)
+                     if hit.Parent == LocalPlayer.Character and not ButtonRegistry[obj].IsPressed then
+                         -- Mark as pressed
+                         ButtonRegistry[obj].IsPressed = true
+                         ButtonRegistry[obj].PressTime = tick() - RunStart - TimeOffset
+                         
+                         -- Visuals
+                         sel.Color3 = Color3.fromRGB(0, 255, 0) -- Green
+                         
+                         SendAlert("Button Touched!", Color3.fromRGB(0, 255, 0))
                      end
                  end)
                  AddConnection(TouchCon)
@@ -390,7 +430,7 @@ local function SetupMap()
     SendAlert("Map Ready", Color3.fromRGB(0, 255, 0))
 end
 
--- // FAST FORWARD (Corrected) //
+-- // FAST FORWARD //
 local IsFastForwarding = false
 local function StepForward()
     if IsPaused then
@@ -426,6 +466,10 @@ local function RewindFrame()
             PauseStart = tick()
             RunStart = tick() - Frame.Time
             TimeOffset = 0
+            
+            -- SYNC BUTTONS TO REWIND TIME
+            SyncButtonState(Frame.Time)
+            
             if Frame.Animation[1] then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
             
@@ -485,8 +529,22 @@ local function PlaybackTAS(Data)
     AddConnection(Con)
 end
 
--- // SAVE RUN (FIXED FLAT STRUCTURE) //
+-- // SAVE RUN //
 local function SaveRun()
+    -- BUTTON VALIDATION CHECK
+    local PressedCount = 0
+    local TotalCount = #TotalButtons
+    
+    for _, data in pairs(ButtonRegistry) do
+        if data.IsPressed then
+            PressedCount = PressedCount + 1
+        end
+    end
+    
+    if PressedCount < TotalCount then
+        SendAlert("Warning Not All Buttons Pressed!", Color3.fromRGB(255, 255, 0))
+    end
+    
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
     for i = 1, #Savestates do
@@ -499,14 +557,12 @@ local function SaveRun()
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
             
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
-            -- [FIX] Flat Array Structure
             Entry.CCFrame = {
                 Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
                 Round(rx), Round(ry), Round(rz)
             }
             
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-            -- [FIX] Flat Array Structure
             Entry.CCameraCFrame = {
                 Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
                 Round(crx), Round(cry), Round(crz)
@@ -531,7 +587,6 @@ AddConnection(MonitorCon)
 
 -- // MAIN EXECUTION //
 task.spawn(function()
-    -- UPDRopeData Fix: Listen directly instead of bytecode scanning
     local RopeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("UpdRopeData")
     if RopeEvent then
         RopeEvent.OnClientEvent:Connect(function(val)
@@ -609,7 +664,6 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
                 for i = 1, #Savestates do
                     for j = 1, #Savestates[i] do
                         local F = Savestates[i][j]
-                        -- Ensure flat structure for local playback too
                         local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
                         local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
                         local Entry = {
