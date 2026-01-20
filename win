@@ -27,8 +27,7 @@ getgenv().TomatoAutoFarm = true
 -- ==============================================================================
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 50
-local REGISTER_WAIT = 0.255/3
+local EXITREGION_MAX_ATTEMPTS = 2000
 local CurrentlyFarming = false
 
 local VirtualUser = game:GetService("VirtualUser")
@@ -206,10 +205,13 @@ local function OnMapLoad(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        HRP.Velocity = Vector3.new(0.001, 0.001, 0.001)
+                        HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position)
-                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        task.wait(REGISTER_WAIT)
+                        HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                        task.spawn(function()
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                        --task.wait()
                     end
                 end
             end
@@ -222,9 +224,12 @@ local function OnMapLoad(Map)
             HRP.Anchored = false
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
-                HRP.CFrame = CFrame.new(ExitRegion.Position - Vector3.new(math.random(), HRP.Size.Y, math.random()))
-                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                task.wait(REGISTER_WAIT)
+                HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
+                HRP.CFrame = CFrame.new(ExitRegion.Position)
+                HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                task.spawn(function()
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
                 if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
                     Attempts = Attempts + 1
                 end
