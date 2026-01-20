@@ -1,13 +1,13 @@
 --[[
-    FE2 TAS Creator (Keybind 4/5 + UpdRopeData Fix)
-    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Forward) now functional.
-    - RE-ADDED: Rewind and Fast-Forward loops.
-    - SYNC: Animation and Velocity logic synced with Player.
+    FE2 TAS Creator (Fix: UI Nil Error + Keybind 4/5)
+    - FIXED: UI crash during startup (nil check added to Heartbeat).
+    - FIXED: Keybind 4 (Rewind) and Keybind 5 (Forward) logic.
+    - SYNC: Animation/Velocity logic matches Player script.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("Latest TAS Creator (Fixed 4/5) for FE2 v63.21")
+print("Latest TAS Creator (UI + 4/5 Fix) for FE2 v63.21")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -112,6 +112,7 @@ local function CaptureFrameData()
 end
 
 local function UpdateTime()
+    if not TimeText then return end
     local dp = tick() - RunStart - TimeOffset
     local m = math.floor(dp / 60)
     local s = math.floor(dp % 60)
@@ -126,17 +127,21 @@ local function TogglePause()
     if IsPaused then
         SavedVelocity = Root.Velocity
         Root.Anchored = true
-        TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
+        if TimeText then TimeText.TextColor3 = Color3.fromRGB(255, 255, 0) end
         PauseStart = tick()
-        StatusLabel.Text = "CapsLock : Paused"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        if StatusLabel then 
+            StatusLabel.Text = "CapsLock : Paused"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        end
     else
         Root.Anchored = false
         Root.Velocity = SavedVelocity
-        TimeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        if TimeText then TimeText.TextColor3 = Color3.fromRGB(255, 255, 255) end
         TimeOffset = TimeOffset + tick() - PauseStart
-        StatusLabel.Text = "CapsLock : Unpaused"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        if StatusLabel then
+            StatusLabel.Text = "CapsLock : Unpaused"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
         RecordAccumulator = 0
     end
 end
@@ -192,7 +197,7 @@ local function LoadLastSavestate()
         PauseStart = tick()
         RunStart = tick() - Frame.Time
         TimeOffset = 0
-        OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
+        if OriginalPlayAnim then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
         UpdateTime()
     end
 end
@@ -289,10 +294,6 @@ local function SetupMap()
     Root.Anchored = true
     
     table.insert(Savestates, {{CFrame = GetPlayerCFrame(), CameraCFrame = workspace.CurrentCamera.CFrame, Velocity = Vector3.new(0,0,0), Animation = {"idle", 0.1}, Time = 0}})
-    
-    for _, obj in ipairs(ClonedMap:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:find("_Water") then table.insert(WaterParts, obj) end
-    end
     workspace.Multiplayer.Map:Destroy()
 end
 
@@ -306,8 +307,12 @@ AddConnection(RunService.Heartbeat:Connect(function(dt)
             table.insert(Frames, CaptureFrameData())
         end
     end
-    UI_Elements.SavestatesCount.Text = "Savestates " .. #Savestates
-    FrameCountLabel.Text = "Frames " .. #Frames
+    
+    -- [FIX] Nil Check for UI Elements
+    if UI_Elements then
+        if UI_Elements.SavestatesCount then UI_Elements.SavestatesCount.Text = "Savestates " .. #Savestates end
+        if FrameCountLabel then FrameCountLabel.Text = "Frames " .. #Frames end
+    end
 end))
 
 AddConnection(UserInputService.InputBegan:Connect(function(i, g)
