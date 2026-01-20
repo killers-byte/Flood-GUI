@@ -27,7 +27,8 @@ getgenv().TomatoAutoFarm = true
 -- ==============================================================================
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 1300 
+local EXITREGION_MAX_ATTEMPTS = 50
+local REGISTER_WAIT = 0.255/3
 local CurrentlyFarming = false
 
 local VirtualUser = game:GetService("VirtualUser")
@@ -154,13 +155,13 @@ local function OnMapLoad(Map)
     
     if LostPage then
         HumanoidRootPart.CFrame = LostPage.CFrame
-        task.wait(LocalPlayer:GetNetworkPing())
+        task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Lost Page.")
     end
     if Rescue then
         HumanoidRootPart.CFrame = Rescue.Contact.CFrame
-        task.wait(LocalPlayer:GetNetworkPing())
+        task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         print("Got Escapee.")
     end
@@ -205,10 +206,10 @@ local function OnMapLoad(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        HRP.Velocity = Vector3.zero
+                        HRP.Velocity = Vector3.new(0.001, 0.001, 0.001)
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position)
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        task.wait(0.255/15)
+                        task.wait(REGISTER_WAIT)
                     end
                 end
             end
@@ -217,12 +218,13 @@ local function OnMapLoad(Map)
                 task.wait()
             end
         elseif ExitRegion then
+            Noclip(false)
             HRP.Anchored = false
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
-                HRP.CFrame = CFrame.new(ExitRegion.Position)
-                HRP.Velocity = Vector3.new(0, 100, 0)
-                task.wait()
+                HRP.CFrame = CFrame.new(ExitRegion.Position - Vector3.new(math.random(), HRP.Size.Y, math.random()))
+                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                task.wait(REGISTER_WAIT)
                 if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
                     Attempts = Attempts + 1
                 end
