@@ -1,11 +1,11 @@
---- START OF FILE uiapi.luau.txt ---
+--- START OF FILE uiapi.luau ---
 
 --[[ 
     FE2 TAS UI Library (Auto-Layout Edition)
     - Uses UIListLayout to automatically position the Keybind menu
     - Zero overlap, zero manual pixel measuring
     - Auto GameGui Toggle included
-    - *MODIFIED*: Reparents 'Alerts' to LocatorGui to keep them visible
+    - *MODIFIED*: Map Name integrated into lower panel, Status Badge moved up.
 ]]
 
 local TAS_UI = {}
@@ -112,7 +112,7 @@ function TAS_UI.Create()
     KBFrame.BackgroundColor3 = THEME.Background
     KBFrame.BackgroundTransparency = 0.1
     KBFrame.LayoutOrder = 2 -- Forces this to be on the RIGHT
-    KBFrame.Size = UDim2.new(0, 240, 0, 360)
+    KBFrame.Size = UDim2.new(0, 240, 0, 390) -- Increased height for extra keybind
     KBFrame.Visible = false -- Hidden by default
     KBFrame.ClipsDescendants = true
 
@@ -177,11 +177,24 @@ function TAS_UI.Create()
     KBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     KBStroke.Parent = KeybindButton
 
+    -- MOVED: Map Name is now in the lower panel (Replacing old Status Pos)
+    local MapEventInfo = Instance.new("TextLabel")
+    MapEventInfo.Parent = StatsPanel
+    MapEventInfo.BackgroundTransparency = 1
+    MapEventInfo.Position = UDim2.new(0.05, 0, 0.65, 0)
+    MapEventInfo.Size = UDim2.new(0.5, 0, 0.25, 0)
+    MapEventInfo.Font = Enum.Font.GothamBold
+    MapEventInfo.Text = "Map: Waiting..."
+    MapEventInfo.TextColor3 = THEME.Accent
+    MapEventInfo.TextScaled = true
+    MapEventInfo.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- MOVED: Status Badge moved to top right corner of Time area
     local StatusBadge = Instance.new("TextLabel")
     StatusBadge.Parent = StatsPanel
     StatusBadge.BackgroundTransparency = 1
-    StatusBadge.Position = UDim2.new(0.05, 0, 0.65, 0)
-    StatusBadge.Size = UDim2.new(0.5, 0, 0.25, 0)
+    StatusBadge.Position = UDim2.new(0.4, 0, 0.15, 0) -- Adjusted position
+    StatusBadge.Size = UDim2.new(0.15, 0, 0.15, 0)
     StatusBadge.Font = Enum.Font.GothamMedium
     StatusBadge.Text = "PAUSED"
     StatusBadge.TextColor3 = THEME.Alert
@@ -238,11 +251,12 @@ function TAS_UI.Create()
     AddKeybindRow("4 / 5", "Frame Step", 5)
     AddKeybindRow("6", "Save Run (JSON)", 6)
     AddKeybindRow("0", "Playback TAS", 7)
-    AddKeybindRow("C", "Toggle Collision", 8)
-    AddKeybindRow("UP / DOWN", "Visual Time Travel", 9)
-    AddKeybindRow("F8", "Resync Visuals", 10)
-    AddKeybindRow("EQUALS (=)", "Freeze Map Updates", 11)
-    AddKeybindRow("DELETE", "DESTROY UI", 12)
+    AddKeybindRow("7", "Auto-Reset Env", 8) -- NEW
+    AddKeybindRow("C", "Toggle Collision", 9)
+    AddKeybindRow("UP / DOWN", "Visual Time Travel", 10)
+    AddKeybindRow("F8", "Resync Visuals", 11)
+    AddKeybindRow("EQUALS (=)", "Freeze Map Updates", 12)
+    AddKeybindRow("DELETE", "DESTROY UI", 13)
 
     -- // Button Events //
     KeybindButton.MouseEnter:Connect(function()
@@ -277,26 +291,13 @@ function TAS_UI.Create()
         end
     end)
 
-    -- Map Event Info
-    local MapEventInfo = Instance.new("TextLabel")
-    MapEventInfo.Parent = ScreenGui
-    MapEventInfo.BackgroundTransparency = 1
-    MapEventInfo.Position = UDim2.new(0.5, 0, 0.1, 0)
-    MapEventInfo.AnchorPoint = Vector2.new(0.5, 0)
-    MapEventInfo.Size = UDim2.new(0, 400, 0, 30)
-    MapEventInfo.Font = Enum.Font.GothamBlack
-    MapEventInfo.Text = ""
-    MapEventInfo.TextColor3 = THEME.TextMain
-    MapEventInfo.TextStrokeTransparency = 0.5
-    MapEventInfo.TextSize = 24
-
     return {
         ScreenGui = ScreenGui,
         TimeText = TimeText,
         SavestatesCount = SavestatesCount,
         FrameCount = FrameCount,
         StatusText = StatusBadge,
-        MapEventInfo = MapEventInfo
+        MapEventInfo = MapEventInfo -- Now located in StatsPanel
     }
 end
 
