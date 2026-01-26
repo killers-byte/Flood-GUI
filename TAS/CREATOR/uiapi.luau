@@ -5,6 +5,7 @@
     - Uses UIListLayout to automatically position the Keybind menu
     - Zero overlap, zero manual pixel measuring
     - Auto GameGui Toggle included
+    - *MODIFIED*: Reparents 'Alerts' to LocatorGui to keep them visible
 ]]
 
 local TAS_UI = {}
@@ -26,13 +27,24 @@ function TAS_UI.Create()
     local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
 
-    -- // GameGui Toggle Logic //
-    local GameGui = PlayerGui and PlayerGui:FindFirstChild("GameGui")
-    if GameGui then GameGui.Enabled = false end
-
-    -- // Clean up old UIs //
+    -- // Clean up old UIs first //
     for _, v in pairs(CoreGui:GetChildren()) do
         if v.Name == "TAS_HUD" then v:Destroy() end
+    end
+
+    -- // GameGui & Alerts Handling //
+    local GameGui = PlayerGui and PlayerGui:WaitForChild("GameGui", 5)
+    local LocatorGui = PlayerGui and PlayerGui:WaitForChild("LocatorGui", 5)
+    local AlertsFrame = GameGui and GameGui:FindFirstChild("Alerts")
+
+    -- Move Alerts to LocatorGui (which stays enabled) so we can see them
+    if AlertsFrame and LocatorGui then
+        AlertsFrame.Parent = LocatorGui
+    end
+
+    -- Disable the main GameGui to hide clutter
+    if GameGui then 
+        GameGui.Enabled = false 
     end
 
     -- // 1. ScreenGui //
@@ -42,8 +54,16 @@ function TAS_UI.Create()
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.ResetOnSpawn = false
 
+    -- // Cleanup Logic //
     ScreenGui.Destroying:Connect(function()
-        if GameGui then GameGui.Enabled = true end
+        -- Restore Alerts back to GameGui
+        if AlertsFrame and GameGui then
+            AlertsFrame.Parent = GameGui
+        end
+        -- Re-enable GameGui
+        if GameGui then 
+            GameGui.Enabled = true 
+        end
     end)
 
     -- // 2. The Magic Container (Holds both menus) //
