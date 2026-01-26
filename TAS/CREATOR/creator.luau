@@ -1,12 +1,11 @@
+--- START OF FILE TAS Creator.txt ---
+
 --[[
-    FE2 TAS Creator (Rope Data Overwrite Fix)
-    - Replaced bytecode scanner with direct UpdRopeData listener.
-    - Captures rope data from live game to inject into cloned TAS run.
-    - Added Total Button Tracking & Safety Warnings.
-    - Added Time-Travel logic for buttons (Un-presses when rewinding).
-    - FIXED: Uses "ButtonIcon" detection method from TAS Player to find buttons.
-    - REMOVED: Initial SaveRun call on startup.
-    - FIXED: Rope Data now "locks" once TAS starts, preventing new rounds from breaking ziplines.
+    FE2 TAS Creator (Manual Resync Only)
+    - UNPAUSE: Now KEEPS the visual map offset (Does NOT auto-resync).
+    - F8: The ONLY way to snap map back to Player Time.
+    - UP/DOWN ARROWS: Visual Preview (Green/Red Text).
+    - INCLUDES: Recorder, Button Tracker, View TAS Fixes.
 ]]
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
@@ -17,13 +16,14 @@ local Keybinds = {
     AddSavestate = "One",
     RemoveSavestate = "Two",
     BackSavestate = "Three",
-    GoFrameBack = "Four",
-    GoFrameForward = "Five",
+    GoFrameBack = "Four", 
+    GoFrameForward = "Five", 
     SaveRun = "Six",
     UserPause = "CapsLock",
     CollisionToggler = "C",
     ResetToNormal = "Delete",
-    ViewTAS = "Zero"
+    ViewTAS = "Zero",
+    Resync = "F8"
 }
 
 -- // SERVICES //
@@ -79,6 +79,7 @@ local CurrentAnim = {}
 local Savestates = {}
 local Frames = {}
 local TimeOffset = 0
+local PreviewOffset = 0 
 local IsPaused = true
 local PauseStart
 local OriginalPlayAnim
@@ -87,9 +88,18 @@ local RunStart
 local SavedVelocity = Vector3.new(0, 0, 0)
 local Connections = {} 
 
+-- Scrubbing Flags
+local IsPreviewingForward = false
+local IsPreviewingBackward = false
+
 -- Button Tracking Variables
 local TotalButtons = {}
-local ButtonRegistry = {} -- Structure: [Part] = {IsPressed = bool, PressTime = number, SelectionBox = Instance}
+local ButtonRegistry = {} 
+
+-- Map Recorder Variables
+local MapEvents = {} 
+local PlaybackIndex = 1
+local MapRecorderCache = {}
 
 -- Recording Cap Variables
 local RecordAccumulator = 0
@@ -112,6 +122,17 @@ local MapOffset, MapPos, MapX, MapY, MapZ, ClonedMap, RopeTable
 local function AddConnection(con)
     table.insert(Connections, con)
     return con
+end
+
+-- Linker Function
+local function GetObjPath(obj)
+    local path = obj.Name
+    local parent = obj.Parent
+    while parent and parent ~= game do
+        path = parent.Name .. "/" .. path
+        parent = parent.Parent
+    end
+    return path
 end
 
 local function ToggleCollision()
@@ -147,34 +168,54 @@ local function CaptureFrameData()
         CameraCFrame = workspace.CurrentCamera.CFrame,
         Velocity = LocalPlayer.Character.HumanoidRootPart.Velocity,
         Animation = CurrentAnim,
+        -- RECORDING ALWAYS USES REAL TIME
         Time = tick() - RunStart - TimeOffset
     }
 end
 
 local function LoadUI()
+    if UI_Elements then return end
     UI_Elements = TAS_UI.Create()
     TimeText = UI_Elements.TimeText
     FrameCountLabel = UI_Elements.FrameCount
     StatusLabel = UI_Elements.StatusText
 end
 
-local function UpdateTime()
-    local dp = tick() - RunStart - TimeOffset
-    local m = math.floor(dp / 60)
-    local s = math.floor(dp % 60)
-    local ms = math.floor(dp * 1000 % 1000)
+local function UpdateTimeDisplay(DisplayTime)
+    local m = math.floor(DisplayTime / 60)
+    local s = math.floor(DisplayTime % 60)
+    local ms = math.floor(DisplayTime * 1000 % 1000)
     TimeText.Text = string.format("%d:%02d.%03d", m, s, ms)
+end
+
+-- // MAP PLAYBACK ENGINE //
+local function UpdateMapState(TargetTime)
+    -- Fast Forward
+    while PlaybackIndex <= #MapEvents and MapEvents[PlaybackIndex].Time <= TargetTime do
+        local Event = MapEvents[PlaybackIndex]
+        if Event.Instance and Event.Instance.Parent and Event.Instance:IsA("BasePart") then
+            Event.Instance[Event.Prop] = Event.NewVal
+        end
+        PlaybackIndex = PlaybackIndex + 1
+    end
+    -- Rewind
+    while PlaybackIndex > 1 and MapEvents[PlaybackIndex - 1].Time > TargetTime do
+        PlaybackIndex = PlaybackIndex - 1
+        local Event = MapEvents[PlaybackIndex]
+        if Event.Instance and Event.Instance.Parent and Event.Instance:IsA("BasePart") then
+            Event.Instance[Event.Prop] = Event.OldVal
+        end
+    end
 end
 
 -- // BUTTON SYNC LOGIC //
 local function SyncButtonState(CurrentRunTime)
     for part, data in pairs(ButtonRegistry) do
-        -- If button was pressed "in the future" relative to now, unpress it
         if data.IsPressed and data.PressTime > CurrentRunTime then
             data.IsPressed = false
             data.PressTime = nil
             if data.SelectionBox then
-                data.SelectionBox.Color3 = Color3.fromRGB(255, 140, 0) -- Back to Orange
+                data.SelectionBox.Color3 = Color3.fromRGB(255, 140, 0)
             end
         end
     end
@@ -204,13 +245,16 @@ local function ResetToNormal()
     
     TotalButtons = {}
     ButtonRegistry = {}
+    MapEvents = {}
+    MapRecorderCache = {}
     
     if ClonedMap then 
         ClonedMap:Destroy() 
-        ClonedMap = nil -- [FIX] Set to nil so Rope Data listener knows we aren't busy
+        ClonedMap = nil 
     end
     
     if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
+    UI_Elements = nil
     
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         LocalPlayer.Character.HumanoidRootPart.Anchored = false
@@ -231,6 +275,7 @@ local function TogglePause()
         StatusLabel.Text = "CapsLock : Paused"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     else
+        -- [MODIFIED] Do NOT reset PreviewOffset here. Keep current visual state.
         Root.Anchored = false
         Root.Velocity = SavedVelocity
         TimeText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -249,10 +294,12 @@ local function LoadLastSavestate()
         
         Frames = {}
         IsPaused = true
+        PreviewOffset = 0 -- Reset Preview on LoadState
         
         local Root = LocalPlayer.Character.HumanoidRootPart
         Root.Anchored = true
         TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
+        
         Root.CFrame = Frame.CFrame + Vector3.new(MapX, MapY - 1000, MapZ)
         Root.Velocity = Frame.Velocity
         SavedVelocity = Frame.Velocity
@@ -262,13 +309,13 @@ local function LoadLastSavestate()
         RunStart = tick() - Frame.Time
         TimeOffset = 0
         
-        -- SYNC BUTTONS TO SAVESTATE TIME
         SyncButtonState(Frame.Time)
+        UpdateMapState(Frame.Time)
         
         OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid)
         if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
         
-        task.spawn(UpdateTime)
+        task.spawn(function() UpdateTimeDisplay(Frame.Time) end)
     end
 end
 
@@ -322,19 +369,107 @@ local function SetupMap()
     local MapName = Map.Settings:GetAttribute("MapName")
     print(MapName)
     
-    for _, desc in pairs(Map:GetDescendants()) do desc.Archivable = true end
-    ClonedMap = Map:Clone()
-    if workspace:FindFirstChild("Map") then workspace.Map:Destroy() end
-    ClonedMap.Parent = workspace
-    
-    MapPos = ClonedMap.PrimaryPart.Position
-    MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
-    MapOffset = CFrame.new(MapX, MapY, MapZ)
-    
     local Char = LocalPlayer.Character
     if Char and Char:FindFirstChild("Humanoid") then
-        Char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-        Char.Humanoid.Health = 0
+        local RootPart = Char.HumanoidRootPart
+        local Humanoid = Char.Humanoid
+        
+        LoadUI()
+        
+        local Recording = true
+        local SafeLocation = CFrame.new(0, 10000, 0)
+        RootPart.CFrame = SafeLocation
+        RootPart.Anchored = true
+        
+        local Recorders = {}
+        MapEvents = {}
+        MapRecorderCache = {}
+        local StartTime = os.clock()
+        
+        -- // RECORDER LOGIC //
+        local function TrackPart(Part)
+            if not Part or not Part:IsA("BasePart") then return end
+            
+            local Path = GetObjPath(Part)
+            MapRecorderCache[Part] = {
+                CFrame = Part.CFrame,
+                Transparency = Part.Transparency,
+                CanCollide = Part.CanCollide,
+                Size = Part.Size
+            }
+            local function OnChange(Prop)
+                if not Recording then return end
+                local NewVal = Part[Prop]
+                local OldVal = MapRecorderCache[Part][Prop]
+                if NewVal ~= OldVal then
+                    table.insert(MapEvents, {
+                        Time = os.clock() - StartTime,
+                        Path = Path,
+                        Prop = Prop,
+                        OldVal = OldVal,
+                        NewVal = NewVal
+                    })
+                    MapRecorderCache[Part][Prop] = NewVal
+                end
+            end
+            table.insert(Recorders, Part:GetPropertyChangedSignal("CFrame"):Connect(function() OnChange("CFrame") end))
+            table.insert(Recorders, Part:GetPropertyChangedSignal("Transparency"):Connect(function() OnChange("Transparency") end))
+            table.insert(Recorders, Part:GetPropertyChangedSignal("CanCollide"):Connect(function() OnChange("CanCollide") end))
+        end
+
+        for _, Object in ipairs(Map:GetDescendants()) do
+            if Object:IsA("BasePart") then TrackPart(Object) end
+        end
+
+        SendAlert("Recording Map! Survive until death.", Color3.fromRGB(255, 170, 0))
+
+        while Humanoid.Health > 0 and Map.Parent do
+             task.wait(0.1)
+        end
+        
+        Recording = false
+        for _, Recorder in ipairs(Recorders) do Recorder:Disconnect() end
+        SendAlert("Processing Map...", Color3.fromRGB(0, 200, 255))
+        
+        Map.Archivable = true 
+        for _, desc in pairs(Map:GetDescendants()) do desc.Archivable = true end
+        
+        ClonedMap = Map:Clone()
+        if workspace:FindFirstChild("Map") then workspace.Map:Destroy() end
+        ClonedMap.Parent = workspace
+        
+        -- // LINK & ROLLBACK //
+        local CloneLookup = {}
+        for _, obj in ipairs(ClonedMap:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                CloneLookup[GetObjPath(obj)] = obj
+            end
+        end
+
+        for _, Event in ipairs(MapEvents) do
+            local Suffix = Event.Path:gsub("^.*Map", "")
+            for Path, Obj in pairs(CloneLookup) do
+                if Path:sub(-#Suffix) == Suffix then
+                    Event.Instance = Obj
+                    break
+                end
+            end
+        end
+
+        for i = #MapEvents, 1, -1 do
+            local Event = MapEvents[i]
+            if Event.Instance and Event.Instance:IsA("BasePart") then
+                Event.Instance[Event.Prop] = Event.OldVal 
+            end
+        end
+        PlaybackIndex = 1
+        
+        MapPos = ClonedMap.PrimaryPart.Position
+        MapX, MapY, MapZ = MapPos.X, MapPos.Y, MapPos.Z
+        MapOffset = CFrame.new(MapX, MapY, MapZ)
+
+        Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+        Humanoid.Health = 0
     end
     
     LocalPlayer.CharacterAdded:Wait()
@@ -391,7 +526,6 @@ local function SetupMap()
     TotalButtons = {}
     ButtonRegistry = {}
     
-    -- // IMPROVED BUTTON DETECTION (Using ButtonIcon method from Player) //
     local CheckedButtonParts = {}
 
     for _, obj in ipairs(ClonedMap:GetDescendants()) do
@@ -399,31 +533,26 @@ local function SetupMap()
              if obj.Name:find("_Water") then
                  table.insert(WaterParts, obj)
              end
-             
              if not obj.CanCollide then
                  obj.Transparency = 0.8
              end
         end
 
-        -- NEW DETECTION: Look for ButtonIcon, then find the parent part
         if obj.Name == "ButtonIcon" then
             local ButtonPart = nil
-            
-            -- Method 1: The standard hierarchy (Part -> SurfaceGui -> ButtonIcon)
             if obj.Parent and obj.Parent.Parent and obj.Parent.Parent:IsA("BasePart") then
                 ButtonPart = obj.Parent.Parent
-            -- Method 2: The Player Script method (Model -> Part -> SurfaceGui -> Icon)
             elseif obj.Parent and obj.Parent.Parent and obj.Parent.Parent:IsA("Model") then
                 ButtonPart = obj.Parent.Parent:FindFirstChildOfClass("Part") or obj.Parent.Parent:FindFirstChildOfClass("BasePart")
             end
 
             if ButtonPart and not CheckedButtonParts[ButtonPart] then
-                CheckedButtonParts[ButtonPart] = true -- Prevent duplicates
+                CheckedButtonParts[ButtonPart] = true
                 table.insert(TotalButtons, ButtonPart)
 
                 local sel = Instance.new("SelectionBox", ButtonPart)
                 sel.Adornee = ButtonPart
-                sel.Color3 = Color3.fromRGB(255, 140, 0) -- Default Orange
+                sel.Color3 = Color3.fromRGB(255, 140, 0)
                 ButtonPart.CanTouch = true
                 
                 ButtonRegistry[ButtonPart] = {
@@ -435,13 +564,11 @@ local function SetupMap()
                 local TouchCon
                 TouchCon = ButtonPart.Touched:Connect(function(hit)
                     if hit.Parent == LocalPlayer.Character and not ButtonRegistry[ButtonPart].IsPressed then
-                        -- Mark as pressed
+                        if not RunStart then return end
+                        
                         ButtonRegistry[ButtonPart].IsPressed = true
                         ButtonRegistry[ButtonPart].PressTime = tick() - RunStart - TimeOffset
-                        
-                        -- Visuals
-                        sel.Color3 = Color3.fromRGB(0, 255, 0) -- Green
-                        
+                        sel.Color3 = Color3.fromRGB(0, 255, 0)
                         SendAlert("Button Touched!", Color3.fromRGB(0, 255, 0))
                     end
                 end)
@@ -491,13 +618,13 @@ local function RewindFrame()
             RunStart = tick() - Frame.Time
             TimeOffset = 0
             
-            -- SYNC BUTTONS TO REWIND TIME
             SyncButtonState(Frame.Time)
+            UpdateMapState(Frame.Time)
             
             if Frame.Animation[1] then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
             
-            task.spawn(UpdateTime)
+            task.spawn(function() UpdateTimeDisplay(Frame.Time) end)
             Frames[#Frames] = nil
         end
     end
@@ -517,7 +644,7 @@ local function PlaybackTAS(Data)
     local Cam = workspace.CurrentCamera
     local LastPlayedAnim = ""
     local Offset = ClonedMap.PrimaryPart.Position - Vector3.new(0, 1000, 0)
-    local idx = 3
+    local idx = 1
     local PlayStart = tick()
     
     local function PlayAnim(anim)
@@ -530,24 +657,37 @@ local function PlaybackTAS(Data)
 
     local Con
     Con = RunService.Heartbeat:Connect(function()
-        Root.Anchored = false
-        LocalPlayer.Character.Humanoid.Jump = true
-        if not IsPaused then TogglePause() end
-        for i = idx, #Data do
-            local Frame = Data[i]
-            if tick() - PlayStart < Frame.time then break
-            elseif i >= #Data then
-                Root.Anchored = true
-                Con:Disconnect()
-                IsViewingTAS = false
-            elseif tick() - PlayStart >= Frame.time then
-                idx = i
-                local cf = Frame.CCFrame
-                local ccf = Frame.CCameraCFrame
-                Root.CFrame = CFrame.new(cf[1], cf[2], cf[3]) * CFrame.fromEulerAnglesXYZ(cf[4], cf[5], cf[6]) + Offset
-                Cam.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
-                PlayAnim(Frame.AAnimation)
-            end
+        if not IsViewingTAS then 
+            Con:Disconnect()
+            Root.Anchored = true
+            return 
+        end
+        Root.Anchored = true
+        
+        local TimeNow = tick() - PlayStart
+        UpdateMapState(TimeNow)
+        
+        local FoundFrame = nil
+        while idx <= #Data do
+            local Frame = Data[idx]
+            if Frame.time > TimeNow then break end
+            FoundFrame = Frame
+            idx = idx + 1
+        end
+        
+        if FoundFrame then
+            local cf = FoundFrame.CCFrame
+            local ccf = FoundFrame.CCameraCFrame
+            Root.CFrame = CFrame.new(cf[1], cf[2], cf[3]) * CFrame.fromEulerAnglesXYZ(cf[4], cf[5], cf[6]) + Offset
+            Cam.CFrame = CFrame.new(ccf[1], ccf[2], ccf[3]) * CFrame.fromEulerAnglesXYZ(ccf[4], ccf[5], ccf[6]) + Offset
+            PlayAnim(FoundFrame.AAnimation)
+        end
+        
+        if idx > #Data then
+            IsViewingTAS = false
+            Con:Disconnect()
+            Root.Anchored = true
+            if not IsPaused then TogglePause() end
         end
     end)
     AddConnection(Con)
@@ -555,14 +695,11 @@ end
 
 -- // SAVE RUN //
 local function SaveRun()
-    -- BUTTON VALIDATION CHECK
     local PressedCount = 0
     local TotalCount = #TotalButtons
     
     for _, data in pairs(ButtonRegistry) do
-        if data.IsPressed then
-            PressedCount = PressedCount + 1
-        end
+        if data.IsPressed then PressedCount = PressedCount + 1 end
     end
     
     if PressedCount < TotalCount then
@@ -579,18 +716,10 @@ local function SaveRun()
             Entry.AAnimation = F.Animation or {"walk", 0.1}
             Entry.AAnimationChanged = F.Animation[2] 
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
-            
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
-            Entry.CCFrame = {
-                Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z),
-                Round(rx), Round(ry), Round(rz)
-            }
-            
+            Entry.CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)}
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-            Entry.CCameraCFrame = {
-                Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z),
-                Round(crx), Round(cry), Round(crz)
-            }
+            Entry.CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
             table.insert(Export, Entry)
         end
     end
@@ -614,7 +743,6 @@ task.spawn(function()
     local RopeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("UpdRopeData")
     if RopeEvent then
         RopeEvent.OnClientEvent:Connect(function(val)
-            -- [FIX] Only update rope data if we are NOT currently in a TAS session
             if type(val) == "table" and not ClonedMap then
                 RopeTable = val
             end
@@ -631,9 +759,52 @@ if not isfolder("TAS") then makefolder("TAS") end
 local LastHeartbeat = tick()
 
 local HBCon = RunService.Heartbeat:Connect(function(dt)
+    if not RunStart then return end
+    if IsViewingTAS then return end
+
+    -- Handle Preview Offset
+    if IsPreviewingForward then
+        PreviewOffset = PreviewOffset + dt
+    elseif IsPreviewingBackward then
+        PreviewOffset = PreviewOffset - dt
+    end
+
+    -- Calculate Real TAS Time
+    local RealTime = 0
     if not IsPaused then
-        UpdateTime()
-        
+        RealTime = tick() - RunStart - TimeOffset
+    else
+        local PStart = PauseStart or tick()
+        RealTime = PStart - RunStart - TimeOffset
+    end
+    
+    -- Visual Time = RealTime + Offset
+    local VisualTime = RealTime + PreviewOffset
+    
+    -- Update Map based on VISUAL Time (Preview)
+    UpdateMapState(VisualTime)
+    
+    -- Update Timer Text & Color based on Preview state
+    if IsPreviewingForward then
+        TimeText.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green
+        UpdateTimeDisplay(VisualTime)
+    elseif IsPreviewingBackward then
+        TimeText.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red
+        UpdateTimeDisplay(VisualTime)
+    elseif PreviewOffset ~= 0 then
+        -- Static preview (held offset)
+        if PreviewOffset > 0 then TimeText.TextColor3 = Color3.fromRGB(0, 255, 0)
+        else TimeText.TextColor3 = Color3.fromRGB(255, 0, 0) end
+        UpdateTimeDisplay(VisualTime)
+    else
+        -- Normal State
+        if IsPaused then TimeText.TextColor3 = Color3.fromRGB(255, 255, 0)
+        else TimeText.TextColor3 = Color3.fromRGB(255, 255, 255) end
+        UpdateTimeDisplay(RealTime)
+    end
+
+    if not IsPaused then
+        -- Record uses REAL Time, ignoring Preview
         RecordAccumulator = RecordAccumulator + dt
         if RecordAccumulator >= RECORD_INTERVAL then
             RecordAccumulator = RecordAccumulator - RECORD_INTERVAL
@@ -646,10 +817,8 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
         LastHeartbeat = tick() 
     end
     
-    -- Auto-Swim Check
     local PlayerPos = LocalPlayer.Character.HumanoidRootPart.Position
     local InWater = false
-    
     local IsSliding = (CurrentAnim and CurrentAnim[1] == "slide")
     
     if not IsSliding then
@@ -662,12 +831,12 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
     end
     getgenv().IsSwimming = InWater
     
-    UI_Elements.SavestatesCount.Text = "Savestates " .. tostring(#Savestates)
-    FrameCountLabel.Text = "Frames " .. tostring(#Frames)
+    if UI_Elements then
+        UI_Elements.SavestatesCount.Text = "Savestates " .. tostring(#Savestates)
+        FrameCountLabel.Text = "Frames " .. tostring(#Frames)
+    end
 end)
 AddConnection(HBCon)
-
--- Removed SaveRun() call here
 
 local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe then
@@ -681,7 +850,15 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.GoFrameForward then
             if not IsFastForwarding then IsFastForwarding = true; task.spawn(FastForwardLoop) end
         elseif k == Keybinds.GoFrameBack then task.spawn(RewindLoop)
+        elseif k == "Up" then IsPreviewingForward = true
+        elseif k == "Down" then IsPreviewingBackward = true
         elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
+        elseif k == Keybinds.Resync then
+            -- F8 Resync: Reset Preview Offset
+            IsPreviewingForward = false
+            IsPreviewingBackward = false
+            PreviewOffset = 0
+            SendAlert("Visuals Resynced", Color3.fromRGB(0, 255, 255))
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
                 AddSavestate()
@@ -712,6 +889,8 @@ local InputEndCon = UserInputService.InputEnded:Connect(function(input, gpe)
     if not gpe then
         if input.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
         if input.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
+        if input.KeyCode.Name == "Up" then IsPreviewingForward = false end
+        if input.KeyCode.Name == "Down" then IsPreviewingBackward = false end
     end
 end)
 AddConnection(InputEndCon)
