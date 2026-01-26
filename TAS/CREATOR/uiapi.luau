@@ -1,13 +1,24 @@
 --- START OF FILE uiapi.luau.txt ---
 
 --[[ 
-    FE2 TAS UI Library (Updated)
-    - Includes GameGui toggling
-    - New Keybinds added
-    - Layout overlap fixes
+    FE2 TAS UI Library (Auto-Layout Edition)
+    - Uses UIListLayout to automatically position the Keybind menu
+    - Zero overlap, zero manual pixel measuring
+    - Auto GameGui Toggle included
 ]]
 
 local TAS_UI = {}
+local TweenService = game:GetService("TweenService")
+
+-- // Styling Constants //
+local THEME = {
+    Background = Color3.fromRGB(25, 25, 30),
+    Stroke = Color3.fromRGB(60, 60, 70),
+    TextMain = Color3.fromRGB(240, 240, 240),
+    TextDim = Color3.fromRGB(180, 180, 180),
+    Accent = Color3.fromRGB(85, 170, 255),
+    Alert = Color3.fromRGB(255, 200, 80),
+}
 
 function TAS_UI.Create()
     local CoreGui = game:GetService("CoreGui")
@@ -17,214 +28,254 @@ function TAS_UI.Create()
 
     -- // GameGui Toggle Logic //
     local GameGui = PlayerGui and PlayerGui:FindFirstChild("GameGui")
-    if GameGui then 
-        GameGui.Enabled = false 
-    end
+    if GameGui then GameGui.Enabled = false end
 
     -- // Clean up old UIs //
     for _, v in pairs(CoreGui:GetChildren()) do
         if v.Name == "TAS_HUD" then v:Destroy() end
     end
 
-    -- // 1. Main ScreenGui //
+    -- // 1. ScreenGui //
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "TAS_HUD"
     ScreenGui.Parent = CoreGui
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.ResetOnSpawn = false
 
-    -- Re-enable GameGui when this UI is destroyed (Clean Reset)
     ScreenGui.Destroying:Connect(function()
-        if GameGui then 
-            GameGui.Enabled = true 
-        end
+        if GameGui then GameGui.Enabled = true end
     end)
 
-    -- // 2. Main HUD Frame //
-    local HUDFrame = Instance.new("Frame")
-    HUDFrame.Name = "HUD"
-    HUDFrame.Parent = ScreenGui
-    HUDFrame.AnchorPoint = Vector2.new(0.5, 0)
-    HUDFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
-    HUDFrame.BackgroundTransparency = 1.000
-    HUDFrame.Position = UDim2.new(0.5, 0, 0.889999986, 0)
-    HUDFrame.Size = UDim2.new(1, 0, 0.0825000033, 0)
-    HUDFrame.SizeConstraint = Enum.SizeConstraint.RelativeYY
-    HUDFrame.ZIndex = 3
+    -- // 2. The Magic Container (Holds both menus) //
+    local Container = Instance.new("Frame")
+    Container.Name = "LayoutContainer"
+    Container.Parent = ScreenGui
+    Container.BackgroundTransparency = 1
+    -- Centered at the bottom of the screen
+    Container.AnchorPoint = Vector2.new(0.5, 1) 
+    Container.Position = UDim2.new(0.5, 0, 0.95, 0)
+    Container.Size = UDim2.new(0, 0, 0, 0) -- Starts at 0
+    -- THIS makes the container expand to fit both menus automatically
+    Container.AutomaticSize = Enum.AutomaticSize.XY 
 
-    local MainContainer = Instance.new("Frame")
-    MainContainer.Name = "Main"
-    MainContainer.Parent = HUDFrame
-    MainContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    MainContainer.BackgroundTransparency = 1.000
-    MainContainer.Size = UDim2.new(1, 0, 1, 0)
+    -- // 3. The Layout Instance //
+    local Layout = Instance.new("UIListLayout")
+    Layout.Parent = Container
+    Layout.FillDirection = Enum.FillDirection.Horizontal -- Places items side-by-side
+    Layout.VerticalAlignment = Enum.VerticalAlignment.Bottom -- Aligns them to the bottom
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center -- Keeps group centered
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Layout.Padding = UDim.new(0, 15) -- 15px Gap between Main Menu and Keybinds
 
-    -- Background Layer (For Shadows)
-    local BackgroundLayer = Instance.new("Frame")
-    BackgroundLayer.Name = "BackgroundLayer"
-    BackgroundLayer.Parent = HUDFrame
-    BackgroundLayer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    BackgroundLayer.BackgroundTransparency = 1.000
-    BackgroundLayer.Size = UDim2.new(1, 0, 1, 0)
-    BackgroundLayer.ZIndex = -1
+    -- // 4. Stats Panel (Main Menu) //
+    local StatsPanel = Instance.new("Frame")
+    StatsPanel.Name = "StatsPanel"
+    StatsPanel.Parent = Container
+    StatsPanel.BackgroundColor3 = THEME.Background
+    StatsPanel.BackgroundTransparency = 0.15
+    StatsPanel.LayoutOrder = 1 -- Forces this to be on the LEFT
+    StatsPanel.Size = UDim2.new(0, 360, 0, 85)
+    
+    local PCorner = Instance.new("UICorner")
+    PCorner.CornerRadius = UDim.new(0, 12)
+    PCorner.Parent = StatsPanel
+    
+    local PStroke = Instance.new("UIStroke")
+    PStroke.Color = THEME.Stroke
+    PStroke.Thickness = 1.5
+    PStroke.Parent = StatsPanel
 
-    -- // 3. Game Stats Box //
-    local GameStats = Instance.new("Frame")
-    GameStats.Name = "GameStats"
-    GameStats.Parent = MainContainer
-    GameStats.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
-    GameStats.BackgroundTransparency = 0.500
-    GameStats.BorderColor3 = Color3.fromRGB(27, 42, 53)
-    GameStats.BorderSizePixel = 0
-    -- Positioned slightly to the left to leave room for keybinds
-    GameStats.Position = UDim2.new(0.30, 0, 0.178, 0) 
-    GameStats.Size = UDim2.new(0, 348, 0, 73)
+    -- // 5. Keybind Window //
+    local KBFrame = Instance.new("Frame")
+    KBFrame.Name = "KeybindFrame"
+    KBFrame.Parent = Container
+    KBFrame.BackgroundColor3 = THEME.Background
+    KBFrame.BackgroundTransparency = 0.1
+    KBFrame.LayoutOrder = 2 -- Forces this to be on the RIGHT
+    KBFrame.Size = UDim2.new(0, 240, 0, 360)
+    KBFrame.Visible = false -- Hidden by default
+    KBFrame.ClipsDescendants = true
 
-    local GSCorner = Instance.new("UICorner")
-    GSCorner.CornerRadius = UDim.new(0, 9)
-    GSCorner.Parent = GameStats
+    local KBFCorner = Instance.new("UICorner")
+    KBFCorner.CornerRadius = UDim.new(0, 10)
+    KBFCorner.Parent = KBFrame
 
-    -- // 4. Labels //
+    local KBFStroke = Instance.new("UIStroke")
+    KBFStroke.Color = THEME.Accent
+    KBFStroke.Transparency = 0.5
+    KBFStroke.Thickness = 1
+    KBFStroke.Parent = KBFrame
+
+    -- // Stats Panel Contents //
     local TimeText = Instance.new("TextLabel")
-    TimeText.Parent = GameStats
-    TimeText.BackgroundTransparency = 1.000
-    TimeText.Position = UDim2.new(0.017, 0, 0.162, 0)
-    TimeText.Size = UDim2.new(0.5, 0, 0.7, 0)
+    TimeText.Name = "TimeText"
+    TimeText.Parent = StatsPanel
+    TimeText.BackgroundTransparency = 1
+    TimeText.Position = UDim2.new(0.05, 0, 0.1, 0)
+    TimeText.Size = UDim2.new(0.5, 0, 0.5, 0)
     TimeText.Font = Enum.Font.Highway
     TimeText.Text = "0:00.000"
-    TimeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TimeText.TextColor3 = THEME.TextMain
     TimeText.TextScaled = true
-    TimeText.TextWrapped = true
-    
-    local TimeConstraint = Instance.new("UITextSizeConstraint")
-    TimeConstraint.MaxTextSize = 45
-    TimeConstraint.Parent = TimeText
+    TimeText.TextXAlignment = Enum.TextXAlignment.Left
 
-    local SavestatesCount = Instance.new("TextLabel")
-    SavestatesCount.Parent = GameStats
-    SavestatesCount.BackgroundTransparency = 1.000
-    SavestatesCount.Position = UDim2.new(0, 190, 0, 0)
-    SavestatesCount.Size = UDim2.new(0, 149, 0, 33)
-    SavestatesCount.Font = Enum.Font.Highway
-    SavestatesCount.Text = "Savestates 0"
-    SavestatesCount.TextColor3 = Color3.fromRGB(255, 255, 255)
-    SavestatesCount.TextScaled = true
-    
-    local SSConstraint = Instance.new("UITextSizeConstraint")
-    SSConstraint.MaxTextSize = 22
-    SSConstraint.Parent = SavestatesCount
-
-    local FrameCount = Instance.new("TextLabel")
-    FrameCount.Parent = GameStats
-    FrameCount.BackgroundTransparency = 1.000
-    FrameCount.Position = UDim2.new(0, 190, 0, 20)
-    FrameCount.Size = UDim2.new(0, 149, 0, 33)
-    FrameCount.Font = Enum.Font.Highway
-    FrameCount.Text = "Frames 0"
-    FrameCount.TextColor3 = Color3.fromRGB(255, 255, 255)
-    FrameCount.TextScaled = true
-    
-    local FCConstraint = Instance.new("UITextSizeConstraint")
-    FCConstraint.MaxTextSize = 22
-    FCConstraint.Parent = FrameCount
-
-    local KeybindButton = Instance.new("TextButton")
-    KeybindButton.Parent = GameStats
-    KeybindButton.BackgroundTransparency = 1.000
-    KeybindButton.Position = UDim2.new(0, 190, 0, 42)
-    KeybindButton.Size = UDim2.new(0, 149, 0, 33)
-    KeybindButton.Font = Enum.Font.Highway
-    KeybindButton.Text = "Show Keybinds"
-    KeybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    KeybindButton.TextSize = 20.000
-
-    -- // 5. Keybind Menu & Shadow //
-    -- Moved X to 0.60 to ensure no overlap with stats
-    -- Adjusted Y Position (-3.8) and Height (4.8) to fit new entries
-    local KB_Position = UDim2.new(0.60, 0, -3.8, 0)
-    local KB_Size = UDim2.new(-0.02195, 278, 4.8, 0)
-
-    local KeyBindFrame = Instance.new("Frame")
-    KeyBindFrame.Parent = MainContainer
-    KeyBindFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
-    KeyBindFrame.BackgroundTransparency = 1.000
-    KeyBindFrame.Position = KB_Position
-    KeyBindFrame.Size = KB_Size
-    KeyBindFrame.Visible = false
-
-    local KeyList = Instance.new("UIListLayout")
-    KeyList.Parent = KeyBindFrame
-    KeyList.SortOrder = Enum.SortOrder.LayoutOrder
-    KeyList.Padding = UDim.new(0, -4)
-
-    -- Fixed Shadow
-    local ShadowFrame = Instance.new("Frame")
-    ShadowFrame.Parent = BackgroundLayer
-    ShadowFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
-    ShadowFrame.BackgroundTransparency = 0.500
-    ShadowFrame.Position = KB_Position
-    ShadowFrame.Size = KB_Size
-    ShadowFrame.Visible = false
-    ShadowFrame.ZIndex = -2
-
-    local ShadowCorner = Instance.new("UICorner")
-    ShadowCorner.CornerRadius = UDim.new(0, 9)
-    ShadowCorner.Parent = ShadowFrame
-
-    -- Labels Helper
-    local function CreateLabel(text, color)
+    local function CreateInfoLabel(name, posY)
         local L = Instance.new("TextLabel")
-        L.Parent = KeyBindFrame
-        L.BackgroundTransparency = 1.000
-        -- Reduced height slightly to fit more items
-        L.Size = UDim2.new(1, 0, 0.08, 0)
+        L.Parent = StatsPanel
+        L.BackgroundTransparency = 1
+        L.Position = UDim2.new(0.6, 0, posY, 0)
+        L.Size = UDim2.new(0.35, 0, 0.2, 0)
         L.Font = Enum.Font.Highway
-        L.Text = text
-        L.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+        L.Text = name
+        L.TextColor3 = THEME.TextDim
         L.TextScaled = true
-        local C = Instance.new("UITextSizeConstraint")
-        C.MaxTextSize = 18
-        C.Parent = L
+        L.TextXAlignment = Enum.TextXAlignment.Right
         return L
     end
 
-    local CapLockStatus = CreateLabel("CapsLock : Paused", Color3.fromRGB(255, 255, 0))
-    CreateLabel("One : Add a Savestate")
-    CreateLabel("Two : Remove a Savestate")
-    CreateLabel("Three : Go To Last SaveState")
-    CreateLabel("Four : Go Back a Frame")
-    CreateLabel("Five : Go a Frame Forward")
-    CreateLabel("Six : SaveRun")
-    CreateLabel("C : CanCollide Toggle")
-    CreateLabel("Delete: Stop Creating")
-    CreateLabel("Zero: View TAS")
-    -- New Keybinds
-    CreateLabel("Up/Down : Visual Scrubbing")
-    CreateLabel("F8 : Resync Visuals")
-    CreateLabel("Equals : Toggle Env Updates")
+    local SavestatesCount = CreateInfoLabel("Savestates 0", 0.15)
+    local FrameCount = CreateInfoLabel("Frames 0", 0.38)
 
-    local MapEventInfo = Instance.new("TextLabel")
-    MapEventInfo.Parent = HUDFrame
-    MapEventInfo.BackgroundTransparency = 1.000
-    MapEventInfo.Position = UDim2.new(0.5, 0, -0.1, 0)
-    MapEventInfo.Size = UDim2.new(1.2, 0, 0, 0)
-    MapEventInfo.Font = Enum.Font.Highway
-    MapEventInfo.Text = ""
-    MapEventInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
-    MapEventInfo.TextScaled = true
+    -- Toggle Button
+    local KeybindButton = Instance.new("TextButton")
+    KeybindButton.Parent = StatsPanel
+    KeybindButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    KeybindButton.Position = UDim2.new(0.6, 0, 0.65, 0)
+    KeybindButton.Size = UDim2.new(0.35, 0, 0.25, 0)
+    KeybindButton.Font = Enum.Font.GothamBold
+    KeybindButton.Text = "Controls"
+    KeybindButton.TextColor3 = THEME.TextMain
+    KeybindButton.TextSize = 14
+    KeybindButton.AutoButtonColor = false
+
+    local KBCorner = Instance.new("UICorner")
+    KBCorner.CornerRadius = UDim.new(0, 6)
+    KBCorner.Parent = KeybindButton
     
-    KeybindButton.Activated:Connect(function()
-        KeyBindFrame.Visible = not KeyBindFrame.Visible
-        ShadowFrame.Visible = not ShadowFrame.Visible
-        KeybindButton.Text = KeyBindFrame.Visible and "Hide Keybinds" or "Show Keybinds"
+    local KBStroke = Instance.new("UIStroke")
+    KBStroke.Color = THEME.Stroke
+    KBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    KBStroke.Parent = KeybindButton
+
+    local StatusBadge = Instance.new("TextLabel")
+    StatusBadge.Parent = StatsPanel
+    StatusBadge.BackgroundTransparency = 1
+    StatusBadge.Position = UDim2.new(0.05, 0, 0.65, 0)
+    StatusBadge.Size = UDim2.new(0.5, 0, 0.25, 0)
+    StatusBadge.Font = Enum.Font.GothamMedium
+    StatusBadge.Text = "PAUSED"
+    StatusBadge.TextColor3 = THEME.Alert
+    StatusBadge.TextScaled = true
+    StatusBadge.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- // Keybind List Logic //
+    local KBList = Instance.new("UIListLayout")
+    KBList.Parent = KBFrame
+    KBList.SortOrder = Enum.SortOrder.LayoutOrder
+    KBList.Padding = UDim.new(0, 4)
+    KBList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local KBPadding = Instance.new("UIPadding")
+    KBPadding.Parent = KBFrame
+    KBPadding.PaddingTop = UDim.new(0, 10)
+    KBPadding.PaddingBottom = UDim.new(0, 10)
+    KBPadding.PaddingLeft = UDim.new(0, 10)
+    KBPadding.PaddingRight = UDim.new(0, 10)
+
+    local function AddKeybindRow(keyText, actionText, order)
+        local Row = Instance.new("Frame")
+        Row.BackgroundTransparency = 1
+        Row.Size = UDim2.new(1, 0, 0, 20)
+        Row.LayoutOrder = order
+        Row.Parent = KBFrame
+
+        local Key = Instance.new("TextLabel")
+        Key.Parent = Row
+        Key.BackgroundTransparency = 1
+        Key.Size = UDim2.new(0.4, 0, 1, 0)
+        Key.Font = Enum.Font.GothamBold
+        Key.Text = keyText
+        Key.TextColor3 = THEME.Accent
+        Key.TextXAlignment = Enum.TextXAlignment.Left
+        Key.TextSize = 12
+
+        local Action = Instance.new("TextLabel")
+        Action.Parent = Row
+        Action.BackgroundTransparency = 1
+        Action.Position = UDim2.new(0.4, 0, 0, 0)
+        Action.Size = UDim2.new(0.6, 0, 1, 0)
+        Action.Font = Enum.Font.Gotham
+        Action.Text = actionText
+        Action.TextColor3 = THEME.TextMain
+        Action.TextXAlignment = Enum.TextXAlignment.Right
+        Action.TextSize = 12
+    end
+
+    AddKeybindRow("CAPSLOCK", "Pause / Unpause", 1)
+    AddKeybindRow("1", "Add Savestate", 2)
+    AddKeybindRow("2", "Remove Savestate", 3)
+    AddKeybindRow("3", "Load Last State", 4)
+    AddKeybindRow("4 / 5", "Frame Step", 5)
+    AddKeybindRow("6", "Save Run (JSON)", 6)
+    AddKeybindRow("0", "Playback TAS", 7)
+    AddKeybindRow("C", "Toggle Collision", 8)
+    AddKeybindRow("UP / DOWN", "Visual Time Travel", 9)
+    AddKeybindRow("F8", "Resync Visuals", 10)
+    AddKeybindRow("EQUALS (=)", "Freeze Map Updates", 11)
+    AddKeybindRow("DELETE", "DESTROY UI", 12)
+
+    -- // Button Events //
+    KeybindButton.MouseEnter:Connect(function()
+        TweenService:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 70)}):Play()
     end)
+    KeybindButton.MouseLeave:Connect(function()
+        TweenService:Create(KeybindButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 45)}):Play()
+    end)
+
+    local isKBOpen = false
+    KeybindButton.Activated:Connect(function()
+        isKBOpen = not isKBOpen
+        if isKBOpen then
+            KBFrame.Visible = true
+            -- Animating Opacity for effect
+            KBFrame.BackgroundTransparency = 1
+            KBFStroke.Transparency = 1
+            TweenService:Create(KBFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.1}):Play()
+            TweenService:Create(KBFStroke, TweenInfo.new(0.3), {Transparency = 0.5}):Play()
+            
+            KeybindButton.Text = "Hide Controls"
+            KeybindButton.TextColor3 = THEME.Accent
+        else
+            local t = TweenService:Create(KBFrame, TweenInfo.new(0.2), {BackgroundTransparency = 1})
+            TweenService:Create(KBFStroke, TweenInfo.new(0.2), {Transparency = 1}):Play()
+            t:Play()
+            t.Completed:Connect(function()
+                if not isKBOpen then KBFrame.Visible = false end
+            end)
+            KeybindButton.Text = "Controls"
+            KeybindButton.TextColor3 = THEME.TextMain
+        end
+    end)
+
+    -- Map Event Info
+    local MapEventInfo = Instance.new("TextLabel")
+    MapEventInfo.Parent = ScreenGui
+    MapEventInfo.BackgroundTransparency = 1
+    MapEventInfo.Position = UDim2.new(0.5, 0, 0.1, 0)
+    MapEventInfo.AnchorPoint = Vector2.new(0.5, 0)
+    MapEventInfo.Size = UDim2.new(0, 400, 0, 30)
+    MapEventInfo.Font = Enum.Font.GothamBlack
+    MapEventInfo.Text = ""
+    MapEventInfo.TextColor3 = THEME.TextMain
+    MapEventInfo.TextStrokeTransparency = 0.5
+    MapEventInfo.TextSize = 24
 
     return {
         ScreenGui = ScreenGui,
         TimeText = TimeText,
         SavestatesCount = SavestatesCount,
         FrameCount = FrameCount,
-        StatusText = CapLockStatus,
+        StatusText = StatusBadge,
         MapEventInfo = MapEventInfo
     }
 end
