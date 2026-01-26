@@ -1,14 +1,27 @@
+--- START OF FILE uiapi.luau.txt ---
+
 --[[ 
-    FE2 TAS UI Library
-    UPLOAD THIS TO YOUR RAW LINK (e.g. uiapi.luau)
+    FE2 TAS UI Library (Updated)
+    - Includes GameGui toggling
+    - New Keybinds added
+    - Layout overlap fixes
 ]]
 
 local TAS_UI = {}
 
 function TAS_UI.Create()
     local CoreGui = game:GetService("CoreGui")
-    
-    -- // Clean up old UIs to prevent duplicates //
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+
+    -- // GameGui Toggle Logic //
+    local GameGui = PlayerGui and PlayerGui:FindFirstChild("GameGui")
+    if GameGui then 
+        GameGui.Enabled = false 
+    end
+
+    -- // Clean up old UIs //
     for _, v in pairs(CoreGui:GetChildren()) do
         if v.Name == "TAS_HUD" then v:Destroy() end
     end
@@ -19,6 +32,13 @@ function TAS_UI.Create()
     ScreenGui.Parent = CoreGui
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.ResetOnSpawn = false
+
+    -- Re-enable GameGui when this UI is destroyed (Clean Reset)
+    ScreenGui.Destroying:Connect(function()
+        if GameGui then 
+            GameGui.Enabled = true 
+        end
+    end)
 
     -- // 2. Main HUD Frame //
     local HUDFrame = Instance.new("Frame")
@@ -56,7 +76,8 @@ function TAS_UI.Create()
     GameStats.BackgroundTransparency = 0.500
     GameStats.BorderColor3 = Color3.fromRGB(27, 42, 53)
     GameStats.BorderSizePixel = 0
-    GameStats.Position = UDim2.new(0.330083579, 0, 0.178413421, 0)
+    -- Positioned slightly to the left to leave room for keybinds
+    GameStats.Position = UDim2.new(0.30, 0, 0.178, 0) 
     GameStats.Size = UDim2.new(0, 348, 0, 73)
 
     local GSCorner = Instance.new("UICorner")
@@ -118,8 +139,10 @@ function TAS_UI.Create()
     KeybindButton.TextSize = 20.000
 
     -- // 5. Keybind Menu & Shadow //
-    local KB_Position = UDim2.new(0.54838, 0, -2.4152, 0)
-    local KB_Size = UDim2.new(-0.02195, 278, 3.5152, 0)
+    -- Moved X to 0.60 to ensure no overlap with stats
+    -- Adjusted Y Position (-3.8) and Height (4.8) to fit new entries
+    local KB_Position = UDim2.new(0.60, 0, -3.8, 0)
+    local KB_Size = UDim2.new(-0.02195, 278, 4.8, 0)
 
     local KeyBindFrame = Instance.new("Frame")
     KeyBindFrame.Parent = MainContainer
@@ -134,7 +157,7 @@ function TAS_UI.Create()
     KeyList.SortOrder = Enum.SortOrder.LayoutOrder
     KeyList.Padding = UDim.new(0, -4)
 
-    -- Fixed Shadow (Using Scale to match Text Frame)
+    -- Fixed Shadow
     local ShadowFrame = Instance.new("Frame")
     ShadowFrame.Parent = BackgroundLayer
     ShadowFrame.BackgroundColor3 = Color3.fromRGB(22, 31, 40)
@@ -153,7 +176,8 @@ function TAS_UI.Create()
         local L = Instance.new("TextLabel")
         L.Parent = KeyBindFrame
         L.BackgroundTransparency = 1.000
-        L.Size = UDim2.new(1, 0, 0.113, 0)
+        -- Reduced height slightly to fit more items
+        L.Size = UDim2.new(1, 0, 0.08, 0)
         L.Font = Enum.Font.Highway
         L.Text = text
         L.TextColor3 = color or Color3.fromRGB(255, 255, 255)
@@ -174,6 +198,10 @@ function TAS_UI.Create()
     CreateLabel("C : CanCollide Toggle")
     CreateLabel("Delete: Stop Creating")
     CreateLabel("Zero: View TAS")
+    -- New Keybinds
+    CreateLabel("Up/Down : Visual Scrubbing")
+    CreateLabel("F8 : Resync Visuals")
+    CreateLabel("Equals : Toggle Env Updates")
 
     local MapEventInfo = Instance.new("TextLabel")
     MapEventInfo.Parent = HUDFrame
