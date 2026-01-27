@@ -63,27 +63,29 @@ else
 end
 
 -- // CLEANUP //
+local CleanedUp = false
 local DeathConnect
 local function Cleanup()
     if DeathConnect then DeathConnect:Disconnect() end
     print("Cleaning Up..")
     Alert("Resetting..", Color3.new(0, 1, 1))
-    if LP.Character and LP.Character:FindFirstChild("Head") then
-        LP.Character.Head:Destroy()
+    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+        LP.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
     end
     LP.CharacterAdded:wait()
-    task.wait(1)
-    local RootPart = LP.Character:WaitForChild("HumanoidRootPart")
-    for i = 1, 200 do
-        RootPart.Velocity = Vector3.new(0, 1, 1000)
-        task.wait()
-    end
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("AddedWaiting"):FireServer()
+	CleanedUp = true
+	print("Cleaned Up!")
+	while task.wait(9e6) do end
 end
 DeathConnect = LP.Character.Humanoid.Died:Connect(Cleanup)
 
 -- // ANIMATION BYPASS //
 local Animate = getsenv(LP.Character.Animate)
 local Map = Multi:WaitForChild('NewMap', 9e6)
+if CleanedUp == true then
+	while task.wait(9e6) do end
+end
 local realMapName = Map:WaitForChild('Settings'):GetAttribute("MapName")
 local mapName = game:GetService("HttpService"):UrlEncode(realMapName)
 print(realMapName)
@@ -207,6 +209,7 @@ else
     local LastPlayedAnim = nil
     
     local function activateAnimation(CurrentAnimation)
+		local CurrentAnimation = CurrentAnimation
         if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then
             CurrentAnimation[1] = "swing"
         end
