@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (CharacterRemoving Fix)")
+print("Latest TAS Player built for V64.03 (Raw & Fast)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -103,8 +103,7 @@ local function Cleanup(resetCharacter)
     end
 end
 
--- [UPDATED] Uses CharacterRemoving instead of Humanoid.Died
-AddConnection(LP.CharacterRemoving:Connect(function() Cleanup(false) end))
+AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
 
 -- // SMART START LOGIC //
 local LiftCheckPos = Vector3.new(-25, -144, 139)
@@ -260,6 +259,10 @@ local Offset = SpawnPoint.Position - NewV(0, 1000, 0)
 local OldFrame = 3
 local RenderedFrames = 0
 local AnimErrors = 0 
+
+AddConnection(LP.Character.Humanoid.Changed:Connect(function(C)
+    if C == "Health" and LP.Character.Humanoid.Health <= 0 then Alert('Died.', Color3.new(1, 0, 0)); Cleanup(false) end
+end))
 
 -- // PHYSICS LOOP (Heartbeat) //
 local MainLoop
