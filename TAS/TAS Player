@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (Raw & Fast)")
+print("Latest TAS Player built for V64.03 (Spam + Round Fix)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -49,6 +49,12 @@ else
 end
 
 -- // ANIMATION HELPERS //
+-- Wait for character to be fully ready before grabbing Animate
+if not LP.Character or not LP.Character:FindFirstChild("Animate") then
+    LP.CharacterAdded:Wait()
+    LP.Character:WaitForChild("Animate", 10)
+end
+
 local Animate = getsenv(LP.Character.Animate)
 local OriginalPlayAnim = Animate.playAnimation
 
@@ -103,7 +109,10 @@ local function Cleanup(resetCharacter)
     end
 end
 
-AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
+-- Humanoid Died Listener
+if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+    AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
+end
 
 -- // SMART START LOGIC //
 local LiftCheckPos = Vector3.new(-25, -144, 139)
@@ -243,6 +252,12 @@ end
 local LastPlayedAnim = nil
 local function activateAnimation(AnimData)
     if not AnimData then Animate.playAnimation = OriginalPlayAnim; return end
+    
+    -- [CRASH FIX] Sanity Check for Character Parts
+    if not LP.Character or not LP.Character.Parent or not LP.Character:FindFirstChild("Head") or not LP.Character:FindFirstChild("Humanoid") then
+        return
+    end
+
     local n = AnimData[1]
     if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then n = "swing" end
     
@@ -259,10 +274,7 @@ local Offset = SpawnPoint.Position - NewV(0, 1000, 0)
 local OldFrame = 3
 local RenderedFrames = 0
 local AnimErrors = 0 
-
-AddConnection(LP.Character.Humanoid.Changed:Connect(function(C)
-    if C == "Health" and LP.Character.Humanoid.Health <= 0 then Alert('Died.', Color3.new(1, 0, 0)); Cleanup(false) end
-end))
+local FinishedRun = false -- [SPAM FIX]
 
 -- // PHYSICS LOOP (Heartbeat) //
 local MainLoop
@@ -274,25 +286,33 @@ MainLoop = RS.Heartbeat:Connect(function()
     
     RenderedFrames = RenderedFrames + 1
     local Elapsed = os.clock() - TimeStart
-    LP.Character.Humanoid.Health = 99999
+    
+    -- Safety check inside loop
+    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+        LP.Character.Humanoid.Health = 99999
+    end
     
     while OldFrame < #TAS and TAS[OldFrame + 1].time <= Elapsed do 
         OldFrame = OldFrame + 1 
     end
 
     if OldFrame >= #TAS then
-        Alert('Finished!', Color3.new(0, 1, 0))
-        Alert(string.format("TAS: %d | Rendered: %d", OriginalFrameCount, RenderedFrames), Color3.new(1,1,1))
-        
-        if AnimErrors > 0 then
-            Alert("Animation Errors: " .. AnimErrors, Color3.new(1, 0.5, 0))
+        -- [SPAM FIX] Only run finish logic once
+        if not FinishedRun then
+            FinishedRun = true
+            Alert('Finished!', Color3.new(0, 1, 0))
+            Alert(string.format("TAS: %d | Rendered: %d", OriginalFrameCount, RenderedFrames), Color3.new(1,1,1))
+            
+            if AnimErrors > 0 then
+                Alert("Animation Errors: " .. AnimErrors, Color3.new(1, 0.5, 0))
+            end
+            
+            if Animate and OriginalPlayAnim and LP.Character and LP.Character:FindFirstChild("Humanoid") then
+                 Animate.playAnimation = OriginalPlayAnim
+                 OriginalPlayAnim("idle", 0.1, LP.Character.Humanoid)
+            end
+            Cleanup(false) 
         end
-        
-        if Animate and OriginalPlayAnim and LP.Character and LP.Character.Humanoid then
-             Animate.playAnimation = OriginalPlayAnim
-             OriginalPlayAnim("idle", 0.1, LP.Character.Humanoid)
-        end
-        Cleanup(false) 
         return
     end
 
@@ -302,16 +322,17 @@ MainLoop = RS.Heartbeat:Connect(function()
     local Dur = FB.time - FA.time
     local Alpha = (Dur > 0) and math.clamp((Elapsed - FA.time) / Dur, 0, 1) or 0
 
-    -- [RAW DATA READER] Matches: [X, Y, Z, RotX, RotY, RotZ]
     local cfA = NewC(FA.CCFrame[1], FA.CCFrame[2], FA.CCFrame[3]) * AngC(FA.CCFrame[4], FA.CCFrame[5], FA.CCFrame[6])
     local cfB = NewC(FB.CCFrame[1], FB.CCFrame[2], FB.CCFrame[3]) * AngC(FB.CCFrame[4], FB.CCFrame[5], FB.CCFrame[6])
     local vA = NewV(FA.VVelocity[1], FA.VVelocity[2], FA.VVelocity[3])
     local vB = NewV(FB.VVelocity[1], FB.VVelocity[2], FB.VVelocity[3])
 
     -- Apply Physics
-    LP.Character.Humanoid.Jump = true
-    RootPart.CFrame = cfA:Lerp(cfB, Alpha) + Offset
-    RootPart.Velocity = vA:Lerp(vB, Alpha)
+    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+        LP.Character.Humanoid.Jump = true
+        RootPart.CFrame = cfA:Lerp(cfB, Alpha) + Offset
+        RootPart.Velocity = vA:Lerp(vB, Alpha)
+    end
     
     -- Capture Animation Errors
     local s, e = pcall(activateAnimation, FA.AAnimation)
