@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (Spam + Round Fix)")
+print("Latest TAS Player built for V64.03 (Frame-Perfect Slide Fix)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -49,33 +49,52 @@ else
 end
 
 -- // ANIMATION HELPERS //
--- Wait for character to be fully ready before grabbing Animate
 if not LP.Character or not LP.Character:FindFirstChild("Animate") then
     LP.CharacterAdded:Wait()
     LP.Character:WaitForChild("Animate", 10)
 end
 
-local Animate = getsenv(LP.Character.Animate)
-local OriginalPlayAnim = Animate.playAnimation
+local Animate, OriginalPlayAnim
+local SuccessHook, Err = pcall(function()
+    local AnimateScript = LP.Character.Animate
+    Animate = getsenv(AnimateScript)
+    OriginalPlayAnim = Animate.playAnimation
+end)
+
+if not SuccessHook or not Animate then
+    warn("TAS Warning: Could not hook Animate script. Animations may rely on fallbacks.")
+    Animate = { setAnimationSpeed = function() end, playAnimation = function() end }
+    OriginalPlayAnim = function() end
+end
 
 local function toggleSlide(newValue)
     if not LP.Character then return end
+    
     if newValue == true then
-        LP.Character.HumanoidRootPart.Size = NewV(2, 1, 1)
-        LP.Character.FE2_Hitbox.Size = NewV(2, 1, 1)
-        LP.Character.Humanoid.HipHeight = -1.5
+        if LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.Size = NewV(2, 1, 1)
+        end
+        if LP.Character:FindFirstChild("FE2_Hitbox") then
+            LP.Character.FE2_Hitbox.Size = NewV(2, 1, 1)
+        end
+        if LP.Character:FindFirstChild("Humanoid") then
+            LP.Character.Humanoid.HipHeight = -1.5
+        end
     else
-        LP.Character.HumanoidRootPart.Size = NewV(2, 2, 1)
-        LP.Character.FE2_Hitbox.Size = NewV(2, 2, 1)
-        LP.Character.Humanoid.HipHeight = 0
+        if LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.Size = NewV(2, 2, 1)
+        end
+        if LP.Character:FindFirstChild("FE2_Hitbox") then
+            LP.Character.FE2_Hitbox.Size = NewV(2, 2, 1)
+        end
+        if LP.Character:FindFirstChild("Humanoid") then
+            LP.Character.Humanoid.HipHeight = 0
+        end
     end
-    if LP.Character:FindFirstChild("Animate") and LP.Character.Animate:FindFirstChild("Sliding") then
+
+    if LP.Character and LP.Character:FindFirstChild("Animate") and LP.Character.Animate:FindFirstChild("Sliding") then
         LP.Character.Animate.Sliding:Fire(newValue)
     end
-end
-
-local function doSlide(delay)
-    toggleSlide(true); task.wait(delay); toggleSlide(false)
 end
 
 -- // CLEANUP //
@@ -94,8 +113,12 @@ local function Cleanup(resetCharacter)
 
     if Animate and OriginalPlayAnim then Animate.playAnimation = OriginalPlayAnim end
 
-    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
-        LP.Character.Humanoid.AutoRotate = true
+    if LP.Character then
+        if LP.Character:FindFirstChild("Humanoid") then
+            LP.Character.Humanoid.AutoRotate = true
+        end
+        -- Reset slide state
+        toggleSlide(false)
     end
 
     if resetCharacter and LP.Character and LP.Character:FindFirstChild("Humanoid") then
@@ -109,7 +132,6 @@ local function Cleanup(resetCharacter)
     end
 end
 
--- Humanoid Died Listener
 if LP.Character and LP.Character:FindFirstChild("Humanoid") then
     AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
 end
@@ -227,11 +249,21 @@ end
 Alert("Starting TAS...", Color3.fromRGB(0, 255, 0))
 
 local RootPart = LP.Character:WaitForChild("HumanoidRootPart", 10)
-if not RootPart then Cleanup(true) return end
+local Humanoid = LP.Character:WaitForChild("Humanoid", 10)
 
-if RootPart.Anchored then
-    RootPart:GetPropertyChangedSignal("Anchored"):Wait()
+if not RootPart or not Humanoid then Cleanup(true) return end
+
+-- Start Logic
+while (RootPart.Anchored == true) or (Humanoid.WalkSpeed <= 0) do
+    if CleanedUp then return end
+    
+    if RootPart.Anchored == true then
+        RootPart:GetPropertyChangedSignal("Anchored"):Wait()
+    elseif Humanoid.WalkSpeed <= 0 then
+        Humanoid:GetPropertyChangedSignal("WalkSpeed"):Wait()
+    end
 end
+
 local TimeStart = os.clock()
 
 if CleanedUp then return end
@@ -250,22 +282,44 @@ for _, v in next, Map:GetDescendants() do
 end
 
 local LastPlayedAnim = nil
+local IsSliding = false -- Tracks current slide state
+
 local function activateAnimation(AnimData)
     if not AnimData then Animate.playAnimation = OriginalPlayAnim; return end
     
-    -- [CRASH FIX] Sanity Check for Character Parts
+    -- Sanity Check
     if not LP.Character or not LP.Character.Parent or not LP.Character:FindFirstChild("Head") or not LP.Character:FindFirstChild("Humanoid") then
         return
     end
 
     local n = AnimData[1]
+
+    -- [SLIDE LOGIC]
+    -- If animation is slide, force slide physics ON.
+    -- If animation changed FROM slide to something else, force slide physics OFF.
+    if n == "slide" then
+        if not IsSliding then
+            toggleSlide(true)
+            IsSliding = true
+        end
+    else
+        if IsSliding then
+            toggleSlide(false)
+            IsSliding = false
+        end
+    end
+
+    -- [ANIMATION PLAYBACK]
     if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then n = "swing" end
     
     if n and (n == "swing" or n ~= LastPlayedAnim) then
         Animate.playAnimation = function() end
         OriginalPlayAnim(n, AnimData[2] or 0.1, LP.Character.Humanoid)
-        if n == "walk" then Animate.setAnimationSpeed(.76) 
-        elseif n == "slide" then task.spawn(doSlide, 0.25) end
+        
+        if n == "walk" then
+            Animate.setAnimationSpeed(.76) 
+        end
+        
         LastPlayedAnim = n
     end
 end
@@ -274,7 +328,7 @@ local Offset = SpawnPoint.Position - NewV(0, 1000, 0)
 local OldFrame = 3
 local RenderedFrames = 0
 local AnimErrors = 0 
-local FinishedRun = false -- [SPAM FIX]
+local FinishedRun = false
 
 -- // PHYSICS LOOP (Heartbeat) //
 local MainLoop
@@ -287,7 +341,6 @@ MainLoop = RS.Heartbeat:Connect(function()
     RenderedFrames = RenderedFrames + 1
     local Elapsed = os.clock() - TimeStart
     
-    -- Safety check inside loop
     if LP.Character and LP.Character:FindFirstChild("Humanoid") then
         LP.Character.Humanoid.Health = 99999
     end
@@ -297,7 +350,6 @@ MainLoop = RS.Heartbeat:Connect(function()
     end
 
     if OldFrame >= #TAS then
-        -- [SPAM FIX] Only run finish logic once
         if not FinishedRun then
             FinishedRun = true
             Alert('Finished!', Color3.new(0, 1, 0))
@@ -327,14 +379,12 @@ MainLoop = RS.Heartbeat:Connect(function()
     local vA = NewV(FA.VVelocity[1], FA.VVelocity[2], FA.VVelocity[3])
     local vB = NewV(FB.VVelocity[1], FB.VVelocity[2], FB.VVelocity[3])
 
-    -- Apply Physics
     if LP.Character and LP.Character:FindFirstChild("Humanoid") then
         LP.Character.Humanoid.Jump = true
         RootPart.CFrame = cfA:Lerp(cfB, Alpha) + Offset
         RootPart.Velocity = vA:Lerp(vB, Alpha)
     end
     
-    -- Capture Animation Errors
     local s, e = pcall(activateAnimation, FA.AAnimation)
     if not s then
         AnimErrors = AnimErrors + 1
