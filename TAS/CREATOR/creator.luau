@@ -1,13 +1,9 @@
---- START OF FILE Paste January 27, 2026 - 11:54AM ---
-
---- START OF FILE Perfect_TAS_Creator_JumpFarm.luau ---
-
 --[[
     FE2 TAS Creator (Jump Farm Edition)
     - AUTOFARM UPDATE: Replaced velocity spam with CFrame -> Jump -> Wait(0.017s).
     - CORE: Savestates, Frame Recording, JSON Export, Physics Fixes.
     - LOGIC: Exit Hover, Button Order Alerts, Smart Env Sync.
-    - UPDATE: Fixed "Hold 5" physics drift; Tap logic remains single-frame precise.
+    - UPDATE: Fixed Camera Export Offsets (Now matches Player Offsets).
 ]]
 
 getgenv().TAS_Active = true 
@@ -1024,8 +1020,17 @@ local function SaveRun()
             Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
             Entry.CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)}
+            
+            -- [[ FIXED CAMERA EXPORT OFFSET ]] --
+            local cx, cy, cz = F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z
             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-            Entry.CCameraCFrame = {Round(F.CameraCFrame.X), Round(F.CameraCFrame.Y), Round(F.CameraCFrame.Z), Round(crx), Round(cry), Round(crz)}
+            
+            -- Apply same offset as Player CFrame
+            cx = cx - MapX
+            cy = cy - (MapY - 1000)
+            cz = cz - MapZ
+            
+            Entry.CCameraCFrame = {Round(cx), Round(cy), Round(cz), Round(crx), Round(cry), Round(crz)}
             table.insert(Export, Entry)
         end
     end
