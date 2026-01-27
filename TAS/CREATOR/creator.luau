@@ -1,17 +1,17 @@
---- START OF FILE Perfect_TAS_Creator_SmartSync.luau ---
+--- START OF FILE Perfect_TAS_Creator_JumpFarm.luau ---
 
 --[[
-    FE2 TAS Creator (Smart Env Sync Edition)
-    - NEW: Keybind '7' syncs Visual Time to exact Autofarm Press Time.
-    - RECORDER: Captures button press timestamps during autofarm.
-    - CORE: Savestates, Physics Fixes, Lighting, UI API.
+    FE2 TAS Creator (Jump Farm Edition)
+    - AUTOFARM UPDATE: Replaced velocity spam with CFrame -> Jump -> Wait(0.017s).
+    - CORE: Savestates, Frame Recording, JSON Export, Physics Fixes.
+    - LOGIC: Exit Hover, Button Order Alerts, Smart Env Sync.
 ]]
 
 getgenv().TAS_Active = true 
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("TAS Creator: Smart Environment Sync Loaded")
+print("TAS Creator: Jump-based Autofarm Loaded")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -113,9 +113,8 @@ local RopeTable
 local MapOffset, MapPos, MapX, MapY, MapZ
 local UUID_Cache = {}
 
--- Button Order & Timing
+-- Button Order Tracking
 local RecordedButtonSequence = {} 
-local ButtonPressTimings = {} -- [[ NEW: Stores Autofarm Timestamps ]]
 local OrderedButtonRegistry = {}  
 
 -- Lighting Storage
@@ -380,7 +379,6 @@ local function ResetToNormal()
     ButtonRegistry = {}
     OrderedButtonRegistry = {}
     RecordedButtonSequence = {}
-    ButtonPressTimings = {}
     MapEvents = {}
     SavedLighting = {}
     LightingCaptured = false
@@ -661,14 +659,14 @@ local function SetupMap()
                     local uuid = GetUUID(ButtonHitbox)
                     if uuid and not table.find(RecordedButtonSequence, uuid) then
                         table.insert(RecordedButtonSequence, uuid)
-                        -- [[ RECORD TIMING ]] --
                         ButtonPressTimings[uuid] = os.clock() - StartTime
                     end
                     
-                    Root.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
+                    -- [[ AUTOFARM: JUMP & WAIT ]] --
                     Root.CFrame = CFrame.new(ButtonHitbox.Position)
-                    Root.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
-                    Hum:ChangeState(Enum.HumanoidStateType.Running)
+                    Root.Velocity = Vector3.new(0, 0, 0)
+                    Hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    task.wait(0.255/15)
                 end
             end
         end
@@ -802,14 +800,14 @@ local function SetupMap()
         
         local uuid = GetUUID(btn)
         local order = table.find(RecordedButtonSequence, uuid) or 999
-        local recTime = ButtonPressTimings[uuid] -- [[ GET TIMING ]]
+        local recTime = ButtonPressTimings[uuid] 
         
         local bData = {
             IsPressed = false,
             PressTime = nil,
             SelectionBox = sel,
             Order = order,
-            RecordedTime = recTime -- Store for later
+            RecordedTime = recTime
         }
         
         ButtonRegistry[btn] = bData
@@ -827,7 +825,6 @@ local function SetupMap()
                     end
                 end
                 
-                -- [[ UPDATED: AUTO RESET TIME TO EXACT TIMESTAMP ]] --
                 if AutoResetEnv and bData.RecordedTime then
                     local RealTime = tick() - RunStart - TimeOffset
                     PreviewOffset = bData.RecordedTime - RealTime
