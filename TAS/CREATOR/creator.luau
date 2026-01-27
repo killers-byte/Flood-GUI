@@ -1,3 +1,5 @@
+--- START OF FILE Paste January 27, 2026 - 11:54AM ---
+
 --- START OF FILE Perfect_TAS_Creator_JumpFarm.luau ---
 
 --[[
@@ -5,6 +7,7 @@
     - AUTOFARM UPDATE: Replaced velocity spam with CFrame -> Jump -> Wait(0.017s).
     - CORE: Savestates, Frame Recording, JSON Export, Physics Fixes.
     - LOGIC: Exit Hover, Button Order Alerts, Smart Env Sync.
+    - UPDATE: Fixed "Hold 5" physics drift; Tap logic remains single-frame precise.
 ]]
 
 getgenv().TAS_Active = true 
@@ -98,7 +101,7 @@ local Connections = {}
 -- Flags
 local IsPreviewingForward = false
 local IsPreviewingBackward = false
-local IsFastForwarding = false
+local IsAdvancingFrame = false 
 local IsRewinding = false
 local IsViewingTAS = false
 local AutoSaved = false
@@ -397,28 +400,30 @@ end
 
 -- // CORE LOGIC //
 local function TogglePause()
-    IsPaused = not IsPaused
-    local Root = LocalPlayer.Character.HumanoidRootPart
-    if IsPaused then
-        SavedVelocity = Root.Velocity
-        Root.Anchored = true
-        PauseStart = tick()
-        if StatusLabel then 
-            StatusLabel.Text = "PAUSED"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+    local pause = task.spawn(function()
+        IsPaused = not IsPaused
+        local Root = LocalPlayer.Character.HumanoidRootPart
+        if IsPaused then
+            SavedVelocity = Root.Velocity
+            Root.Anchored = true
+            PauseStart = tick()
+            if StatusLabel then 
+                StatusLabel.Text = "PAUSED"
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+            end
+            SendAlert("Paused", Color3.fromRGB(255, 255, 0))
+        else
+            Root.Anchored = false
+            Root.Velocity = SavedVelocity
+            TimeOffset = TimeOffset + tick() - PauseStart
+            if StatusLabel then 
+                StatusLabel.Text = "PLAYING"
+                StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            end
+            RecordAccumulator = 0
+            SendAlert("Unpaused", Color3.fromRGB(0, 255, 0))
         end
-        SendAlert("Paused", Color3.fromRGB(255, 255, 0))
-    else
-        Root.Anchored = false
-        Root.Velocity = SavedVelocity
-        TimeOffset = TimeOffset + tick() - PauseStart
-        if StatusLabel then 
-            StatusLabel.Text = "PLAYING"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        end
-        RecordAccumulator = 0
-        SendAlert("Unpaused", Color3.fromRGB(0, 255, 0))
-    end
+    end)
 end
 
 local function LoadLastSavestate()
@@ -877,18 +882,40 @@ end
 
 -- // FAST FORWARD / REWIND PLAYER //
 local function StepForward()
-    if IsPaused then
-        local currentFrameCount = #Frames
-        TogglePause()
-        local t = tick()
-        while #Frames == currentFrameCount and (tick() - t < 0.2) do RunService.Heartbeat:Wait() end
+    if not IsPaused then return end 
+    
+    local InitialFrames = #Frames
+    TogglePause() 
+    
+    -- [[ FORCE RECORDING: Fills accumulator to trigger frame save immediately ]] --
+    RecordAccumulator = RECORD_INTERVAL + 0.1 
+    
+    -- [[ WAIT FOR ACTUAL RECORDING ]] --
+    repeat 
+        RunService.Heartbeat:Wait()
+        -- Emergency Break: If rewinding or manually interacted
+        if IsRewinding then break end
+    until #Frames > InitialFrames
+    
+    if not IsPaused then 
         TogglePause()
     end
 end
 
-local function FastForwardLoop()
-    SendAlert("Fast Forwarding...", Color3.fromRGB(0, 255, 0))
-    while IsFastForwarding do StepForward(); task.wait() end
+-- [[ RENAMED: FRAME ADVANCE LOOP (Exact opposite of Rewind) ]] --
+local function FrameAdvanceLoop()
+    if IsRewinding then return end
+    if IsAdvancingFrame then return end
+    
+    IsAdvancingFrame = true
+    SendAlert("Step Forward", Color3.fromRGB(0, 255, 0))
+    
+    while IsAdvancingFrame do 
+        if IsRewinding then IsAdvancingFrame = false; break end
+        
+        StepForward()
+        -- The repeat loop in StepForward already acts as a physics wait
+    end
 end
 
 local function RewindFrame()
@@ -920,6 +947,7 @@ local function RewindFrame()
 end
 
 local function RewindLoop()
+    if IsAdvancingFrame then return end
     IsRewinding = true
     SendAlert("Rewinding...", Color3.fromRGB(255, 0, 0))
     RewindFrame()
@@ -1106,8 +1134,20 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.CollisionToggler then ToggleCollision()
         elseif k == Keybinds.SaveRun then SaveRun()
         elseif k == Keybinds.GoFrameForward then
-            if not IsFastForwarding then IsFastForwarding = true; task.spawn(FastForwardLoop) end
-        elseif k == Keybinds.GoFrameBack then task.spawn(RewindLoop)
+            
+            if IsRewinding then return end
+            if not IsAdvancingFrame then
+                task.spawn(FrameAdvanceLoop)
+            end
+            
+        elseif k == Keybinds.GoFrameBack then 
+            
+            if IsAdvancingFrame then 
+                IsAdvancingFrame = false 
+                task.wait() 
+            end
+            task.spawn(RewindLoop)
+            
         elseif k == "Up" then IsPreviewingForward = true
         elseif k == "Down" then IsPreviewingBackward = true
         elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
@@ -1151,7 +1191,7 @@ AddConnection(InputCon)
 local InputEndCon = UserInputService.InputEnded:Connect(function(input, gpe)
     if not gpe then
         if input.KeyCode.Name == Keybinds.GoFrameBack then IsRewinding = false end
-        if input.KeyCode.Name == Keybinds.GoFrameForward then IsFastForwarding = false end
+        if input.KeyCode.Name == Keybinds.GoFrameForward then IsAdvancingFrame = false end
         if input.KeyCode.Name == "Up" then IsPreviewingForward = false end
         if input.KeyCode.Name == "Down" then IsPreviewingBackward = false end
     end
