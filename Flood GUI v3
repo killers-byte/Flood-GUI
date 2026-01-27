@@ -668,29 +668,38 @@ end
 
 -- // TAS Player Loop //
 local function runTASPlayerLoop()
-    -- This loop attempts to load and execute the TAS player script repeatedly
-    -- if AutoPlay is enabled. This is INEFFICIENT but matches original behavior
-    -- (likely for live updates from the GitHub source without re-running the main GUI).
     local tasPlayerUrl = CONFIG.TAS_PLAYER_URL_FORMAT:format(State.Branch)
-    local lastLoadAttempt = 0
-    local loadInterval = 2 -- Seconds between load attempts when active
 
     task.spawn(function()
-        while task.wait(0.5) do -- Check state periodically
-            if State.AutoPlayEnabled and tick() - lastLoadAttempt > loadInterval then
-                lastLoadAttempt = tick()
-                local playerSource = safeHttpGet(tasPlayerUrl)
-                if playerSource then
-                    local success, err = pcall(loadstring(playerSource))
-                    if not success then
-                        warn("Error loading/running TAS player script:", err)
-                        -- Optionally disable autoplay on error?
-                        -- State.AutoPlayEnabled = false
-                        -- showAlert("Disabled Auto-Play due to script error.", CONFIG.ALERT_COLORS.ERROR)
+        while task.wait(1) do -- Check every second
+            if State.AutoPlayEnabled then
+                -- CHECK: Is the TAS already running?
+                -- We look at the global table. If it has connections, the script is active.
+                local connections = getgenv().TASConnections
+                local isRunning = connections and #connections > 0
+
+                if not isRunning then
+                    -- Only download and run if it is NOT currently running
+                    print("Flood GUI: Auto-Play starting new TAS instance...")
+                    
+                    -- NOTE: If you haven't updated the GitHub file with the code I gave you,
+                    -- this will download the OLD/BROKEN version. 
+                    -- To test your local fix, replace 'safeHttpGet(tasPlayerUrl)' with 'readfile("MyFixedTAS.lua")'
+                    local playerSource = safeHttpGet(tasPlayerUrl)
+                    
+                    if playerSource then
+                        local taskFunc, err = loadstring(playerSource)
+                        if taskFunc then
+                            task.spawn(taskFunc) -- Execute safely
+                        else
+                            warn("Error loading TAS script:", err)
+                        end
+                    else
+                        warn("Failed to download TAS player script.")
                     end
-                else
-                    warn("Failed to download TAS player script.")
-                    -- Optionally disable autoplay on error?
+
+                    -- Wait a moment to allow the new script to initialize and fill the table
+                    task.wait(3) 
                 end
             end
         end
