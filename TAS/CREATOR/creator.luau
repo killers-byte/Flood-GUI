@@ -1,17 +1,17 @@
---- START OF FILE Perfect_TAS_Creator_EnvReset.luau ---
+--- START OF FILE Perfect_TAS_Creator_SmartSync.luau ---
 
 --[[
-    FE2 TAS Creator (Environment Reset & Visibility Fix)
-    - NEW: Keybind '7' toggles Auto-Reset Map Time on Button Press.
-    - FIX: Rewinding unanchored parts now forces Transparency = 0.
-    - CORE: Savestates, Recorder, JSON Export, UI API, Physics Logic.
+    FE2 TAS Creator (Smart Env Sync Edition)
+    - NEW: Keybind '7' syncs Visual Time to exact Autofarm Press Time.
+    - RECORDER: Captures button press timestamps during autofarm.
+    - CORE: Savestates, Physics Fixes, Lighting, UI API.
 ]]
 
 getgenv().TAS_Active = true 
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/uiapi.luau"
 
-print("TAS Creator: Env Reset + Visibility Fix Loaded")
+print("TAS Creator: Smart Environment Sync Loaded")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -26,7 +26,7 @@ local Keybinds = {
     ViewTAS = "Zero",
     Resync = "F8",
     EnvPause = "Equals",
-    ToggleTimeReset = "Seven" -- [[ NEW KEYBIND ]]
+    ToggleTimeReset = "Seven"
 }
 
 -- // SERVICES //
@@ -102,7 +102,7 @@ local IsFastForwarding = false
 local IsRewinding = false
 local IsViewingTAS = false
 local AutoSaved = false
-local AutoResetEnv = false -- [[ NEW FLAG ]]
+local AutoResetEnv = false 
 
 -- Recorder & Map
 local MapEvents = {} 
@@ -113,8 +113,9 @@ local RopeTable
 local MapOffset, MapPos, MapX, MapY, MapZ
 local UUID_Cache = {}
 
--- Button Order Tracking
+-- Button Order & Timing
 local RecordedButtonSequence = {} 
+local ButtonPressTimings = {} -- [[ NEW: Stores Autofarm Timestamps ]]
 local OrderedButtonRegistry = {}  
 
 -- Lighting Storage
@@ -273,7 +274,6 @@ AddConnection(MonitorCon)
 local function UpdateMapState(TargetTime)
     if EnvPaused then return end
     
-    -- Fast Forward
     while PlaybackIndex <= #MapEvents and MapEvents[PlaybackIndex].Time <= TargetTime do
         local Event = MapEvents[PlaybackIndex]
         if Event.Instance then
@@ -281,7 +281,6 @@ local function UpdateMapState(TargetTime)
                 Event.Instance.Transparency = 1
                 Event.Instance.CanCollide = false
             elseif Event.Prop == "Anchored" then
-                -- Override: If unanchoring a non-collidable part, hide it instead of letting it fall
                 if Event.NewVal == false and Event.Instance.CanCollide == false then
                     Event.Instance.Anchored = true
                     Event.Instance.Transparency = 1
@@ -295,7 +294,6 @@ local function UpdateMapState(TargetTime)
         PlaybackIndex = PlaybackIndex + 1
     end
     
-    -- Rewind
     while PlaybackIndex > 1 and MapEvents[PlaybackIndex - 1].Time > TargetTime do
         PlaybackIndex = PlaybackIndex - 1
         local Event = MapEvents[PlaybackIndex]
@@ -304,13 +302,11 @@ local function UpdateMapState(TargetTime)
                 Event.Instance.Transparency = 0
                 Event.Instance.CanCollide = true
             elseif Event.Prop == "Anchored" then
-                -- [[ REWIND FIX: Force Visibility ]] --
                 Event.Instance.Anchored = Event.OldVal
-                
                 if Event.OldVal == true and Event.StoredCFrame then
                     Event.Instance.CFrame = Event.StoredCFrame
                     Event.Instance.CanCollide = Event.StoredCanCollide
-                    Event.Instance.Transparency = 0 -- [[ VISIBILITY RESTORED ]]
+                    Event.Instance.Transparency = 0
                     Event.Instance.Velocity = Vector3.new(0,0,0)
                     Event.Instance.RotVelocity = Vector3.new(0,0,0)
                 end
@@ -384,6 +380,7 @@ local function ResetToNormal()
     ButtonRegistry = {}
     OrderedButtonRegistry = {}
     RecordedButtonSequence = {}
+    ButtonPressTimings = {}
     MapEvents = {}
     SavedLighting = {}
     LightingCaptured = false
@@ -638,6 +635,7 @@ local function SetupMap()
     local LastSafePos = CFrame.new(0, 1000, 0)
     local LiveExitRegion = nil 
     RecordedButtonSequence = {}
+    ButtonPressTimings = {} -- Reset timings
     
     while Recording and LiveMap.Parent and Hum.Health > 0 do
         if Hum.Health < 500 then Hum.Health = 99999 end 
@@ -663,6 +661,8 @@ local function SetupMap()
                     local uuid = GetUUID(ButtonHitbox)
                     if uuid and not table.find(RecordedButtonSequence, uuid) then
                         table.insert(RecordedButtonSequence, uuid)
+                        -- [[ RECORD TIMING ]] --
+                        ButtonPressTimings[uuid] = os.clock() - StartTime
                     end
                     
                     Root.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
@@ -802,12 +802,14 @@ local function SetupMap()
         
         local uuid = GetUUID(btn)
         local order = table.find(RecordedButtonSequence, uuid) or 999
+        local recTime = ButtonPressTimings[uuid] -- [[ GET TIMING ]]
         
         local bData = {
             IsPressed = false,
             PressTime = nil,
             SelectionBox = sel,
-            Order = order
+            Order = order,
+            RecordedTime = recTime -- Store for later
         }
         
         ButtonRegistry[btn] = bData
@@ -825,11 +827,11 @@ local function SetupMap()
                     end
                 end
                 
-                -- [[ NEW: AUTO RESET TIME LOGIC ]] --
-                if AutoResetEnv then
+                -- [[ UPDATED: AUTO RESET TIME TO EXACT TIMESTAMP ]] --
+                if AutoResetEnv and bData.RecordedTime then
                     local RealTime = tick() - RunStart - TimeOffset
-                    PreviewOffset = -RealTime
-                    SendAlert("Map Time Synced", Color3.fromRGB(0, 255, 255))
+                    PreviewOffset = bData.RecordedTime - RealTime
+                    SendAlert("Synced to " .. string.format("%.2fs", bData.RecordedTime), Color3.fromRGB(0, 255, 255))
                 end
                 
                 local RealTime = tick() - RunStart - TimeOffset
@@ -1117,7 +1119,7 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
             SendAlert("Map Updates " .. (EnvPaused and "Paused" or "Active"), Color3.fromRGB(255, 255, 0))
         elseif k == Keybinds.ToggleTimeReset then
             AutoResetEnv = not AutoResetEnv
-            SendAlert("Auto Environment Reset: " .. (AutoResetEnv and "ON" or "OFF"), Color3.fromRGB(0, 255, 255))
+            SendAlert("Smart Env Sync: " .. (AutoResetEnv and "ON" or "OFF"), Color3.fromRGB(0, 255, 255))
         elseif k == Keybinds.Resync then
             IsPreviewingForward = false
             IsPreviewingBackward = false
