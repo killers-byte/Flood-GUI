@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (Integrity Scan + Speed Mod)")
+print("Latest TAS Player built for V64.03 (CharacterRemoving Fix)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -103,7 +103,8 @@ local function Cleanup(resetCharacter)
     end
 end
 
-AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
+-- [UPDATED] Uses CharacterRemoving instead of Humanoid.Died
+AddConnection(LP.CharacterRemoving:Connect(function() Cleanup(false) end))
 
 -- // SMART START LOGIC //
 local LiftCheckPos = Vector3.new(-25, -144, 139)
@@ -176,29 +177,6 @@ if not TAS or not DecodeSuccess then
     Alert("TAS file corrupt!", Color3.new(1,0,0))
     Cleanup(true)
     return
-end
-
--- // INTEGRITY CHECK //
--- This checks if the TAS file has missing values BEFORE we start, 
--- preventing random crashes later.
-print("Scanning TAS for integrity...")
-local BrokenFrames = 0
-for i, Frame in ipairs(TAS) do
-    if not Frame.CCFrame or #Frame.CCFrame < 6 then
-        BrokenFrames = BrokenFrames + 1
-        if BrokenFrames == 1 then
-            warn("TAS DATA ERROR: Frame " .. i .. " is missing CCFrame data (Argument 3 nil)")
-        end
-    end
-end
-
-if BrokenFrames > 0 then
-    Alert("TAS CORRUPT: " .. BrokenFrames .. " broken frames detected!", Color3.new(1, 0, 0))
-    warn("TAS Playback Aborted due to corrupt data.")
-    Cleanup(true)
-    return
-else
-    print("TAS Integrity Check Passed.")
 end
 
 -- // SPEED MODIFIER //
@@ -283,10 +261,6 @@ local OldFrame = 3
 local RenderedFrames = 0
 local AnimErrors = 0 
 
-AddConnection(LP.Character.Humanoid.Changed:Connect(function(C)
-    if C == "Health" and LP.Character.Humanoid.Health <= 0 then Alert('Died.', Color3.new(1, 0, 0)); Cleanup(false) end
-end))
-
 -- // PHYSICS LOOP (Heartbeat) //
 local MainLoop
 MainLoop = RS.Heartbeat:Connect(function()
@@ -307,9 +281,7 @@ MainLoop = RS.Heartbeat:Connect(function()
         Alert('Finished!', Color3.new(0, 1, 0))
         Alert(string.format("TAS: %d | Rendered: %d", OriginalFrameCount, RenderedFrames), Color3.new(1,1,1))
         
-        if AnimErrors == 0 then
-            Alert("Animation Errors: 0", Color3.new(0, 1, 0))
-        else
+        if AnimErrors > 0 then
             Alert("Animation Errors: " .. AnimErrors, Color3.new(1, 0.5, 0))
         end
         
@@ -327,7 +299,7 @@ MainLoop = RS.Heartbeat:Connect(function()
     local Dur = FB.time - FA.time
     local Alpha = (Dur > 0) and math.clamp((Elapsed - FA.time) / Dur, 0, 1) or 0
 
-    -- [RAW DATA ACCESS] No 'or 0' here.
+    -- [RAW DATA READER] Matches: [X, Y, Z, RotX, RotY, RotZ]
     local cfA = NewC(FA.CCFrame[1], FA.CCFrame[2], FA.CCFrame[3]) * AngC(FA.CCFrame[4], FA.CCFrame[5], FA.CCFrame[6])
     local cfB = NewC(FB.CCFrame[1], FB.CCFrame[2], FB.CCFrame[3]) * AngC(FB.CCFrame[4], FB.CCFrame[5], FB.CCFrame[6])
     local vA = NewV(FA.VVelocity[1], FA.VVelocity[2], FA.VVelocity[3])
