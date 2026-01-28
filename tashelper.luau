@@ -1,5 +1,5 @@
 -- ==============================================================================
--- [FLOOD ESCAPE 2: ONE-TIME TAS MANAGER (EXIT ON EXECUTE)]
+-- [FLOOD ESCAPE 2: ONE-TIME TAS MANAGER (UPGRADED AUTOFARM)]
 -- ==============================================================================
 
 -- [1] INSTANCE CLEARING & SETUP
@@ -14,7 +14,7 @@ local function DisconnectOld()
     getgenv().TomatoConnections = {}
 end
 
--- Run initial clear in case script was injected twice
+-- Run initial clear
 DisconnectOld()
 
 getgenv().TomatoConnections = {}
@@ -31,10 +31,9 @@ end
 -- [CLEANUP FUNCTION - CALL THIS TO EXIT SCRIPT]
 local function FullCleanup()
     print("[TOMATO]: One-time execution triggered. Cleaning up manager...")
-    DisconnectOld() -- Disconnects all tracked events
+    DisconnectOld()
     getgenv().IsResettingForDifficulty = nil
     getgenv().TasFileCache = nil
-    -- We leave TomatoAutoFarm false so loops stop
 end
 
 -- ==============================================================================
@@ -44,7 +43,6 @@ end
 local CONFIG = {
     MODE = "Farm",               
     TARGET_DIFFICULTY = "Normal",  
-    LOG_FILE = "TomatoTAS_MapLog.json",
     GITHUB_BASE = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/main/TAS%20FILES/",
     TAS_CREATOR_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/creator.luau",
     TAS_PLAYER_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/PLAYER/newtasplayer.luau"
@@ -53,7 +51,6 @@ local CONFIG = {
 -- ==============================================================================
 -- [SERVICES & UTILS]
 -- ==============================================================================
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -79,7 +76,7 @@ local function Alert(msg)
     end)
 end
 
--- [EXACT HELPERS FROM WIN.TXT]
+-- [UPGRADED HELPERS]
 function isRandomString(str)
     if #str == 0 then return false end
     for i = 1, #str do
@@ -98,8 +95,10 @@ end
 local function Noclip(Toggle)
     local char = GetChar()
     if char then
-        for i, v in pairs(char:GetChildren()) do
-            if v.ClassName == "Part" then v.CanCollide = not Toggle end
+        for i, v in char:GetChildren() do
+            if v.ClassName == "Part" then
+                v.CanCollide = not Toggle
+            end
         end
     end
 end
@@ -154,7 +153,6 @@ end
 
 local function ExecuteTAS(scriptType)
     local loadUrl = ""
-    
     if scriptType == "Creator" then
         Alert("!!! NEW MAP - STARTING CREATOR !!!")
         loadUrl = CONFIG.TAS_CREATOR_URL
@@ -163,8 +161,7 @@ local function ExecuteTAS(scriptType)
         loadUrl = CONFIG.TAS_PLAYER_URL
     end
 
-    -- ::: CRITICAL: EXIT MANAGER BEFORE LOADING NEW SCRIPT :::
-    FullCleanup()
+    FullCleanup() -- Exit manager
     
     if loadUrl ~= "" then
         loadstring(game:HttpGet(loadUrl))()
@@ -202,33 +199,33 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
     if missingTarget then
         Alert("VOTE: NEW -> " .. missingTarget.name)
         UpdMapVote:FireServer(-key, missingTarget.ID, missingTarget.unlockCost or 0)
-        ExecuteTAS("Creator") -- Will exit manager
+        ExecuteTAS("Creator")
     elseif playableTarget then
         Alert("VOTE: PLAY -> " .. playableTarget.name)
         UpdMapVote:FireServer(-key, playableTarget.ID, playableTarget.unlockCost or 0)
-        ExecuteTAS("Player") -- Will exit manager
+        ExecuteTAS("Player")
     else
         print("No targets. Continuing Auto-Farm.")
     end
 end))
 
 -- ==============================================================================
--- [LOGIC 2: EXACT AUTO FARM FROM WIN.TXT]
+-- [LOGIC 2: UPGRADED AUTO FARM (SPEC 2.0)]
 -- ==============================================================================
 
 local function StartAutoFarm(Map)
-    -- PHASE 1: Wait for Teleport (Position Check)
+    -- PHASE 1: Wait for Teleport
     Alert("Waiting for Teleport...")
     local t = 0
     repeat 
         task.wait(0.2)
         t = t + 0.2
-        if t > 60 then return end -- Timeout
+        if t > 60 then return end 
     until Check("InGame") and getgenv().TomatoAutoFarm
 
     if not getgenv().TomatoAutoFarm then return end
 
-    -- PHASE 2: Wait for Round Start (Anchor Check)
+    -- PHASE 2: Wait for Round Start
     Alert("Waiting for Unanchor...")
     local char = GetChar()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -240,17 +237,17 @@ local function StartAutoFarm(Map)
     if not getgenv().TomatoAutoFarm then return end
     Alert("Round Started! Farming...")
 
-    -- === BELOW IS THE EXACT LOGIC FROM WIN.TXT ===
+    -- === UPGRADED FARM LOGIC ===
     
     local CurrentlyFarming = true
-    local EXITREGION_MAX_ATTEMPTS = 1300
+    local EXITREGION_MAX_ATTEMPTS = 2000 -- Upgraded from 1300
     
     if Check("InGame") == false then
         Alert("Skipping due to InGame == false.")
     end
 
     local Buttons = {}
-    -- Single Scan of Map to reduce lag.
+    -- Single Scan
     for i, MapObject in pairs(Map:GetDescendants()) do
         if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
             local Hitbox
@@ -261,7 +258,6 @@ local function StartAutoFarm(Map)
                 end
             end
             if Hitbox and isRandomString(Hitbox.Name) then
-                -- Confirmed Buttonness
                 Hitbox.Name = "Hitbox"
                 table.insert(Buttons, MapObject)
             end
@@ -269,25 +265,23 @@ local function StartAutoFarm(Map)
     end
 
     local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
-    -- Grab Lost Page and Escapee
     local LostPage = Map:FindFirstChild("_LostPage", true)
     local Rescue = Map:FindFirstChild("_Rescue", true)
     local OriginalCFrame = HumanoidRootPart.CFrame
     
     if LostPage then
         HumanoidRootPart.CFrame = LostPage.CFrame
-        task.wait(LocalPlayer:GetNetworkPing())
+        task.wait() -- Upgraded: Removed NetworkPing wait for faster execution
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Lost Page.")
     end
     if Rescue then
         HumanoidRootPart.CFrame = Rescue.Contact.CFrame
-        task.wait(LocalPlayer:GetNetworkPing())
+        task.wait() 
         HumanoidRootPart.CFrame = OriginalCFrame
         print("Got Escapee.")
     end
 
-    -- Auto Farm Loop
     Alert("Commencing Auto Farm")
     local CurrentButton = nil
     local Humanoid = GetChar():WaitForChild("Humanoid")
@@ -315,7 +309,6 @@ local function StartAutoFarm(Map)
         if not ExitRegion then
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
-                -- Stop immediately if paused
                 if not getgenv().TomatoAutoFarm then break end 
 
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
@@ -327,10 +320,16 @@ local function StartAutoFarm(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        HRP.Velocity = Vector3.zero
-                        HRP.CFrame = CFrame.new(ButtonHitbox.Position) * CFrame.Angles(0, math.random() * (math.pi * 2), 0)
-                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        task.wait(0.255/15)
+                        
+                        -- Upgraded Velocity Logic
+                        HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
+                        HRP.CFrame = CFrame.new(ButtonHitbox.Position)
+                        HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                        
+                        task.spawn(function()
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                        -- task.wait() removed for speed
                     end
                 end
             end
@@ -339,12 +338,20 @@ local function StartAutoFarm(Map)
                 task.wait()
             end
         elseif ExitRegion then
+            Noclip(false) -- Upgraded: Ensure noclip is off during exit
             HRP.Anchored = false
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
+                
+                -- Upgraded Exit Logic
+                HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
                 HRP.CFrame = CFrame.new(ExitRegion.Position)
-                HRP.Velocity = Vector3.new(0, 100, 0)
-                task.wait()
+                HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                
+                task.spawn(function()
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+                
                 if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
                     Attempts = Attempts + 1
                 end
@@ -381,7 +388,7 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
     local hasFile = CheckGithubForFile(MapName)
     if not hasFile then
         Alert("MISSING FILE: " .. MapName)
-        ExecuteTAS("Creator") -- Will exit manager
+        ExecuteTAS("Creator")
         return
     end
 
@@ -398,7 +405,7 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
         return
     end
 
-    -- 3. Start Farming (Only runs if TAS wasn't executed)
+    -- 3. Start Farming
     Alert("Auto-Farming: " .. MapName)
     StartAutoFarm(NewMap)
 end))
