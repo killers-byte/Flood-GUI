@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (MoveDirection Spoofing Added)")
+print("Latest TAS Player built for V64.03 (Auto-Queue Fix)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -98,15 +98,13 @@ local function toggleSlide(newValue)
 end
 
 -- // SPOOFING VARIABLES //
-getgenv().IsTASPlaying = true -- Toggle for the hook
-getgenv().TASCurrentMoveDir = Vector3.new(0,0,0) -- Updated every frame
+getgenv().IsTASPlaying = true 
+getgenv().TASCurrentMoveDir = Vector3.new(0,0,0) 
 
--- // HOOK METAMETHOD (MoveDirection Spoof) //
+-- // HOOK METAMETHOD //
 local oldIndex
 oldIndex = hookmetamethod(game, "__index", function(self, key)
-    -- Check if TAS is active and the key is MoveDirection
     if getgenv().IsTASPlaying and key == "MoveDirection" then
-        -- Ensure we are only spoofing the LocalPlayer's Humanoid
         if self:IsA("Humanoid") and self.Parent == LP.Character then
             return getgenv().TASCurrentMoveDir
         end
@@ -119,7 +117,7 @@ local CleanedUp = false
 local function Cleanup(resetCharacter)
     if CleanedUp then return end
     CleanedUp = true
-    getgenv().IsTASPlaying = false -- Disable MoveDirection Spoofing
+    getgenv().IsTASPlaying = false
     print("Cleaning Up...")
     
     if getgenv().TASConnections then
@@ -142,9 +140,25 @@ local function Cleanup(resetCharacter)
         Alert("Error/Resetting...", Color3.new(1, 0, 0))
         LP.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
         LP.Character.Humanoid.Health = 0
+        
+        -- [AUTO-QUEUE FIX]
         task.spawn(function()
-            LP.CharacterAdded:Wait()
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("AddedWaiting"):FireServer()
+            local newChar = LP.CharacterAdded:Wait()
+            local newRoot = newChar:WaitForChild("HumanoidRootPart", 10)
+            local LiftPos = Vector3.new(-25, -144, 139)
+            local Remote = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("AddedWaiting")
+            
+            -- Keep firing AddedWaiting until we are physically inside the lift
+            while newChar and newChar.Parent and newRoot do
+                local dist = (newRoot.Position - LiftPos).Magnitude
+                if dist <= 30 then
+                    print("TAS: Player entered lift. Stopping queue spam.")
+                    break
+                end
+                
+                Remote:FireServer()
+                task.wait(0.5)
+            end
         end)
     end
 end
@@ -303,13 +317,38 @@ local IsSliding = false
 local function activateAnimation(AnimData)
     if not AnimData then Animate.playAnimation = OriginalPlayAnim; return end
     
-    if not LP.Character or not LP.Character.Parent or not LP.Character:FindFirstChild("Head") or not LP.Character:FindFirstChild("Humanoid") then
+    if not LP.Character or not LP.Character.Parent or not LP.Character:FindFirstChild("Head") or not LP.Character:FindFirstChild("Humanoid") or not LP.Character:FindFirstChild("HumanoidRootPart") then
         return
     end
 
     local n = AnimData[1]
+    local animTime = AnimData[2] or 0.1
 
-    -- Slide Logic
+    -- [PRIORITY 1] Physics State = ALWAYS SWING
+    if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then 
+        n = "swing" 
+    end
+    
+    -- [PRIORITY 2] Idle Logic
+    if n == "idle" then
+        local vel = LP.Character.HumanoidRootPart.Velocity
+        if vel.Magnitude > 1 then
+            if LP.Character.Humanoid.FloorMaterial ~= Enum.Material.Air then
+                n = "walk"
+                animTime = 0.1
+            else
+                n = "fall"
+                animTime = 0.3
+            end
+        end
+    end
+
+    -- [PRIORITY 3] Fall + Still = Swing
+    if n == "fall" and LP.Character.HumanoidRootPart.Velocity.Magnitude < 0.1 then
+        n = "swing"
+    end
+
+    -- [LOGIC] Slide Toggle
     if n == "slide" then
         if not IsSliding then
             toggleSlide(true)
@@ -322,11 +361,10 @@ local function activateAnimation(AnimData)
         end
     end
 
-    if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then n = "swing" end
-    
-    if n and (n == "swing" or n ~= LastPlayedAnim) then
+    -- [PLAYBACK] 
+    if n and (n == "swing" or n == "zipline" or n ~= LastPlayedAnim) then
         Animate.playAnimation = function() end
-        OriginalPlayAnim(n, AnimData[2] or 0.1, LP.Character.Humanoid)
+        OriginalPlayAnim(n, animTime, LP.Character.Humanoid)
         
         if n == "walk" then
             Animate.setAnimationSpeed(.76) 
@@ -345,6 +383,12 @@ local FinishedRun = false
 -- // PHYSICS LOOP (Heartbeat) //
 local MainLoop
 MainLoop = RS.Heartbeat:Connect(function()
+    -- Stability Check
+    if not RootPart or not RootPart.Parent or not Humanoid or not Humanoid.Parent then
+        Cleanup(false)
+        return
+    end
+
     if CleanedUp then 
         if MainLoop then MainLoop:Disconnect() end
         return 
@@ -393,7 +437,6 @@ MainLoop = RS.Heartbeat:Connect(function()
 
     local TargetVelocity = vA:Lerp(vB, Alpha)
     
-    -- Update MoveDirection Spoof Variable
     if TargetVelocity.Magnitude > 0 then
         getgenv().TASCurrentMoveDir = TargetVelocity.Unit
     else
