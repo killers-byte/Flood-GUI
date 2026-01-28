@@ -1,17 +1,21 @@
 -- ==============================================================================
--- [FLOOD ESCAPE 2: TAS MANAGER + EXACT WIN.TXT FARM (ANCHOR FIXED)]
+-- [FLOOD ESCAPE 2: ONE-TIME TAS MANAGER (EXIT ON EXECUTE)]
 -- ==============================================================================
 
 -- [1] INSTANCE CLEARING & SETUP
-if getgenv().TomatoConnections then
-    print("!!! OVERRIDING PREVIOUS INSTANCE !!!")
-    for _, connection in pairs(getgenv().TomatoConnections) do
-        if connection then pcall(function() connection:Disconnect() end) end
+local function DisconnectOld()
+    if getgenv().TomatoConnections then
+        for _, connection in pairs(getgenv().TomatoConnections) do
+            if connection then pcall(function() connection:Disconnect() end) end
+        end
     end
     _G.LoopCancel = true
     getgenv().TomatoAutoFarm = false
-    task.wait(0.2)
+    getgenv().TomatoConnections = {}
 end
+
+-- Run initial clear in case script was injected twice
+DisconnectOld()
 
 getgenv().TomatoConnections = {}
 getgenv().IsResettingForDifficulty = false 
@@ -24,13 +28,22 @@ local function TrackConnection(connection)
     return connection
 end
 
+-- [CLEANUP FUNCTION - CALL THIS TO EXIT SCRIPT]
+local function FullCleanup()
+    print("[TOMATO]: One-time execution triggered. Cleaning up manager...")
+    DisconnectOld() -- Disconnects all tracked events
+    getgenv().IsResettingForDifficulty = nil
+    getgenv().TasFileCache = nil
+    -- We leave TomatoAutoFarm false so loops stop
+end
+
 -- ==============================================================================
 -- [CONFIGURATION]
 -- ==============================================================================
 
 local CONFIG = {
     MODE = "Farm",               
-    TARGET_DIFFICULTY = "None",  
+    TARGET_DIFFICULTY = "Normal",  
     LOG_FILE = "TomatoTAS_MapLog.json",
     GITHUB_BASE = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/main/TAS%20FILES/",
     TAS_CREATOR_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/creator.luau",
@@ -136,19 +149,25 @@ local function CheckGithubForFile(rawName)
 end
 
 -- ==============================================================================
--- [LOGIC 1: VOTING SYSTEM]
+-- [LOGIC 1: VOTING SYSTEM & EXECUTION]
 -- ==============================================================================
 
 local function ExecuteTAS(scriptType)
-    _G.LoopCancel = true
-    getgenv().TomatoAutoFarm = false
+    local loadUrl = ""
     
     if scriptType == "Creator" then
         Alert("!!! NEW MAP - STARTING CREATOR !!!")
-        loadstring(game:HttpGet(CONFIG.TAS_CREATOR_URL))()
+        loadUrl = CONFIG.TAS_CREATOR_URL
     elseif scriptType == "Player" then
         Alert("!!! EXISTING MAP - STARTING PLAYER !!!")
-        loadstring(game:HttpGet(CONFIG.TAS_PLAYER_URL))()
+        loadUrl = CONFIG.TAS_PLAYER_URL
+    end
+
+    -- ::: CRITICAL: EXIT MANAGER BEFORE LOADING NEW SCRIPT :::
+    FullCleanup()
+    
+    if loadUrl ~= "" then
+        loadstring(game:HttpGet(loadUrl))()
     end
 end
 
@@ -183,11 +202,11 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
     if missingTarget then
         Alert("VOTE: NEW -> " .. missingTarget.name)
         UpdMapVote:FireServer(-key, missingTarget.ID, missingTarget.unlockCost or 0)
-        ExecuteTAS("Creator")
+        ExecuteTAS("Creator") -- Will exit manager
     elseif playableTarget then
         Alert("VOTE: PLAY -> " .. playableTarget.name)
         UpdMapVote:FireServer(-key, playableTarget.ID, playableTarget.unlockCost or 0)
-        ExecuteTAS("Player")
+        ExecuteTAS("Player") -- Will exit manager
     else
         print("No targets. Continuing Auto-Farm.")
     end
@@ -362,7 +381,7 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
     local hasFile = CheckGithubForFile(MapName)
     if not hasFile then
         Alert("MISSING FILE: " .. MapName)
-        ExecuteTAS("Creator")
+        ExecuteTAS("Creator") -- Will exit manager
         return
     end
 
@@ -379,7 +398,7 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
         return
     end
 
-    -- 3. Start Farming
+    -- 3. Start Farming (Only runs if TAS wasn't executed)
     Alert("Auto-Farming: " .. MapName)
     StartAutoFarm(NewMap)
 end))
