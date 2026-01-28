@@ -1,5 +1,5 @@
 -- ==============================================================================
--- [FLOOD ESCAPE 2: ONE-TIME TAS MANAGER (UPGRADED AUTOFARM)]
+-- [FLOOD ESCAPE 2: ONE-TIME TAS MANAGER (DIFFICULTY FIX)]
 -- ==============================================================================
 
 -- [1] INSTANCE CLEARING & SETUP
@@ -14,7 +14,6 @@ local function DisconnectOld()
     getgenv().TomatoConnections = {}
 end
 
--- Run initial clear
 DisconnectOld()
 
 getgenv().TomatoConnections = {}
@@ -28,7 +27,6 @@ local function TrackConnection(connection)
     return connection
 end
 
--- [CLEANUP FUNCTION - CALL THIS TO EXIT SCRIPT]
 local function FullCleanup()
     print("[TOMATO]: One-time execution triggered. Cleaning up manager...")
     DisconnectOld()
@@ -42,7 +40,7 @@ end
 
 local CONFIG = {
     MODE = "Farm",               
-    TARGET_DIFFICULTY = "Normal",  
+    TARGET_DIFFICULTY = "Normal", -- It will now strictly obey this, even for new maps
     GITHUB_BASE = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/main/TAS%20FILES/",
     TAS_CREATOR_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/CREATOR/creator.luau",
     TAS_PLAYER_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/TAS/PLAYER/newtasplayer.luau"
@@ -76,14 +74,11 @@ local function Alert(msg)
     end)
 end
 
--- [UPGRADED HELPERS]
 function isRandomString(str)
     if #str == 0 then return false end
     for i = 1, #str do
         local ltr = str:sub(i, i)
-        if ltr:lower() == ltr then
-            return false
-        end
+        if ltr:lower() == ltr then return false end
     end
     return true
 end
@@ -96,9 +91,7 @@ local function Noclip(Toggle)
     local char = GetChar()
     if char then
         for i, v in char:GetChildren() do
-            if v.ClassName == "Part" then
-                v.CanCollide = not Toggle
-            end
+            if v.ClassName == "Part" then v.CanCollide = not Toggle end
         end
     end
 end
@@ -110,18 +103,13 @@ local function Check(Flag)
     if not HumanoidRootPart then return false end
 
     if Flag == "InLift" then
-        if HumanoidRootPart.Position.X < 50 and HumanoidRootPart.Position.Z > 70 then
-            return true
-        end
+        if HumanoidRootPart.Position.X < 50 and HumanoidRootPart.Position.Z > 70 then return true end
     elseif Flag == "InGame" then
-        if HumanoidRootPart.Position.X > 50 then
-            return true
-        end
+        if HumanoidRootPart.Position.X > 50 then return true end
     end
     return false
 end
 
--- [TAS MANAGER HELPERS]
 local function CleanMapName(name)
     if not name then return "" end
     local clean = name:gsub("\160", " "):gsub("^%s*(.-)%s*$", "%1")
@@ -148,7 +136,7 @@ local function CheckGithubForFile(rawName)
 end
 
 -- ==============================================================================
--- [LOGIC 1: VOTING SYSTEM & EXECUTION]
+-- [LOGIC 1: VOTING SYSTEM & EXECUTION (FIXED)]
 -- ==============================================================================
 
 local function ExecuteTAS(scriptType)
@@ -161,11 +149,8 @@ local function ExecuteTAS(scriptType)
         loadUrl = CONFIG.TAS_PLAYER_URL
     end
 
-    FullCleanup() -- Exit manager
-    
-    if loadUrl ~= "" then
-        loadstring(game:HttpGet(loadUrl))()
-    end
+    FullCleanup()
+    if loadUrl ~= "" then loadstring(game:HttpGet(loadUrl))() end
 end
 
 TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
@@ -182,9 +167,15 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
             local hasFile = CheckGithubForFile(cleanName)
             local mapRank = DIFFICULTY_RANKS[map.difficulty] or 0
             
+            -- [FIXED LOGIC START]
+            -- Only consider a map "Missing" (for Creator) if it is ALSO <= MaxRank
             if not hasFile then
-                missingTarget = map
-                break 
+                if mapRank <= maxRank then
+                    missingTarget = map
+                    break 
+                end
+            -- [FIXED LOGIC END]
+            
             elseif CONFIG.MODE == "Play" and hasFile and mapRank <= maxRank then
                 if not playableTarget or mapRank > (DIFFICULTY_RANKS[playableTarget.difficulty] or 0) then
                     playableTarget = map
@@ -205,16 +196,15 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(dataPacket)
         UpdMapVote:FireServer(-key, playableTarget.ID, playableTarget.unlockCost or 0)
         ExecuteTAS("Player")
     else
-        print("No targets. Continuing Auto-Farm.")
+        print("No suitable targets found within difficulty.")
     end
 end))
 
 -- ==============================================================================
--- [LOGIC 2: UPGRADED AUTO FARM (SPEC 2.0)]
+-- [LOGIC 2: UPGRADED AUTO FARM]
 -- ==============================================================================
 
 local function StartAutoFarm(Map)
-    -- PHASE 1: Wait for Teleport
     Alert("Waiting for Teleport...")
     local t = 0
     repeat 
@@ -225,7 +215,6 @@ local function StartAutoFarm(Map)
 
     if not getgenv().TomatoAutoFarm then return end
 
-    -- PHASE 2: Wait for Round Start
     Alert("Waiting for Unanchor...")
     local char = GetChar()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -237,17 +226,10 @@ local function StartAutoFarm(Map)
     if not getgenv().TomatoAutoFarm then return end
     Alert("Round Started! Farming...")
 
-    -- === UPGRADED FARM LOGIC ===
-    
     local CurrentlyFarming = true
-    local EXITREGION_MAX_ATTEMPTS = 2000 -- Upgraded from 1300
+    local EXITREGION_MAX_ATTEMPTS = 2000
     
-    if Check("InGame") == false then
-        Alert("Skipping due to InGame == false.")
-    end
-
     local Buttons = {}
-    -- Single Scan
     for i, MapObject in pairs(Map:GetDescendants()) do
         if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
             local Hitbox
@@ -271,7 +253,7 @@ local function StartAutoFarm(Map)
     
     if LostPage then
         HumanoidRootPart.CFrame = LostPage.CFrame
-        task.wait() -- Upgraded: Removed NetworkPing wait for faster execution
+        task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
         Alert("Got Lost Page.")
     end
@@ -320,16 +302,12 @@ local function StartAutoFarm(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        
-                        -- Upgraded Velocity Logic
                         HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position)
                         HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
-                        
                         task.spawn(function()
                             Humanoid:ChangeState(Enum.HumanoidStateType.Running)
                         end)
-                        -- task.wait() removed for speed
                     end
                 end
             end
@@ -338,20 +316,16 @@ local function StartAutoFarm(Map)
                 task.wait()
             end
         elseif ExitRegion then
-            Noclip(false) -- Upgraded: Ensure noclip is off during exit
+            Noclip(false)
             HRP.Anchored = false
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
-                
-                -- Upgraded Exit Logic
                 HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
                 HRP.CFrame = CFrame.new(ExitRegion.Position)
                 HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
-                
                 task.spawn(function()
                     Humanoid:ChangeState(Enum.HumanoidStateType.Running)
                 end)
-                
                 if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
                     Attempts = Attempts + 1
                 end
@@ -384,15 +358,29 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
         MapName = NewMap.Name
     end
 
-    -- 1. Check if Missing File
     local hasFile = CheckGithubForFile(MapName)
     if not hasFile then
         Alert("MISSING FILE: " .. MapName)
+        -- We will check difficulty inside the creator script logic or here
+        -- But since Voting logic handles the filtering, if we got here, it was a random vote.
+        -- We should strictly enforce difficulty here too.
+        
+        local diffText = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty.Text
+        local currentRankName = diffText:split(":")[1]:gsub("^%s*(.-)%s*$", "%1")
+        local currentRank = DIFFICULTY_RANKS[currentRankName] or 0
+        local targetRank = DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999
+        
+        if currentRank > targetRank then
+            Alert("Skipping New Map (Too Hard)")
+            getgenv().IsResettingForDifficulty = true
+            LocalPlayer.Character.Humanoid.Health = 0
+            return
+        end
+
         ExecuteTAS("Creator")
         return
     end
 
-    -- 2. Difficulty Check
     local diffText = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty.Text
     local currentRankName = diffText:split(":")[1]:gsub("^%s*(.-)%s*$", "%1")
     local currentRank = DIFFICULTY_RANKS[currentRankName] or 0
@@ -405,7 +393,6 @@ TrackConnection(Multiplayer.ChildAdded:Connect(function(NewMap)
         return
     end
 
-    -- 3. Start Farming
     Alert("Auto-Farming: " .. MapName)
     StartAutoFarm(NewMap)
 end))
