@@ -1,3 +1,8 @@
+
+local MODE = "Play" 
+local TARGET_MAP_NAME = "Toxic Woods" -- Exact Case-Sensitive Name
+local TARGET_DIFFICULTY_NAME = "Hard" 
+
 -- ==============================================================================
 -- [SINGLE INSTANCE / OVERRIDE LOGIC]
 -- ==============================================================================
@@ -25,9 +30,7 @@ end
 -- [CONFIGURATION] EDIT THIS SECTION
 -- ==============================================================================
 
-local MODE = "Record" 
-local TARGET_MAP_NAME = "Central Mass Array" -- Exact Case-Sensitive Name
-local TARGET_DIFFICULTY_NAME = "Crazy+" 
+
 
 getgenv().TomatoAutoFarm = true
 
