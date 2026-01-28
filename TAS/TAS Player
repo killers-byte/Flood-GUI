@@ -1,6 +1,6 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
 
-print("Latest TAS Player built for V64.03 (Frame-Perfect Slide Fix)")
+print("Latest TAS Player built for V64.03 (MoveDirection Spoofing Added)")
 
 -- // GLOBAL CLEANUP //
 if getgenv().TASConnections then
@@ -97,11 +97,29 @@ local function toggleSlide(newValue)
     end
 end
 
+-- // SPOOFING VARIABLES //
+getgenv().IsTASPlaying = true -- Toggle for the hook
+getgenv().TASCurrentMoveDir = Vector3.new(0,0,0) -- Updated every frame
+
+-- // HOOK METAMETHOD (MoveDirection Spoof) //
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", function(self, key)
+    -- Check if TAS is active and the key is MoveDirection
+    if getgenv().IsTASPlaying and key == "MoveDirection" then
+        -- Ensure we are only spoofing the LocalPlayer's Humanoid
+        if self:IsA("Humanoid") and self.Parent == LP.Character then
+            return getgenv().TASCurrentMoveDir
+        end
+    end
+    return oldIndex(self, key)
+end)
+
 -- // CLEANUP //
 local CleanedUp = false
 local function Cleanup(resetCharacter)
     if CleanedUp then return end
     CleanedUp = true
+    getgenv().IsTASPlaying = false -- Disable MoveDirection Spoofing
     print("Cleaning Up...")
     
     if getgenv().TASConnections then
@@ -117,7 +135,6 @@ local function Cleanup(resetCharacter)
         if LP.Character:FindFirstChild("Humanoid") then
             LP.Character.Humanoid.AutoRotate = true
         end
-        -- Reset slide state
         toggleSlide(false)
     end
 
@@ -253,7 +270,6 @@ local Humanoid = LP.Character:WaitForChild("Humanoid", 10)
 
 if not RootPart or not Humanoid then Cleanup(true) return end
 
--- Start Logic
 while (RootPart.Anchored == true) or (Humanoid.WalkSpeed <= 0) do
     if CleanedUp then return end
     
@@ -282,21 +298,18 @@ for _, v in next, Map:GetDescendants() do
 end
 
 local LastPlayedAnim = nil
-local IsSliding = false -- Tracks current slide state
+local IsSliding = false
 
 local function activateAnimation(AnimData)
     if not AnimData then Animate.playAnimation = OriginalPlayAnim; return end
     
-    -- Sanity Check
     if not LP.Character or not LP.Character.Parent or not LP.Character:FindFirstChild("Head") or not LP.Character:FindFirstChild("Humanoid") then
         return
     end
 
     local n = AnimData[1]
 
-    -- [SLIDE LOGIC]
-    -- If animation is slide, force slide physics ON.
-    -- If animation changed FROM slide to something else, force slide physics OFF.
+    -- Slide Logic
     if n == "slide" then
         if not IsSliding then
             toggleSlide(true)
@@ -309,7 +322,6 @@ local function activateAnimation(AnimData)
         end
     end
 
-    -- [ANIMATION PLAYBACK]
     if LP.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then n = "swing" end
     
     if n and (n == "swing" or n ~= LastPlayedAnim) then
@@ -379,10 +391,19 @@ MainLoop = RS.Heartbeat:Connect(function()
     local vA = NewV(FA.VVelocity[1], FA.VVelocity[2], FA.VVelocity[3])
     local vB = NewV(FB.VVelocity[1], FB.VVelocity[2], FB.VVelocity[3])
 
+    local TargetVelocity = vA:Lerp(vB, Alpha)
+    
+    -- Update MoveDirection Spoof Variable
+    if TargetVelocity.Magnitude > 0 then
+        getgenv().TASCurrentMoveDir = TargetVelocity.Unit
+    else
+        getgenv().TASCurrentMoveDir = Vector3.new(0,0,0)
+    end
+
     if LP.Character and LP.Character:FindFirstChild("Humanoid") then
         LP.Character.Humanoid.Jump = true
         RootPart.CFrame = cfA:Lerp(cfB, Alpha) + Offset
-        RootPart.Velocity = vA:Lerp(vB, Alpha)
+        RootPart.Velocity = TargetVelocity
     end
     
     local s, e = pcall(activateAnimation, FA.AAnimation)
