@@ -1,0 +1,324 @@
+-- ==============================================================================
+-- [SINGLE INSTANCE / OVERRIDE LOGIC] (Feature 5)
+-- ==============================================================================
+if getgenv().TomatoConnections then
+    print("!!! OVERRIDING PREVIOUS SCRIPT INSTANCE !!!")
+    for i, connection in pairs(getgenv().TomatoConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    _G.LoopCancel = true
+    getgenv().TomatoAutoFarm = false
+    task.wait(0.2)
+end
+
+getgenv().TomatoConnections = {}
+
+local function TrackConnection(connection)
+    table.insert(getgenv().TomatoConnections, connection)
+    return connection
+end
+
+getgenv().TomatoAutoFarm = true
+
+-- ==============================================================================
+-- [SETUP & LOCALS]
+-- ==============================================================================
+
+local ALERTS_ENABLED = true
+local EXITREGION_MAX_ATTEMPTS = 2000
+local CurrentlyFarming = false
+
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Multiplayer = Workspace:WaitForChild("Multiplayer")
+
+-- Remotes (Feature 4)
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+local AddedWaiting = RemoteFolder:WaitForChild("AddedWaiting")
+
+-- Anti-AFK (Wrapped in TrackConnection)
+TrackConnection(LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end))
+
+local CLMAIN = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript")
+local CLMAINenv = getsenv(CLMAIN)
+local gameAlert = CLMAINenv.newAlert
+local Alert
+if CLMAINenv and gameAlert then
+    Alert = function(...)
+        if ALERTS_ENABLED then
+            local Output = tostring(...)
+            gameAlert(Output, nil, nil, "rainbow")
+            print(Output)
+        end
+    end
+else
+    print("Your executor does not support Alerts.")
+    Alert = print
+end
+
+function isRandomString(str)
+    if #str == 0 then return false end
+    for i = 1, #str do
+        local ltr = str:sub(i, i)
+        if ltr:lower() == ltr then
+            return false
+        end
+    end
+    return true
+end
+
+local function GetChar()
+    return LocalPlayer.Character or (LocalPlayer.CharacterAdded:wait() and LocalPlayer.Character)
+end
+
+local function Noclip(Toggle)
+    local char = GetChar()
+    if char then
+        for i, v in char:GetChildren() do
+            if v.ClassName == "Part" then
+                v.CanCollide = not Toggle
+            end
+        end
+    end
+end
+
+local function Check(Flag)
+    local char = GetChar()
+    if not char then return false end
+    local HumanoidRootPart = char:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return false end
+
+    if Flag == "InLift" then
+        if HumanoidRootPart.Position.X < 50 and HumanoidRootPart.Position.Z > 70 then
+            return true
+        end
+    elseif Flag == "InGame" then
+        if HumanoidRootPart.Position.X > 50 then
+            return true
+        end
+    end
+    return false
+end
+
+-- ==============================================================================
+-- [MAIN LOGIC]
+-- ==============================================================================
+
+local MapDetect
+local ConnectMap
+
+local function OnMapLoad(Map)
+    CurrentlyFarming = true
+
+    local Settings = Map:WaitForChild("Settings", 10)
+    if Settings then
+        local MapName = Settings:GetAttribute("MapName")
+        if MapName then Alert("Map Loaded! " .. MapName) end
+    end
+    
+    if Check("InGame") == false then
+        Alert("Skipping due to InGame == false.")
+    end
+
+    local Buttons = {}
+    -- Single Scan of Map to reduce lag.
+    for i, MapObject in pairs(Map:GetDescendants()) do
+        if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
+            local Hitbox
+            for i, Candidate in pairs(MapObject:GetChildren()) do
+                if Candidate:IsA("BasePart") and tostring(Candidate.BrickColor) ~= "Medium stone grey" then
+                    Hitbox = Candidate
+                    break
+                end
+            end
+            if Hitbox and isRandomString(Hitbox.Name) then
+                -- Confirmed Buttonness
+                Hitbox.Name = "Hitbox"
+                table.insert(Buttons, MapObject)
+            end
+        end
+    end
+
+    local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
+    -- Grab Lost Page and Escapee
+    local LostPage = Map:FindFirstChild("_LostPage", true)
+    local Rescue = Map:FindFirstChild("_Rescue", true)
+    local OriginalCFrame = HumanoidRootPart.CFrame
+    
+    if LostPage then
+        HumanoidRootPart.CFrame = LostPage.CFrame
+        task.wait()
+        HumanoidRootPart.CFrame = OriginalCFrame
+        Alert("Got Lost Page.")
+    end
+    if Rescue then
+        HumanoidRootPart.CFrame = Rescue.Contact.CFrame
+        task.wait()
+        HumanoidRootPart.CFrame = OriginalCFrame
+        print("Got Escapee.")
+    end
+
+    -- Auto Farm Loop
+    Alert("Commencing Auto Farm")
+    local CurrentButton = nil
+    local Humanoid = GetChar():WaitForChild("Humanoid")
+    
+    local GodMode = Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        Humanoid.Health = 1000
+    end)
+    TrackConnection(GodMode)
+    
+    local Attempts = 0 
+    local DifferentScan = false
+    
+    Noclip(true)
+    
+    while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
+        if not CurrentlyFarming then break end
+
+        local ExitRegion = Map:FindFirstChild("ExitRegion", true)
+        local HRP = GetChar():FindFirstChild("HumanoidRootPart")
+        if not HRP then break end
+        
+        Humanoid.Jump = true
+        local FailedScan = true
+        
+        if not ExitRegion then
+            HRP.Anchored = true
+            for i, Button in pairs(Buttons) do
+                -- Stop immediately if paused
+                if not getgenv().TomatoAutoFarm then break end 
+
+                local ButtonHitbox = Button:FindFirstChild("Hitbox")
+                if ButtonHitbox then
+                    CurrentButton = Button
+                    local TouchFound = Button:FindFirstChild("TouchInterest", true)
+                    local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
+                    
+                    if (TouchFound and GuiFound) then
+                        FailedScan = false
+                        HRP.Anchored = false
+                        HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
+                        HRP.CFrame = CFrame.new(ButtonHitbox.Position)
+                        HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                        task.spawn(function()
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                        --task.wait()
+                    end
+                end
+            end
+            if FailedScan == true then
+                DifferentScan = true
+                task.wait()
+            end
+        elseif ExitRegion then
+            Noclip(false)
+            HRP.Anchored = false
+            if Attempts < EXITREGION_MAX_ATTEMPTS then
+                Attempts = Attempts + 1
+                HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
+                HRP.CFrame = CFrame.new(ExitRegion.Position)
+                HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
+                task.spawn(function()
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+                if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
+                    Attempts = Attempts + 1
+                end
+            else
+                Alert("Teleported to ExitRegion.")
+                break
+            end
+        end
+    end
+    
+    Noclip(false)
+    Alert("Complete.")
+    if GodMode then GodMode:Disconnect() end
+    
+    Alert("Waiting for next Map...")
+    CurrentlyFarming = false
+end
+
+-- ==============================================================================
+-- [INTERNAL] MAIN LOOP (Features 5 & 6)
+-- ==============================================================================
+
+ConnectMap = function()
+    -- Optimized Logic (Feature 6: Event Handling)
+    MapDetect = Multiplayer.ChildAdded:Connect(function(NewMap)
+        NewMap:GetPropertyChangedSignal("Name"):Wait()
+        
+        if getgenv().TomatoAutoFarm == true then
+            OnMapLoad(NewMap)
+            Alert("Connecting..")
+        end
+    end)
+    TrackConnection(MapDetect)
+end
+
+if _G.LoopCancel ~= nil then
+    _G.LoopCancel = true
+    task.wait(.1)
+end
+_G.LoopCancel = false
+Alert("Ready! Starting Update Loop.")
+
+-- Auto Lift Rejoin / Watchdog Logic (Feature 4)
+task.spawn(function()
+    while task.wait(1) do
+        if _G.LoopCancel == true then break end
+        
+        -- Safely check state
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local inLift = Check("InLift")
+            local inGame = Check("InGame")
+
+            -- Logic: If NOT in lift AND NOT in game -> Fire Remote
+            -- Only if Farm is enabled
+            if not inLift and not inGame and getgenv().TomatoAutoFarm then
+                AddedWaiting:FireServer()
+            end
+        end
+    end
+end)
+
+-- Main Connection & Pause Alert Loop
+task.spawn(function()
+    while task.wait(0.5) do
+        -- 1. Check for Script Kill
+        if _G.LoopCancel == true then
+            Alert("Script Overridden/Cancelled.")
+            if MapDetect then MapDetect:Disconnect() end
+            break
+        end
+        
+        -- 2. Ensure Map Listener is active
+        if not MapDetect then
+            ConnectMap()
+        end
+
+        -- 3. Check for PAUSE (User toggled false)
+        if getgenv().TomatoAutoFarm == false then
+            Alert("Auto Farm Paused!")
+            
+            -- Wait here until User toggles TRUE or cancels script
+            repeat 
+                task.wait(0.5) 
+            until getgenv().TomatoAutoFarm == true or _G.LoopCancel == true
+            
+            -- If we exited the loop because they turned it back ON (and not because script died)
+            if _G.LoopCancel == false then
+                Alert("Auto Farm Resumed!")
+            end
+        end
+    end
+end)
