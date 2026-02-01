@@ -1,7 +1,6 @@
-
 local MODE = "Play" 
-local TARGET_MAP_NAME = "Toxic Woods" -- Exact Case-Sensitive Name
-local TARGET_DIFFICULTY_NAME = "Hard" 
+local TARGET_MAP_NAME = "Poisonous Valley" -- Exact Case-Sensitive Name
+local TARGET_DIFFICULTY_NAME = "Easy" 
 
 -- ==============================================================================
 -- [SINGLE INSTANCE / OVERRIDE LOGIC]
@@ -29,8 +28,6 @@ end
 -- ==============================================================================
 -- [CONFIGURATION] EDIT THIS SECTION
 -- ==============================================================================
-
-
 
 getgenv().TomatoAutoFarm = true
 
@@ -195,7 +192,24 @@ local function OnMapLoad(Map)
     print("Target:  " .. TARGET_DIFFICULTY_NAME .. " ("..targetRank..")")
 
     if currentRank > targetRank then
-        Alert("Difficulty Too High ("..currentName.."). Resetting...")
+        Alert("Difficulty Too High ("..currentName.."). Waiting for start to reset...")
+        
+        -- Waits until player is Unanchored AND WalkSpeed is >= 20
+        repeat 
+            task.wait()
+            -- Safety check to ensure char still exists
+            if not HumanoidRootPart or not Humanoid then break end
+        until (not HumanoidRootPart.Anchored and Humanoid.WalkSpeed >= 20) or not getgenv().TomatoAutoFarm
+        
+        -- [[ UPDATED SECTION ]] --
+        Alert("Teleporting away then resetting...")
+        if HumanoidRootPart then
+            HumanoidRootPart.CFrame = CFrame.new(1000, 1000, 1000)
+        end
+        task.wait(0.25)
+        -- [[ END UPDATED SECTION ]] --
+
+        Alert("Resetting...")
         getgenv().IsResettingForDifficulty = true 
         Humanoid.Health = 0
         CurrentlyFarming = false
@@ -266,7 +280,6 @@ local function OnMapLoad(Map)
     Noclip(true)
     
     -- 3. FARM LOOP
-    -- [UPDATE] Added check for getgenv().TomatoAutoFarm
     while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
         if not CurrentlyFarming then break end 
 
@@ -280,7 +293,6 @@ local function OnMapLoad(Map)
         if not ExitRegion then
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
-                -- [UPDATE] Stop inner loop immediately if paused
                 if not getgenv().TomatoAutoFarm then break end
 
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
@@ -436,7 +448,6 @@ task.spawn(function()
             local inGame = Check("InGame")
 
             -- Logic: If NOT in lift AND NOT in game -> Fire Remote
-            -- [UPDATE] Only if AutoFarm is Enabled
             if not inLift and not inGame and getgenv().TomatoAutoFarm then
                 AddedWaiting:FireServer()
             end
