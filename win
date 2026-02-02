@@ -27,7 +27,7 @@ getgenv().TomatoAutoFarm = true
 -- ==============================================================================
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 100
+local EXITREGION_MAX_ATTEMPTS = 1000
 local CurrentlyFarming = false
 
 local VirtualUser = game:GetService("VirtualUser")
@@ -108,6 +108,18 @@ local function Check(Flag)
     return false
 end
 
+local function GetRandomPointInPart(Part)
+    local Size = Part.Size
+    local CFramePos = Part.CFrame
+    
+    -- Generate random offsets within the box bounds
+    local Rx = (math.random() - 0.5) * Size.X
+    local Ry = (math.random() - 0.5) * Size.Y
+    local Rz = (math.random() - 0.5) * Size.Z
+    
+    return CFramePos * CFrame.new(Rx, Ry, Rz)
+end
+
 -- ==============================================================================
 -- [MAIN LOGIC]
 -- ==============================================================================
@@ -177,25 +189,41 @@ local function OnMapLoad(Map)
     TrackConnection(GodMode)
     
     local Attempts = 0 
-    local DifferentScan = false
     local HRP = GetChar():FindFirstChild("HumanoidRootPart")
-
+    
+    -- Reactive Logic Variables
+    local TargetCFrame = HRP.CFrame
+    local InExitPhase = false
+    
+    -- This connection watches for changes to HRP CFrame (External or Internal)
     local AntiNoclip = HRP:GetPropertyChangedSignal("CFrame"):Connect(function()
-        Attempts -= 0.5
+        if InExitPhase and HRP then
+            -- If we are in exit phase and CFrame changes drastically away from our target
+            -- We force an immediate re-teleport to ensure we stay in the zone
+            if (HRP.Position - TargetCFrame.Position).Magnitude > 5 then
+                HRP.CFrame = TargetCFrame
+                HRP.Velocity = Vector3.zero
+            end
+        else
+             -- Normal button phase logic
+             Attempts -= 0.5
+        end
     end)
+    
     Noclip(true)
     
-    while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
+    -- Using Heartbeat for consistent physics-safe looping without crashing
+    while RunService.Heartbeat:Wait() and Check("InGame") and getgenv().TomatoAutoFarm do
         if not CurrentlyFarming then break end
 
         local ExitRegion = Map:FindFirstChild("ExitRegion", true)
         local HRP = GetChar():FindFirstChild("HumanoidRootPart")
         if not HRP then break end
         
-        --Humanoid.Jump = true
         local FailedScan = true
         
         if not ExitRegion then
+            InExitPhase = false
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
                 -- Stop immediately if paused
@@ -212,27 +240,35 @@ local function OnMapLoad(Map)
                         HRP.Anchored = false
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        task.wait(0.1)
+                        -- Tiny wait to allow touch to register without lag
+                        task.wait(0.1) 
                     end
                 end
             end
             if FailedScan == true then
-                DifferentScan = true
-                task.wait()
+                -- Wait a frame if nothing found to prevent high CPU usage
+                RunService.Heartbeat:Wait()
             end
         elseif ExitRegion then
+            InExitPhase = true
             Noclip(false)
             HRP.Anchored = false
+            
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
-                HRP.CFrame = CFrame.new(ExitRegion.Position - Vector3.new(math.random(), math.random(), math.random()))
+                
+                -- Calculate random position within the ExitRegion bounds
+                TargetCFrame = GetRandomPointInPart(ExitRegion)
+                
+                -- Apply Position
+                HRP.CFrame = TargetCFrame
+                -- Zero out velocity to prevent flinging
+                HRP.Velocity = Vector3.zero
+                
                 Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                local Factor = math.random() * 10000
-                HRP.Velocity = Vector3.new(Factor, Factor, Factor)
-                RunService.RenderStepped:wait()
             else
                 Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-                AntiNoclip:Disconnect()
+                if AntiNoclip then AntiNoclip:Disconnect() end
                 Alert("Teleported to ExitRegion.")
                 break
             end
@@ -242,6 +278,7 @@ local function OnMapLoad(Map)
     Noclip(false)
     Alert("Complete.")
     if GodMode then GodMode:Disconnect() end
+    if AntiNoclip then AntiNoclip:Disconnect() end
     
     Alert("Waiting for next Map...")
     CurrentlyFarming = false
