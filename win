@@ -36,6 +36,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Multiplayer = Workspace:WaitForChild("Multiplayer")
+local Camera = Workspace.CurrentCamera
 
 -- Remotes (Feature 4)
 local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
@@ -112,10 +113,10 @@ local function GetRandomPointInPart(Part)
     local Size = Part.Size
     local CFramePos = Part.CFrame
     
-    -- Generate random offsets within the box bounds
-    local Rx = (math.random() - 0.5) * Size.X
-    local Ry = (math.random() - 0.5) * Size.Y
-    local Rz = (math.random() - 0.5) * Size.Z
+    -- Generate random offsets within the box bounds (slightly reduced to ensure we stay inside)
+    local Rx = (math.random() - 0.5) * (Size.X * 0.9)
+    local Ry = (math.random() - 0.5) * (Size.Y * 0.9)
+    local Rz = (math.random() - 0.5) * (Size.Z * 0.9)
     
     return CFramePos * CFrame.new(Rx, Ry, Rz)
 end
@@ -191,25 +192,6 @@ local function OnMapLoad(Map)
     local Attempts = 0 
     local HRP = GetChar():FindFirstChild("HumanoidRootPart")
     
-    -- Reactive Logic Variables
-    local TargetCFrame = HRP.CFrame
-    local InExitPhase = false
-    
-    -- This connection watches for changes to HRP CFrame (External or Internal)
-    local AntiNoclip = HRP:GetPropertyChangedSignal("CFrame"):Connect(function()
-        if InExitPhase and HRP then
-            -- If we are in exit phase and CFrame changes drastically away from our target
-            -- We force an immediate re-teleport to ensure we stay in the zone
-            if (HRP.Position - TargetCFrame.Position).Magnitude > 5 then
-                HRP.CFrame = TargetCFrame
-                HRP.Velocity = Vector3.zero
-            end
-        else
-             -- Normal button phase logic
-             Attempts -= 0.5
-        end
-    end)
-    
     Noclip(true)
     
     -- Using Heartbeat for consistent physics-safe looping without crashing
@@ -223,7 +205,12 @@ local function OnMapLoad(Map)
         local FailedScan = true
         
         if not ExitRegion then
-            InExitPhase = false
+            -- == BUTTON PHASE ==
+            -- Reset Camera if needed
+            if Camera.CameraSubject ~= Humanoid then
+                Camera.CameraSubject = Humanoid
+            end
+
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
                 -- Stop immediately if paused
@@ -240,45 +227,53 @@ local function OnMapLoad(Map)
                         HRP.Anchored = false
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        -- Tiny wait to allow touch to register without lag
                         task.wait(0.1) 
                     end
                 end
             end
             if FailedScan == true then
-                -- Wait a frame if nothing found to prevent high CPU usage
                 RunService.Heartbeat:Wait()
             end
+
         elseif ExitRegion then
-            InExitPhase = true
+            -- == EXIT PHASE ==
             Noclip(false)
             HRP.Anchored = false
             
+            -- Set Camera to ExitRegion for better view
+            if Camera.CameraSubject ~= ExitRegion then
+                Camera.CameraSubject = ExitRegion
+            end
+
             if Attempts < EXITREGION_MAX_ATTEMPTS then
                 Attempts = Attempts + 1
                 
                 -- Calculate random position within the ExitRegion bounds
-                TargetCFrame = GetRandomPointInPart(ExitRegion)
+                local TargetCFrame = GetRandomPointInPart(ExitRegion)
                 
-                -- Apply Position
+                -- Direct Teleport (Lag free, no listeners fighting it)
                 HRP.CFrame = TargetCFrame
-                -- Zero out velocity to prevent flinging
                 HRP.Velocity = Vector3.zero
                 
                 Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
             else
+                -- Fix Camera before resetting
+                Camera.CameraSubject = Humanoid
+                
                 Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-                if AntiNoclip then AntiNoclip:Disconnect() end
                 Alert("Teleported to ExitRegion.")
                 break
             end
         end
     end
     
+    -- Cleanup
+    if Camera.CameraSubject ~= Humanoid then
+        Camera.CameraSubject = Humanoid
+    end
     Noclip(false)
     Alert("Complete.")
     if GodMode then GodMode:Disconnect() end
-    if AntiNoclip then AntiNoclip:Disconnect() end
     
     Alert("Waiting for next Map...")
     CurrentlyFarming = false
