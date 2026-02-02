@@ -228,7 +228,7 @@ local function OnMapLoad(Map)
                 HRP.Velocity = Vector3.new(Factor, Factor, Factor)
             else
                 AntiNoclip:Disconnect()
-                HRP.Velocity = Vector3.new(0, -100000, 0)
+                HRP.Velocity = Vector3.new(0, 100000, 0)
                 Alert("Teleported to ExitRegion.")
                 break
             end
