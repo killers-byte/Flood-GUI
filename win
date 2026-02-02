@@ -1,6 +1,7 @@
 -- ==============================================================================
 -- [SINGLE INSTANCE / OVERRIDE LOGIC] (Feature 5)
 -- ==============================================================================
+
 if getgenv().TomatoConnections then
     print("!!! OVERRIDING PREVIOUS SCRIPT INSTANCE !!!")
     for i, connection in pairs(getgenv().TomatoConnections) do
@@ -27,8 +28,8 @@ getgenv().TomatoAutoFarm = true
 -- ==============================================================================
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 1000
 local CurrentlyFarming = false
+local Escaped = false
 
 local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -41,28 +42,58 @@ local Camera = Workspace.CurrentCamera
 -- Remotes (Feature 4)
 local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
 local AddedWaiting = RemoteFolder:WaitForChild("AddedWaiting")
+local AlertRemote = RemoteFolder:WaitForChild("Alert")
 
--- Anti-AFK (Wrapped in TrackConnection)
+-- Alert Listener
+TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg)
+    if type(msg) == "string" and msg:lower():match("escaped") then
+        Escaped = true
+    end
+end))
+
+-- Anti-AFK
 TrackConnection(LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end))
 
+-- ==============================================================================
+-- [ALERT SYSTEM]
+-- ==============================================================================
+
+local Colors = {
+    System  = Color3.fromRGB(200, 200, 200), -- Grey/White
+    Success = Color3.fromRGB(0, 255, 127),   -- Spring Green
+    Warning = Color3.fromRGB(255, 170, 0),   -- Orange
+    Error   = Color3.fromRGB(255, 60, 60),   -- Red
+    Info    = Color3.fromRGB(0, 220, 255),   -- Cyan
+    Item    = Color3.fromRGB(170, 85, 255)   -- Purple
+}
+
 local CLMAIN = LocalPlayer.PlayerScripts:WaitForChild("CL_MAIN_GameScript")
 local CLMAINenv = getsenv(CLMAIN)
-local gameAlert = CLMAINenv.newAlert
 local Alert
-if CLMAINenv and gameAlert then
-    Alert = function(...)
+
+if CLMAINenv and CLMAINenv.newAlert then
+    -- Fixed Alert Function: Color is Arg 2, Time is Arg 3 (nil = default)
+    Alert = function(Text, ColorType)
         if ALERTS_ENABLED then
-            local Output = tostring(...)
-            gameAlert(Output, nil, nil, "rainbow")
+            local SelectedColor = Colors[ColorType] or Colors.System
+            local Output = tostring(Text)
+            
+            pcall(function() 
+                -- Structure: newAlert(Message, Color, Time, Style)
+                -- We set Time to nil so the game uses its default duration
+                CLMAINenv.newAlert(Output, SelectedColor, nil, nil) 
+            end)
             print(Output)
         end
     end
 else
+    Alert = function(Text, ...)
+        print("[CONSOLE] " .. tostring(Text))
+    end
     print("Your executor does not support Alerts.")
-    Alert = print
 end
 
 function isRandomString(str)
@@ -113,7 +144,6 @@ local function GetRandomPointInPart(Part)
     local Size = Part.Size
     local CFramePos = Part.CFrame
     
-    -- Generate random offsets within the box bounds (slightly reduced to ensure we stay inside)
     local Rx = (math.random() - 0.5) * (Size.X * 0.9)
     local Ry = (math.random() - 0.5) * (Size.Y * 0.9)
     local Rz = (math.random() - 0.5) * (Size.Z * 0.9)
@@ -130,19 +160,22 @@ local ConnectMap
 
 local function OnMapLoad(Map)
     CurrentlyFarming = true
+    Escaped = false 
 
     local Settings = Map:WaitForChild("Settings", 10)
     if Settings then
         local MapName = Settings:GetAttribute("MapName")
-        if MapName then Alert("Map Loaded! " .. MapName) end
+        if MapName then 
+            Alert("[MAP] Config Loaded: " .. MapName, "Info") 
+        end
     end
     
     if Check("InGame") == false then
-        Alert("Skipping due to InGame == false.")
+        Alert("[STATUS] Outside game zone. Standing by...", "Warning")
     end
 
     local Buttons = {}
-    -- Single Scan of Map to reduce lag.
+    -- Single Scan
     for i, MapObject in pairs(Map:GetDescendants()) do
         if isRandomString(MapObject.Name) and MapObject.ClassName == "Model" then
             local Hitbox
@@ -153,7 +186,6 @@ local function OnMapLoad(Map)
                 end
             end
             if Hitbox and isRandomString(Hitbox.Name) then
-                -- Confirmed Buttonness
                 Hitbox.Name = "Hitbox"
                 table.insert(Buttons, MapObject)
             end
@@ -161,7 +193,7 @@ local function OnMapLoad(Map)
     end
 
     local HumanoidRootPart = GetChar():WaitForChild("HumanoidRootPart")
-    -- Grab Lost Page and Escapee
+    -- Items
     local LostPage = Map:FindFirstChild("_LostPage", true)
     local Rescue = Map:FindFirstChild("_Rescue", true)
     local OriginalCFrame = HumanoidRootPart.CFrame
@@ -170,17 +202,17 @@ local function OnMapLoad(Map)
         HumanoidRootPart.CFrame = LostPage.CFrame
         task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
-        Alert("Got Lost Page.")
+        Alert("[COLLECT] Hidden Page Acquired.", "Item")
     end
     if Rescue then
         HumanoidRootPart.CFrame = Rescue.Contact.CFrame
         task.wait()
         HumanoidRootPart.CFrame = OriginalCFrame
-        print("Got Escapee.")
+        Alert("[ACTION] Survivor Rescued.", "Item")
     end
 
     -- Auto Farm Loop
-    Alert("Commencing Auto Farm")
+    Alert("[FARM] Sequence Initialized. Scanning...", "Success")
     local CurrentButton = nil
     local Humanoid = GetChar():WaitForChild("Humanoid")
     
@@ -189,12 +221,10 @@ local function OnMapLoad(Map)
     end)
     TrackConnection(GodMode)
     
-    local Attempts = 0 
     local HRP = GetChar():FindFirstChild("HumanoidRootPart")
     
     Noclip(true)
     
-    -- Using Heartbeat for consistent physics-safe looping without crashing
     while RunService.Heartbeat:Wait() and Check("InGame") and getgenv().TomatoAutoFarm do
         if not CurrentlyFarming then break end
 
@@ -206,14 +236,12 @@ local function OnMapLoad(Map)
         
         if not ExitRegion then
             -- == BUTTON PHASE ==
-            -- Reset Camera if needed
             if Camera.CameraSubject ~= Humanoid then
                 Camera.CameraSubject = Humanoid
             end
 
             HRP.Anchored = true
             for i, Button in pairs(Buttons) do
-                -- Stop immediately if paused
                 if not getgenv().TomatoAutoFarm then break end 
 
                 local ButtonHitbox = Button:FindFirstChild("Hitbox")
@@ -227,7 +255,9 @@ local function OnMapLoad(Map)
                         HRP.Anchored = false
                         HRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
                         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        task.wait(0.1) 
+                        task.wait(0.05)
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        task.wait(0.05)
                     end
                 end
             end
@@ -240,42 +270,33 @@ local function OnMapLoad(Map)
             Noclip(false)
             HRP.Anchored = false
             
-            -- Set Camera to ExitRegion for better view
             if Camera.CameraSubject ~= ExitRegion then
                 Camera.CameraSubject = ExitRegion
             end
 
-            if Attempts < EXITREGION_MAX_ATTEMPTS then
-                Attempts = Attempts + 1
-                
-                -- Calculate random position within the ExitRegion bounds
+            if not Escaped then
                 local TargetCFrame = GetRandomPointInPart(ExitRegion)
-                
-                -- Direct Teleport (Lag free, no listeners fighting it)
                 HRP.CFrame = TargetCFrame
                 HRP.Velocity = Vector3.zero
-                
                 Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
             else
-                -- Fix Camera before resetting
+                Escaped = false 
                 Camera.CameraSubject = Humanoid
-                
                 Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-                Alert("Teleported to ExitRegion.")
+                Alert("[SUCCESS] Escape Detected. Resetting...", "Success")
                 break
             end
         end
     end
     
-    -- Cleanup
     if Camera.CameraSubject ~= Humanoid then
         Camera.CameraSubject = Humanoid
     end
     Noclip(false)
-    Alert("Complete.")
+    Alert("[FINISH] Protocol Complete.", "Info")
     if GodMode then GodMode:Disconnect() end
     
-    Alert("Waiting for next Map...")
+    Alert("[IDLE] Awaiting next match...", "System")
     CurrentlyFarming = false
 end
 
@@ -284,13 +305,12 @@ end
 -- ==============================================================================
 
 ConnectMap = function()
-    -- Optimized Logic (Feature 6: Event Handling)
     MapDetect = Multiplayer.ChildAdded:Connect(function(NewMap)
         NewMap:GetPropertyChangedSignal("Name"):Wait()
         
         if getgenv().TomatoAutoFarm == true then
             OnMapLoad(NewMap)
-            Alert("Connecting..")
+            Alert("[NET] Map Detected. Connecting...", "Info")
         end
     end)
     TrackConnection(MapDetect)
@@ -301,20 +321,16 @@ if _G.LoopCancel ~= nil then
     task.wait(.1)
 end
 _G.LoopCancel = false
-Alert("Ready! Starting Update Loop.")
+Alert("[SYSTEM] AutoFarm Active.", "Success")
 
--- Auto Lift Rejoin / Watchdog Logic (Feature 4)
 task.spawn(function()
     while task.wait(1) do
         if _G.LoopCancel == true then break end
         
-        -- Safely check state
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local inLift = Check("InLift")
             local inGame = Check("InGame")
 
-            -- Logic: If NOT in lift AND NOT in game -> Fire Remote
-            -- Only if Farm is enabled
             if not inLift and not inGame and getgenv().TomatoAutoFarm then
                 AddedWaiting:FireServer()
             end
@@ -322,33 +338,26 @@ task.spawn(function()
     end
 end)
 
--- Main Connection & Pause Alert Loop
 task.spawn(function()
     while task.wait(0.5) do
-        -- 1. Check for Script Kill
         if _G.LoopCancel == true then
-            Alert("Script Overridden/Cancelled.")
+            Alert("[SYSTEM] Previous Script Terminated.", "Error")
             if MapDetect then MapDetect:Disconnect() end
             break
         end
         
-        -- 2. Ensure Map Listener is active
         if not MapDetect then
             ConnectMap()
         end
 
-        -- 3. Check for PAUSE (User toggled false)
         if getgenv().TomatoAutoFarm == false then
-            Alert("Auto Farm Paused!")
-            
-            -- Wait here until User toggles TRUE or cancels script
+            Alert("[PAUSE] Operation suspended by user.", "Warning")
             repeat 
                 task.wait(0.5) 
             until getgenv().TomatoAutoFarm == true or _G.LoopCancel == true
             
-            -- If we exited the loop because they turned it back ON (and not because script died)
             if _G.LoopCancel == false then
-                Alert("Auto Farm Resumed!")
+                Alert("[RESUME] Operation continued.", "Success")
             end
         end
     end
