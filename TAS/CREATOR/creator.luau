@@ -1,20 +1,18 @@
---- START OF FILE creator.luau (3).txt ---
+--- START OF FILE creator.luau (7).txt ---
 
 --[[
     FE2 TAS Creator (Jump Farm Edition)
-    - FIXED: 'unpack' error caused by incorrect table nesting in SetupMap.
-    - UPDATE: View TAS (0) & Save Run (6) now include current frames without forcing a Savestate.
-    - OPTIMIZATION: Binary frame storage (~120 bytes/frame) via string.pack.
-    - RECORDER: Full Reversible State (Destroy/Restore).
-    - AUTOFARM: Ping-compensated timing captured BEFORE the wait.
-    - GODMODE: RenderStepped Health lock.
+    - UPDATE: Switched to .Changed event for smarter property tracking.
+    - ADDED: Support for Material, Reflectance, Texture offsets, and more.
+    - FIXED: Timer & Visuals Offset applied correctly during rewind.
+    - PREVIOUS: Decal support, Rewind Lag Fix, Binary Optimization.
 ]]
 
 getgenv().TAS_Active = true 
 
 local UI_API_URL = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/testing/TAS/CREATOR/uiapi.luau"
 
-print("TAS Creator: Optimized Binary Recording Loaded")
+print("TAS Creator: Smart .Changed Recorder Loaded")
 
 local Keybinds = {
     AddSavestate = "One",
@@ -86,7 +84,7 @@ pcall(function() ReplicatedStorage.Remote.ReqPasskey:InvokeServer() end)
 -- // VARIABLES //
 local CurrentAnim = {}
 local Savestates = {}
-local Frames = {} -- Now stores binary strings!
+local Frames = {} 
 local TimeOffset = 0
 local PreviewOffset = 0
 local IsPaused = true
@@ -114,7 +112,7 @@ local MapRecorderCache = {}
 local ClonedMap
 local RopeTable
 local MapOffset, MapPos, MapX, MapY, MapZ
-local UUID_Cache = {}
+local MapUUIDs = {} 
 
 -- Button Order Tracking
 local RecordedButtonSequence = {} 
@@ -146,36 +144,20 @@ local UI_Elements = nil
 local TimeText, FrameCountLabel, StatusLabel, MapEventLabel
 
 -- // DATA PACKING (OPTIMIZATION) //
--- Format: Time(d) + Velocity(3f) + CFrame(12f) + CamCFrame(12f) + AnimSpeed(f) + AnimName(s)
 local PACK_FORMAT = "d" .. string.rep("f", 28) .. "s"
 
 local function PackFrame(Time, Vel, CF, CamCF, Anim)
     local animName = Anim[1] or "idle"
     local animSpeed = Anim[2] or 0
-    
-    -- Explicitly unpack components to avoid truncation issues
     local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = CF:GetComponents()
     local cx, cy, cz, cR00, cR01, cR02, cR10, cR11, cR12, cR20, cR21, cR22 = CamCF:GetComponents()
-    
-    return string.pack(PACK_FORMAT,
-        Time,
-        Vel.X, Vel.Y, Vel.Z,
-        x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22,
-        cx, cy, cz, cR00, cR01, cR02, cR10, cR11, cR12, cR20, cR21, cR22,
-        animSpeed,
-        animName
-    )
+    return string.pack(PACK_FORMAT, Time, Vel.X, Vel.Y, Vel.Z, x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22, cx, cy, cz, cR00, cR01, cR02, cR10, cR11, cR12, cR20, cR21, cR22, animSpeed, animName)
 end
 
 local function UnpackFrame(data)
-    local t, vx, vy, vz, 
-          c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12,
-          cm1, cm2, cm3, cm4, cm5, cm6, cm7, cm8, cm9, cm10, cm11, cm12,
-          asp, anm = string.unpack(PACK_FORMAT, data)
-    
+    local t, vx, vy, vz, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, cm1, cm2, cm3, cm4, cm5, cm6, cm7, cm8, cm9, cm10, cm11, cm12, asp, anm = string.unpack(PACK_FORMAT, data)
     return {
-        Time = t,
-        Velocity = Vector3.new(vx, vy, vz),
+        Time = t, Velocity = Vector3.new(vx, vy, vz),
         CFrame = CFrame.new(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12),
         CameraCFrame = CFrame.new(cm1, cm2, cm3, cm4, cm5, cm6, cm7, cm8, cm9, cm10, cm11, cm12),
         Animation = {anm, asp}
@@ -208,6 +190,16 @@ local function GetUUID(part)
     return id
 end
 
+local function DeepCopy(orig)
+    local copy = {}
+    if type(orig) == 'table' then
+        for k, v in pairs(orig) do copy[k] = v end
+    else
+        copy = orig
+    end
+    return copy
+end
+
 local function ToggleCollision()
     local mouse = LocalPlayer:GetMouse()
     if mouse and mouse.Target then
@@ -230,7 +222,6 @@ local function GetPlayerCFrame()
 end
 
 local function CaptureFrameData()
-    -- RETURNS PACKED STRING
     return PackFrame(
         tick() - RunStart - TimeOffset,
         LocalPlayer.Character.HumanoidRootPart.Velocity,
@@ -249,9 +240,7 @@ local function LoadUI(MapName)
     StatusLabel = UI_Elements.StatusText
     MapEventLabel = UI_Elements.MapEventInfo
     
-    if MapName and MapEventLabel then
-        MapEventLabel.Text = MapName
-    end
+    if MapName and MapEventLabel then MapEventLabel.Text = MapName end
 end
 
 local function UpdateTimeDisplay(DisplayTime)
@@ -265,38 +254,24 @@ end
 -- // LIGHTING MANAGER //
 local function CaptureLighting()
     SavedLighting.Props = {
-        Ambient = Lighting.Ambient,
-        OutdoorAmbient = Lighting.OutdoorAmbient,
-        Brightness = Lighting.Brightness,
-        ClockTime = Lighting.ClockTime,
-        FogColor = Lighting.FogColor,
-        FogEnd = Lighting.FogEnd,
-        FogStart = Lighting.FogStart,
-        GlobalShadows = Lighting.GlobalShadows,
-        ExposureCompensation = Lighting.ExposureCompensation,
-        TimeOfDay = Lighting.TimeOfDay
+        Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, Brightness = Lighting.Brightness,
+        ClockTime = Lighting.ClockTime, FogColor = Lighting.FogColor, FogEnd = Lighting.FogEnd,
+        FogStart = Lighting.FogStart, GlobalShadows = Lighting.GlobalShadows,
+        ExposureCompensation = Lighting.ExposureCompensation, TimeOfDay = Lighting.TimeOfDay
     }
     SavedLighting.Children = {}
-    for _, child in ipairs(Lighting:GetChildren()) do
-        table.insert(SavedLighting.Children, child:Clone())
-    end
+    for _, child in ipairs(Lighting:GetChildren()) do table.insert(SavedLighting.Children, child:Clone()) end
     LightingCaptured = true
     SendAlert("Lighting Captured", Color3.fromRGB(255, 255, 0))
 end
 
 local function EnforceLighting()
     if not LightingCaptured then return end
-    
-    for prop, val in pairs(SavedLighting.Props) do
-        if Lighting[prop] ~= val then Lighting[prop] = val end
-    end
-    
+    for prop, val in pairs(SavedLighting.Props) do if Lighting[prop] ~= val then Lighting[prop] = val end end
     local CurrentChildren = Lighting:GetChildren()
     if #CurrentChildren ~= #SavedLighting.Children then
         Lighting:ClearAllChildren()
-        for _, c in ipairs(SavedLighting.Children) do
-            c:Clone().Parent = Lighting
-        end
+        for _, c in ipairs(SavedLighting.Children) do c:Clone().Parent = Lighting end
     end
 end
 
@@ -319,10 +294,18 @@ local function UpdateMapState(TargetTime)
         if Event.Instance then
             if Event.Prop == "Destroyed" then
                 Event.Instance.Transparency = 1
-                Event.Instance.CanCollide = false
-                Event.Instance.Anchored = true
+                if Event.Instance:IsA("BasePart") then
+                    Event.Instance.CanCollide = false
+                    Event.Instance.Anchored = true
+                    if Event.ChildrenUUIDs then
+                        for _, childUUID in ipairs(Event.ChildrenUUIDs) do
+                            local child = MapUUIDs[childUUID]
+                            if child then child.Transparency = 1 end
+                        end
+                    end
+                end
             elseif Event.Prop == "Anchored" then
-                if Event.NewVal == false and Event.Instance.CanCollide == false then
+                if Event.NewVal == false and Event.Instance:IsA("BasePart") and Event.Instance.CanCollide == false then
                     Event.Instance.Anchored = true
                     Event.Instance.Transparency = 1
                 else
@@ -340,18 +323,36 @@ local function UpdateMapState(TargetTime)
         local Event = MapEvents[PlaybackIndex]
         if Event.Instance then
             if Event.Prop == "Destroyed" then
-                -- [[ REVERSIBLE DESTROY RESTORATION ]] --
                 if type(Event.OldVal) == "table" then
                     local s = Event.OldVal
                     Event.Instance.Transparency = s.Transparency
-                    Event.Instance.CanCollide = s.CanCollide
-                    Event.Instance.CFrame = s.CFrame
-                    Event.Instance.Anchored = s.Anchored
-                    Event.Instance.Color = s.Color
-                    Event.Instance.Size = s.Size
+                    if Event.Instance:IsA("BasePart") then
+                        Event.Instance.CanCollide = s.CanCollide
+                        Event.Instance.CFrame = s.CFrame
+                        Event.Instance.Anchored = s.Anchored
+                        Event.Instance.Color = s.Color
+                        Event.Instance.Size = s.Size
+                        Event.Instance.Material = s.Material
+                        Event.Instance.Reflectance = s.Reflectance
+                    end
+                    if Event.Instance:IsA("Decal") or Event.Instance:IsA("Texture") then
+                         Event.Instance.Color3 = s.Color3
+                         Event.Instance.Texture = s.Texture
+                    end
+                    
+                    if Event.Children and Event.ChildrenUUIDs then
+                        for _, childUUID in ipairs(Event.ChildrenUUIDs) do
+                            local child = MapUUIDs[childUUID]
+                            local childState = Event.Children[childUUID]
+                            if child and childState then
+                                child.Transparency = childState.Transparency
+                                child.Color3 = childState.Color3
+                            end
+                        end
+                    end
                 else
                     Event.Instance.Transparency = 0
-                    Event.Instance.CanCollide = true
+                    if Event.Instance:IsA("BasePart") then Event.Instance.CanCollide = true end
                 end
             elseif Event.Prop == "Anchored" then
                 Event.Instance.Anchored = Event.OldVal
@@ -433,15 +434,13 @@ local function ResetToNormal()
     OrderedButtonRegistry = {}
     RecordedButtonSequence = {}
     MapEvents = {}
+    MapUUIDs = {}
     SavedLighting = {}
     LightingCaptured = false
     AutoSaved = false
     
     if ClonedMap then ClonedMap:Destroy(); ClonedMap = nil end
-    
-    if UI_Elements and UI_Elements.ScreenGui then 
-        UI_Elements.ScreenGui:Destroy() 
-    end
+    if UI_Elements and UI_Elements.ScreenGui then UI_Elements.ScreenGui:Destroy() end
     UI_Elements = nil
     
     LocalPlayer.Character:BreakJoints() -- Hard Reset
@@ -579,13 +578,11 @@ local function SetupMap()
     CaptureLighting()
     
     for _, desc in ipairs(LiveMap:GetDescendants()) do
-        if desc:IsA("BasePart") then GetUUID(desc) end
+        if desc:IsA("BasePart") or desc:IsA("Decal") or desc:IsA("Texture") then GetUUID(desc) end
     end
     
     LiveMap.Archivable = true
-    for _, d in pairs(LiveMap:GetDescendants()) do
-        d.Archivable = true
-    end
+    for _, d in pairs(LiveMap:GetDescendants()) do d.Archivable = true end
     
     ClonedMap = LiveMap:Clone()
     ClonedMap.Parent = nil 
@@ -598,25 +595,51 @@ local function SetupMap()
     local StartTime = os.clock()
     local Recorders = {}
     
+    -- [[ SMART WHITELIST FOR .CHANGED ]] --
+    local PropWhitelist = {
+        BasePart = {
+            ["CFrame"] = true, ["Transparency"] = true, ["CanCollide"] = true,
+            ["Color"] = true, ["Size"] = true, ["Anchored"] = true,
+            ["Material"] = true, ["Reflectance"] = true
+        },
+        Decal = {
+            ["Transparency"] = true, ["Color3"] = true, ["Texture"] = true
+        },
+        Texture = {
+            ["Transparency"] = true, ["Color3"] = true, ["Texture"] = true,
+            ["OffsetStudsU"] = true, ["OffsetStudsV"] = true,
+            ["StudsPerTileU"] = true, ["StudsPerTileV"] = true
+        }
+    }
+    
     local function TrackPart(Part)
         local id = GetUUID(Part)
         if not id then return end
         
-        -- [[ INIT CACHE ]] --
-        MapRecorderCache[Part] = {
-            CFrame = Part.CFrame,
-            Transparency = Part.Transparency,
-            CanCollide = Part.CanCollide,
-            Color = Part.Color,
-            Size = Part.Size,
-            Anchored = Part.Anchored
-        }
+        -- Determine Type and Whitelist
+        local MyWhitelist = nil
+        if Part:IsA("BasePart") then MyWhitelist = PropWhitelist.BasePart
+        elseif Part:IsA("Decal") then MyWhitelist = PropWhitelist.Decal
+        elseif Part:IsA("Texture") then MyWhitelist = PropWhitelist.Texture end
+        
+        if not MyWhitelist then return end
+        
+        -- [[ INIT CACHE for Whitelisted Properties ]] --
+        MapRecorderCache[Part] = {}
+        for prop, _ in pairs(MyWhitelist) do
+            -- Safety check if property exists
+            local s, val = pcall(function() return Part[prop] end)
+            if s then MapRecorderCache[Part][prop] = val end
+        end
         
         local function OnChange(Prop)
             if not Recording then return end
+            if not MyWhitelist[Prop] then return end -- Whitelist Check
+            
             local NewVal = Part[Prop]
             local OldVal = MapRecorderCache[Part][Prop]
             
+            -- Simple inequality check (vector/color/cframe aware)
             if NewVal ~= OldVal then
                 local EventData = {
                     Time = os.clock() - StartTime,
@@ -626,8 +649,7 @@ local function SetupMap()
                     NewVal = NewVal
                 }
                 
-                -- [[ RECORD SNAPSHOT ON ANCHOR CHANGE ]] --
-                if Prop == "Anchored" then
+                if Prop == "Anchored" and Part:IsA("BasePart") then
                     EventData.StoredCFrame = Part.CFrame
                     EventData.StoredCanCollide = Part.CanCollide
                 end
@@ -637,32 +659,44 @@ local function SetupMap()
             end
         end
         
-        table.insert(Recorders, Part:GetPropertyChangedSignal("CFrame"):Connect(function() OnChange("CFrame") end))
-        table.insert(Recorders, Part:GetPropertyChangedSignal("Transparency"):Connect(function() OnChange("Transparency") end))
-        table.insert(Recorders, Part:GetPropertyChangedSignal("CanCollide"):Connect(function() OnChange("CanCollide") end))
-        table.insert(Recorders, Part:GetPropertyChangedSignal("Color"):Connect(function() OnChange("Color") end))
-        table.insert(Recorders, Part:GetPropertyChangedSignal("Size"):Connect(function() OnChange("Size") end))
-        table.insert(Recorders, Part:GetPropertyChangedSignal("Anchored"):Connect(function() OnChange("Anchored") end))
+        -- [[ SINGLE CONNECTION: .Changed ]] --
+        table.insert(Recorders, Part.Changed:Connect(OnChange))
         
         table.insert(Recorders, Part.Destroying:Connect(function()
             if not Recording then return end
-            -- [[ SAVE FULL STATE ON DESTROY ]] --
-            local State = MapRecorderCache[Part]
+            -- [[ DEEP COPY STATE ]] --
+            local State = DeepCopy(MapRecorderCache[Part])
+            
+            -- [[ CAPTURE CHILDREN STATE ]] --
+            local ChildrenUUIDs = {}
+            local ChildrenStates = {}
+            if Part:IsA("BasePart") then
+                for _, child in ipairs(Part:GetChildren()) do
+                    if (child:IsA("Decal") or child:IsA("Texture")) and MapRecorderCache[child] then
+                        local childID = GetUUID(child)
+                        table.insert(ChildrenUUIDs, childID)
+                        ChildrenStates[childID] = DeepCopy(MapRecorderCache[child])
+                    end
+                end
+            end
+            
             table.insert(MapEvents, {
                 Time = os.clock() - StartTime,
                 UUID = id,
                 Prop = "Destroyed",
-                OldVal = State, -- Save State for Reversal
+                OldVal = State,
+                Children = ChildrenStates,
+                ChildrenUUIDs = ChildrenUUIDs,
                 NewVal = true
             })
         end))
     end
 
     for _, Object in ipairs(LiveMap:GetDescendants()) do
-        if Object:IsA("BasePart") then TrackPart(Object) end
+        if Object:IsA("BasePart") or Object:IsA("Decal") or Object:IsA("Texture") then TrackPart(Object) end
     end
     table.insert(Recorders, LiveMap.DescendantAdded:Connect(function(d)
-        if d:IsA("BasePart") then TrackPart(d) end
+        if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then TrackPart(d) end
     end))
 
     SendAlert("Scanning for Buttons...", Color3.fromRGB(255, 170, 0))
@@ -721,10 +755,9 @@ local function SetupMap()
                     FailedScan = false
                     Root.Anchored = false
                     
-                    -- [[ AUTOFARM LOGIC: WAIT 5s ONLY IF SWITCHING BUTTONS ]] --
+                    -- [[ AUTOFARM LOGIC ]] --
                     if Button ~= LastTargetButton then
                         local uuid = GetUUID(ButtonHitbox)
-                        -- Record time BEFORE wait, adding Ping latency
                         if uuid and not table.find(RecordedButtonSequence, uuid) then
                             table.insert(RecordedButtonSequence, uuid)
                             local Ping = LocalPlayer:GetNetworkPing()
@@ -732,13 +765,10 @@ local function SetupMap()
                         end
 
                         if LastTargetButton ~= nil then
-                            -- We were on a button, now on a different one. 
-                            -- Wait 5 seconds to create a gap for smart sync.
-                            task.wait(5)
+                            task.wait(0.1) 
                         end
                         LastTargetButton = Button
                     else
-                         -- Initial button capture (first one found)
                         local uuid = GetUUID(ButtonHitbox)
                         if uuid and not table.find(RecordedButtonSequence, uuid) then
                             table.insert(RecordedButtonSequence, uuid)
@@ -784,7 +814,7 @@ local function SetupMap()
     
     ClonedMap.Parent = workspace
     
-    local MapUUIDs = {}
+    MapUUIDs = {}
     for _, desc in ipairs(ClonedMap:GetDescendants()) do
         local id = desc:GetAttribute("TAS_UUID")
         if id then MapUUIDs[id] = desc end
@@ -847,7 +877,6 @@ local function SetupMap()
     Hum.WalkSpeed = 20
     Hum.JumpPower = 50
     
-    -- [[ FIXED: SINGLE TABLE INSERTION ]] --
     table.insert(Savestates, {
         PackFrame(0, Vector3.new(0,0,0), GetPlayerCFrame(), workspace.CurrentCamera.CFrame, {"idle", 0})
     })
@@ -960,45 +989,30 @@ end
 -- // FAST FORWARD / REWIND PLAYER //
 local function StepForward()
     if not IsPaused then return end 
-    
     local InitialFrames = #Frames
     TogglePause() 
-    
-    -- [[ FORCE RECORDING: Fills accumulator to trigger frame save immediately ]] --
     RecordAccumulator = RECORD_INTERVAL + 0.1 
-    
-    -- [[ WAIT FOR ACTUAL RECORDING ]] --
     repeat 
         RunService.Heartbeat:Wait()
-        -- Emergency Break: If rewinding or manually interacted
         if IsRewinding then break end
     until #Frames > InitialFrames
-    
-    if not IsPaused then 
-        TogglePause()
-    end
+    if not IsPaused then TogglePause() end
 end
 
--- [[ RENAMED: FRAME ADVANCE LOOP (Exact opposite of Rewind) ]] --
 local function FrameAdvanceLoop()
     if IsRewinding then return end
     if IsAdvancingFrame then return end
-    
     IsAdvancingFrame = true
     SendAlert("Step Forward", Color3.fromRGB(0, 255, 0))
-    
     while IsAdvancingFrame do 
         if IsRewinding then IsAdvancingFrame = false; break end
-        
         StepForward()
-        -- The repeat loop in StepForward already acts as a physics wait
     end
 end
 
 local function RewindFrame()
     if LocalPlayer.Character then
         local FramePacked = Frames[#Frames - 1]
-        -- Handle boundary case where we hit start of Frames but have previous savestates
         if not FramePacked and #Savestates > 0 then 
             local PrevState = Savestates[#Savestates]
             FramePacked = PrevState[#PrevState - 1] 
@@ -1016,15 +1030,17 @@ local function RewindFrame()
             PauseStart = tick()
             RunStart = tick() - Frame.Time
             TimeOffset = 0
-            -- PreviewOffset = 0 <-- DISABLED: PREVENTS RESYNC ON REWIND
             
-            SyncButtonState(Frame.Time, Frame.Time)
-            UpdateMapState(Frame.Time)
+            -- [[ APPLIED FIX: Timer & Visuals Offset applied during rewind ]] --
+            local VisualTime = Frame.Time + PreviewOffset
+            
+            SyncButtonState(VisualTime, Frame.Time)
+            UpdateMapState(VisualTime)
             
             if Frame.Animation[1] then OriginalPlayAnim(Frame.Animation[1], Frame.Animation[2], LocalPlayer.Character.Humanoid) end
             if Frame.Animation[1] == "walk" then AnimEnv.setAnimationSpeed(0.76) end
             
-            task.spawn(function() UpdateTimeDisplay(Frame.Time) end)
+            task.spawn(function() UpdateTimeDisplay(VisualTime) end)
             Frames[#Frames] = nil
         end
     end
@@ -1063,39 +1079,21 @@ local LastTASAnim = nil
 local function ActivateTASAnimation(AnimData)
     if not AnimData then OriginalPlayAnim("idle", 0.1, LocalPlayer.Character.Humanoid); return end
     if not LocalPlayer.Character then return end
-    
     local n = AnimData[1]
     local animTime = AnimData[2] or 0.1
-    
-    -- Priority 1: Physics State
-    if LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then 
-        n = "swing" 
-    end
-    
-    -- Priority 2: Idle Override
+    if LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.Physics then n = "swing" end
     if n == "idle" then
         local vel = LocalPlayer.Character.HumanoidRootPart.Velocity
         if vel.Magnitude > 1 then
-            if LocalPlayer.Character.Humanoid.FloorMaterial ~= Enum.Material.Air then
-                n = "walk"; animTime = 0.1
-            else
-                n = "fall"; animTime = 0.3
-            end
+            if LocalPlayer.Character.Humanoid.FloorMaterial ~= Enum.Material.Air then n = "walk"; animTime = 0.1 else n = "fall"; animTime = 0.3 end
         end
     end
-
-    -- Priority 3: Fall Cleanup
-    if n == "fall" and LocalPlayer.Character.HumanoidRootPart.Velocity.Magnitude < 0.1 then
-        n = "swing"
-    end
-    
-    -- Slide Toggle
+    if n == "fall" and LocalPlayer.Character.HumanoidRootPart.Velocity.Magnitude < 0.1 then n = "swing" end
     if n == "slide" then
         if not IsTASSliding then ToggleTASSlide(true); IsTASSliding = true end
     else
         if IsTASSliding then ToggleTASSlide(false); IsTASSliding = false end
     end
-    
     if n and (n == "swing" or n == "zipline" or n ~= LastTASAnim) then
         OriginalPlayAnim(n, animTime, LocalPlayer.Character.Humanoid)
         if n == "walk" then AnimEnv.setAnimationSpeed(0.76) end
@@ -1116,7 +1114,6 @@ local function PlaybackTAS(Data)
     IsTASSliding = false
     LastTASAnim = nil
     
-    -- New Vectors & CFrames for interpolation
     local NewC, AngC, NewV = CFrame.new, CFrame.fromEulerAnglesXYZ, Vector3.new
 
     local Con
@@ -1133,7 +1130,6 @@ local function PlaybackTAS(Data)
         UpdateMapState(Elapsed)
         SyncButtonState(Elapsed, Elapsed)
         
-        -- Logic from V64.03 Player
         while OldFrame < #Data and Data[OldFrame + 1].time <= Elapsed do 
             OldFrame = OldFrame + 1 
         end
@@ -1153,19 +1149,15 @@ local function PlaybackTAS(Data)
         local Dur = FB.time - FA.time
         local Alpha = (Dur > 0) and math.clamp((Elapsed - FA.time) / Dur, 0, 1) or 0
         
-        -- Construct CFrames
         local cfA = NewC(unpack(FA.CCFrame, 1, 3)) * AngC(unpack(FA.CCFrame, 4, 6))
         local cfB = NewC(unpack(FB.CCFrame, 1, 3)) * AngC(unpack(FB.CCFrame, 4, 6))
         
-        -- Construct Camera CFrames (For Smooth Preview)
         local camA = NewC(unpack(FA.CCameraCFrame, 1, 3)) * AngC(unpack(FA.CCameraCFrame, 4, 6))
         local camB = NewC(unpack(FB.CCameraCFrame, 1, 3)) * AngC(unpack(FB.CCameraCFrame, 4, 6))
         
-        -- Construct Velocity (For Animation Logic)
         local vA = NewV(unpack(FA.VVelocity))
         local vB = NewV(unpack(FB.VVelocity))
         
-        -- Apply Interpolation
         Root.CFrame = cfA:Lerp(cfB, Alpha) + Offset
         Root.Velocity = vA:Lerp(vB, Alpha)
         Cam.CFrame = camA:Lerp(camB, Alpha) + Offset
@@ -1184,41 +1176,30 @@ local function SaveRun()
     local function Round(n) return math.floor(n * 1000 + 0.5) / 1000 end
     local Export = {}
     
-    -- HELPER: Process List of Frames
     local function ProcessFrameList(list)
         for j = 1, #list do
             local FramePacked = list[j]
             if type(FramePacked) == "string" then
                 local F = UnpackFrame(FramePacked)
-                
                 local Entry = {}
                 Entry.time = Round(F.Time)
                 Entry.AAnimation = F.Animation or {"walk", 0.1}
                 Entry.AAnimationChanged = F.Animation[2] 
-                
                 Entry.VVelocity = {Round(F.Velocity.X), Round(F.Velocity.Y), Round(F.Velocity.Z)}
                 local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
                 Entry.CCFrame = {Round(F.CFrame.X), Round(F.CFrame.Y), Round(F.CFrame.Z), Round(rx), Round(ry), Round(rz)}
-                
                 local cx, cy, cz = F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z
                 local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-                
-                -- Apply same offset as Player CFrame
                 cx = cx - MapX
                 cy = cy - (MapY - 1000)
                 cz = cz - MapZ
-                
                 Entry.CCameraCFrame = {Round(cx), Round(cy), Round(cz), Round(crx), Round(cry), Round(crz)}
                 table.insert(Export, Entry)
             end
         end
     end
 
-    -- Process Saved States
-    for i = 1, #Savestates do
-        ProcessFrameList(Savestates[i])
-    end
-    -- Process Current Buffer
+    for i = 1, #Savestates do ProcessFrameList(Savestates[i]) end
     ProcessFrameList(Frames)
     
     if not isfolder("Flood-GUI/TAS FILES") then makefolder("Flood-GUI/TAS FILES") end
@@ -1249,7 +1230,8 @@ local HBCon = RunService.Heartbeat:Connect(function(dt)
     EnforceLighting()
 
     if not RunStart then return end
-    if IsViewingTAS then return end
+    -- [[ FIXED: LAG WHEN REWINDING WITH OFFSET ]] --
+    if IsViewingTAS or IsRewinding or IsAdvancingFrame then return end
 
     if IsPreviewingForward then PreviewOffset = PreviewOffset + (dt * 5) end
     if IsPreviewingBackward then PreviewOffset = PreviewOffset - (dt * 5) end
@@ -1325,20 +1307,11 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
         elseif k == Keybinds.CollisionToggler then ToggleCollision()
         elseif k == Keybinds.SaveRun then SaveRun()
         elseif k == Keybinds.GoFrameForward then
-            
             if IsRewinding then return end
-            if not IsAdvancingFrame then
-                task.spawn(FrameAdvanceLoop)
-            end
-            
+            if not IsAdvancingFrame then task.spawn(FrameAdvanceLoop) end
         elseif k == Keybinds.GoFrameBack then 
-            
-            if IsAdvancingFrame then 
-                IsAdvancingFrame = false 
-                task.wait() 
-            end
+            if IsAdvancingFrame then IsAdvancingFrame = false; task.wait() end
             task.spawn(RewindLoop)
-            
         elseif k == "Up" then IsPreviewingForward = true
         elseif k == "Down" then IsPreviewingBackward = true
         elseif k == Keybinds.ResetToNormal then task.spawn(ResetToNormal)
@@ -1355,9 +1328,7 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
             SendAlert("Visuals Resynced", Color3.fromRGB(0, 255, 255))
         elseif k == Keybinds.ViewTAS then
             if not IsViewingTAS then
-                -- Build Data from Savestates AND Current Frames (without committing)
                 local Data = {}
-                
                 local function AddList(list)
                      for j = 1, #list do
                         local FramePacked = list[j]
@@ -1365,24 +1336,19 @@ local InputCon = UserInputService.InputBegan:Connect(function(input, gpe)
                             local F = UnpackFrame(FramePacked)
                             local rx, ry, rz = F.CFrame:ToEulerAnglesXYZ()
                             local crx, cry, crz = F.CameraCFrame:ToEulerAnglesXYZ()
-                            local Entry = {
+                            table.insert(Data, {
                                 AAnimationChanged = F.Animation[2],
                                 CCameraCFrame = {F.CameraCFrame.X, F.CameraCFrame.Y, F.CameraCFrame.Z, crx, cry, crz},
                                 CCFrame = {F.CFrame.X, F.CFrame.Y, F.CFrame.Z, rx, ry, rz},
                                 VVelocity = {F.Velocity.X, F.Velocity.Y, F.Velocity.Z},
                                 AAnimation = F.Animation or {"walk", 0.1},
                                 time = F.Time
-                            }
-                            table.insert(Data, Entry)
+                            })
                         end
                      end
                 end
-
-                for i = 1, #Savestates do
-                    AddList(Savestates[i])
-                end
-                AddList(Frames) -- Include current buffer
-                
+                for i = 1, #Savestates do AddList(Savestates[i]) end
+                AddList(Frames)
                 PlaybackTAS(Data)
             end
         end
