@@ -178,6 +178,7 @@ local function OnMapLoad(Map)
     local Attempts = 0 
     local DifferentScan = false
     local HRP = GetChar():FindFirstChild("HumanoidRootPart")
+    local Head = GetChar():FindFirstChild("Head")
     local AntiNoclip = HRP:GetPropertyChangedSignal("CFrame"):Connect(function()
         Attempts += 5
     end)
@@ -229,6 +230,7 @@ local function OnMapLoad(Map)
             else
                 AntiNoclip:Disconnect()
                 HRP.Velocity = Vector3.new(0, 100000, 0)
+                --Head:Destroy()
                 Alert("Teleported to ExitRegion.")
                 break
             end
