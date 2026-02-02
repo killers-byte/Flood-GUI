@@ -210,9 +210,9 @@ local function OnMapLoad(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        HRP.CFrame = CFrame.new(ButtonHitbox.Position)
-                        local Factor = math.random() * 10000
-                        HRP.Velocity = Vector3.new(Factor, Factor, Factor)
+                        HRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        task.wait(0.1)
                     end
                 end
             end
@@ -231,9 +231,8 @@ local function OnMapLoad(Map)
                 HRP.Velocity = Vector3.new(Factor, Factor, Factor)
                 RunService.RenderStepped:wait()
             else
-                AntiNoclip:Disconnect()
-                HRP.Velocity = Vector3.new(0, 100000, 0)
                 Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+                AntiNoclip:Disconnect()
                 Alert("Teleported to ExitRegion.")
                 break
             end
