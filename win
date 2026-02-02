@@ -177,7 +177,10 @@ local function OnMapLoad(Map)
     
     local Attempts = 0 
     local DifferentScan = false
-    
+    local HRP = GetChar():FindFirstChild("HumanoidRootPart")
+    local AntiNoclip = HRP:GetPropertyChangedSignal("CFrame"):Connect(function()
+        Attempts += 5
+    end)
     Noclip(true)
     
     while task.wait() and Check("InGame") and getgenv().TomatoAutoFarm do
@@ -205,13 +208,9 @@ local function OnMapLoad(Map)
                     if (TouchFound and GuiFound) then
                         FailedScan = false
                         HRP.Anchored = false
-                        HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
-                        HRP.CFrame = CFrame.new(ButtonHitbox.Position)
-                        HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
-                        task.spawn(function()
-                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                        end)
-                        --task.wait()
+                        HRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
+                        local Factor = math.random() * 10000
+                        HRP.Velocity = Vector3.new(Factor, Factor, Factor)
                     end
                 end
             end
@@ -223,17 +222,13 @@ local function OnMapLoad(Map)
             Noclip(false)
             HRP.Anchored = false
             if Attempts < EXITREGION_MAX_ATTEMPTS then
-                Attempts = Attempts + 1
-                HRP.Velocity = Vector3.new(math.random(), 50 + math.random(), math.random())
-                HRP.CFrame = CFrame.new(ExitRegion.Position)
-                HRP.Velocity = Vector3.new(math.random(), -50 - math.random(), math.random())
-                task.spawn(function()
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
-                if (HRP.Position - ExitRegion.Position).Magnitude <= 5 then
-                    Attempts = Attempts + 1
-                end
+                Attempts = Attempts - 1
+                HRP.CFrame = CFrame.new(ExitRegion.Position - Vector3.new(math.random(), math.random(), math.random()))
+                local Factor = math.random() * 10000
+                HRP.Velocity = Vector3.new(Factor, Factor, Factor)
             else
+                AntiNoclip:Disconnect()
+                HRP.Velocity = Vector3.new(0, -100000, 0)
                 Alert("Teleported to ExitRegion.")
                 break
             end
