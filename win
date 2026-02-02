@@ -27,7 +27,7 @@ getgenv().TomatoAutoFarm = true
 -- ==============================================================================
 
 local ALERTS_ENABLED = true
-local EXITREGION_MAX_ATTEMPTS = 15
+local EXITREGION_MAX_ATTEMPTS = 100
 local CurrentlyFarming = false
 
 local VirtualUser = game:GetService("VirtualUser")
