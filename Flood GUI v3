@@ -711,17 +711,21 @@ local function runAutoCollectLoop()
         while task.wait() do
             local Map = Multiplayer:WaitForChild("NewMap")
             Map:GetPropertyChangedSignal("Name"):Wait()
-            print("Map Loaded! V2")
-            local Character = LocalPlayer.Character
-            local Rescue = Map:FindFirstChild("_Rescue", true)
-            local LostPage = Map:FindFirstChild("_LostPage", true)
-            if Rescue then
-                Touch(Character, Rescue.Contact)
-                print("Got Escapee.")
-            end
-            if LostPage then
-                Touch(Character, LostPage)
-                print("Got Lost Page.")
+            
+            -- FIX: Check if the toggle is enabled
+            if State.AutoCollectEnabled then
+                print("Map Loaded! V2")
+                local Character = LocalPlayer.Character
+                local Rescue = Map:FindFirstChild("_Rescue", true)
+                local LostPage = Map:FindFirstChild("_LostPage", true)
+                if Rescue then
+                    Touch(Character, Rescue.Contact)
+                    print("Got Escapee.")
+                end
+                if LostPage then
+                    Touch(Character, LostPage)
+                    print("Got Lost Page.")
+                end
             end
         end
     end)
