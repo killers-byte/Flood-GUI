@@ -5,7 +5,7 @@ Main should be stable unless Flood Escape 2 updates.
 loadstring(game:HttpGet"https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/loader.lua")"main"
 ```
 
-Testing branch (DO NOT USE)
+Testing branch (USE THIS ONE)
 ```lua
 loadstring(game:HttpGet"https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/main/loader.lua")"testing"
 ```
