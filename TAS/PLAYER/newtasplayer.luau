@@ -1,9 +1,15 @@
 local TimeModifier = 1 -- [CONTROL SPEED HERE] (1 = Normal, 0.5 = 2x Speed, 2 = Slow Motion)
+local DynamicTimeScale = 1 -- [MAP EVENT MODIFIER] Dynamically scales speed mid-game
 local SmoothnessFactor = 0.15 -- [ROTATION SMOOTHING] Lower = Smoother, Higher = Snappier (0.1-0.2 recommended)
 
-print("Latest TAS Player built for V65 (Kinematic Smoothing & Pitch LERP + Auto-Queue)")
+print("Welcome to the TAS Player! (V65) - Auto-Queue & Smooth Movements Active")
 
 -- // GLOBAL CLEANUP //
+if getgenv().TAS_RestoreAnim then
+    pcall(getgenv().TAS_RestoreAnim)
+    getgenv().TAS_RestoreAnim = nil
+end
+
 if getgenv().TASConnections then
     for _, connection in pairs(getgenv().TASConnections) do
         if connection then connection:Disconnect() end
@@ -57,17 +63,50 @@ local function Log(msg, category)
     end
 end
 
+-- // MAP EVENT LISTENER INTEGRATION //
+task.spawn(function()
+    local PlayerGui = LP:WaitForChild("PlayerGui", 10)
+    local GameGui = PlayerGui and PlayerGui:WaitForChild("GameGui", 10)
+    local HUD = GameGui and GameGui:WaitForChild("HUD", 10)
+    local MapEventInfo = HUD and HUD:WaitForChild("MapEventInfo", 10)
+
+    if MapEventInfo then
+        AddConnection(MapEventInfo:GetPropertyChangedSignal("Text"):Connect(function()
+            local currentText = MapEventInfo.Text
+            local Events = {}
+            for rawEventName in string.gmatch(currentText, ">(.-)</font>") do
+                local formattedEventName = string.lower(rawEventName):gsub("%s+", "")
+                table.insert(Events, formattedEventName)
+            end
+            
+            if #Events > 0 then
+                DynamicTimeScale = 1 -- Reset base modifier before recalculating
+                for _, eventName in ipairs(Events) do
+                    if eventName == "speedup" then
+                        DynamicTimeScale = DynamicTimeScale * (1 / 1.1225)
+                    elseif eventName == "slowdown" then
+                        DynamicTimeScale = DynamicTimeScale * (1 / (1 - 0.1091))
+                    end
+                end
+                
+                local speedMultiplier = 1 / DynamicTimeScale
+                Log(string.format("Map event! Game speed adjusted to %.2fx", speedMultiplier), "Highlight")
+            end
+        end))
+    end
+end)
+
 if not getgenv().alreadystarted then
-    Log("Engine initialized (v65)", "System")
+    Log("Welcome to the TAS Engine! (v65)", "System")
     task.wait(0.1)
-    Log("Smoothing Algorithm: Adaptive LERP enabled.", "System")
+    Log("Smooth movements enabled.", "System")
     task.wait(0.1)
-    Log("Playback Speed: " .. TimeModifier .. "x", "Highlight")
+    Log("Current speed set to: " .. TimeModifier .. "x", "Highlight")
     getgenv().alreadystarted = true
 else
-    Log("Engine re-hooked (v65)", "System")
+    Log("TAS Engine reloaded! (v65)", "System")
     task.wait(0.15)
-    Log("Playback Speed: " .. TimeModifier .. "x", "Highlight")
+    Log("Current speed set to: " .. TimeModifier .. "x", "Highlight")
 end
 
 -- // FE2 WATER DETECTION SYSTEM //
@@ -91,9 +130,9 @@ local function CacheWaterParts(MapFolder)
     until #WaterParts > 0 or attempts > 10
     
     if #WaterParts > 0 then
-        Log("Hydro-Volumes synchronized: " .. #WaterParts .. " detected.", "Success")
+        Log("Found " .. #WaterParts .. " water areas for swimming.", "Success")
     else
-        Log("Water detection failed.", "Error")
+        Log("Couldn't find any water areas on this map.", "Error")
     end
 end
 
@@ -122,10 +161,17 @@ local SuccessHook, Err = pcall(function()
     local AnimateScript = LP.Character.Animate
     Animate = getsenv(AnimateScript)
     OriginalPlayAnim = Animate.playAnimation
+    
+    -- Cache function globally so re-executions can restore it BEFORE capturing the empty dummy function
+    getgenv().TAS_RestoreAnim = function()
+        if Animate and OriginalPlayAnim then
+            Animate.playAnimation = OriginalPlayAnim
+        end
+    end
 end)
 
 if not SuccessHook or not Animate then
-    Log("Animation hook failure.", "Warning")
+    Log("Warning: Could not connect to the game's animation system.", "Warning")
     Animate = { setAnimationSpeed = function() end, playAnimation = function() end }
     OriginalPlayAnim = function() end
 end
@@ -149,15 +195,19 @@ end
 getgenv().IsTASPlaying = true 
 getgenv().TASCurrentMoveDir = Vector3.new(0,0,0) 
 
-local oldIndex
-oldIndex = hookmetamethod(game, "__index", function(self, key)
-    if getgenv().IsTASPlaying and key == "MoveDirection" then
-        if self:IsA("Humanoid") and self.Parent == LP.Character then
-            return getgenv().TASCurrentMoveDir
+-- Prevent multi-execution HookMetamethod lag leaks
+if not getgenv().TASHookApplied then
+    getgenv().TASHookApplied = true
+    local oldIndex
+    oldIndex = hookmetamethod(game, "__index", function(self, key)
+        if getgenv().IsTASPlaying and key == "MoveDirection" then
+            if self:IsA("Humanoid") and self.Parent == LP.Character then
+                return getgenv().TASCurrentMoveDir
+            end
         end
-    end
-    return oldIndex(self, key)
-end)
+        return oldIndex(self, key)
+    end)
+end
 
 -- // CLEANUP & AUTO-QUEUE //
 local LiftCheckPos = Vector3.new(-25, -144, 139)
@@ -174,25 +224,23 @@ local function Cleanup(resetCharacter)
         getgenv().TASConnections = {}
     end
 
-    if Animate and OriginalPlayAnim then 
-        if LP.Character and LP.Character:FindFirstChild("Humanoid") and LP.Character.Humanoid.Health > 0 then
-            Animate.playAnimation = OriginalPlayAnim 
-            if LP.Character.Animate:FindFirstChild("ToggleSwim") then
-                LP.Character.Animate.ToggleSwim:Fire(false)
-            end
-        end
+    if getgenv().TAS_RestoreAnim then
+        pcall(getgenv().TAS_RestoreAnim)
+        getgenv().TAS_RestoreAnim = nil
     end
 
     if LP.Character then
+        if LP.Character:FindFirstChild("Animate") and LP.Character.Animate:FindFirstChild("ToggleSwim") then
+            pcall(function() LP.Character.Animate.ToggleSwim:Fire(false) end)
+        end
         if LP.Character:FindFirstChild("Humanoid") then LP.Character.Humanoid.AutoRotate = true end
         toggleSlide(false)
     end
 
     if resetCharacter and LP.Character and LP.Character:FindFirstChild("Humanoid") then
-        Log("Re-initializing session...", "Error")
+        Log("You reset or died. Halting the run and re-queuing...", "Error")
         LP.Character.Humanoid.Health = 0
         
-        -- [AUTO-QUEUE FIX INTEGRATION]
         task.spawn(function()
             local newChar = LP.CharacterAdded:Wait()
             local newRoot = newChar:WaitForChild("HumanoidRootPart", 10)
@@ -201,7 +249,7 @@ local function Cleanup(resetCharacter)
             while newChar and newChar.Parent and newRoot do
                 local dist = (newRoot.Position - LiftCheckPos).Magnitude
                 if dist <= 30 then
-                    print("TAS: Player entered lift. Stopping queue spam.")
+                    print("[TAS] Entered lift. Waiting for map to load...")
                     break
                 end
                 
@@ -212,16 +260,21 @@ local function Cleanup(resetCharacter)
     end
 end
 
+-- // RESET & REMOVAL SAFETY INJECTION //
 if LP.Character and LP.Character:FindFirstChild("Humanoid") then
     AddConnection(LP.Character.Humanoid.Died:Connect(function() Cleanup(false) end))
 end
+AddConnection(LP.CharacterRemoving:Connect(function() Cleanup(false) end))
+
 
 -- // SMART START LOGIC //
 local Map = nil
 
 while not Map and not CleanedUp do
     local ConditionsMet = false
-    Log("Awaiting queue entry...", "Warning")
+    Log("Waiting for you to step into the lift...", "Warning")
+    
+    -- Loop 1: Wait for you to step inside
     repeat
         task.wait(0.2)
         local Root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
@@ -232,12 +285,28 @@ while not Map and not CleanedUp do
     until ConditionsMet or CleanedUp
     
     if CleanedUp then return end
-    Log("Queue confirmed. Awaiting map data...", "System")
+    Log("Lift entered! Waiting for the map to load.", "System")
     
-    while ConditionsMet and not CleanedUp do
-        local FoundMap = Multi:FindFirstChild("NewMap")
-        if FoundMap then Map = FoundMap; break end
+    -- Loop 2: Wait for map, BUT constantly check if you leave the lift
+    while ConditionsMet and not Map and not CleanedUp do
         task.wait(0.1)
+        
+        local FoundMap = Multi:FindFirstChild("NewMap")
+        if FoundMap then 
+            Map = FoundMap
+            break 
+        end
+        
+        -- Check distance again to see if you left
+        local Root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if Root then
+            local Dist = (Root.Position - LiftCheckPos).Magnitude
+            -- If you are farther than 30 studs, but NOT teleported to a map (>800)
+            if Dist > 30 and Dist < 800 then
+                Log("You left the lift! Pausing until you return.", "Warning")
+                ConditionsMet = false -- This breaks the loop and goes back to "Waiting..."
+            end
+        end
     end
 end
 
@@ -260,7 +329,7 @@ if not path then
 end
 
 if not success or #path < 50 then
-    Log("Download failed: No data for '".. realMapName .."'.", "Error")
+    Log("Oops! We don't have a TAS file for '".. realMapName .."'.", "Error")
     Cleanup(true)
     return
 end
@@ -268,19 +337,13 @@ end
 local TAS
 local DecodeSuccess, _ = pcall(function() TAS = HttpService:JSONDecode(path) end)
 if not TAS or not DecodeSuccess then
-    Log("Parse error: Corrupted JSON.", "Error")
+    Log("Uh oh, the TAS file for this map seems corrupted.", "Error")
     Cleanup(true)
     return
 end
 
-if TimeModifier ~= 1 then
-    for _, Frame in ipairs(TAS) do
-        if Frame.time then Frame.time = Frame.time * TimeModifier end
-    end
-end
-
 local OriginalFrameCount = #TAS
-Log(string.format("Data validated: %d Frames loaded.", OriginalFrameCount), "Info")
+Log("Loaded run for " .. realMapName .. " (" .. OriginalFrameCount .. " frames).", "Info")
 repeat task.wait() until Map.Name == "Map" or CleanedUp
 if CleanedUp then return end
 
@@ -295,12 +358,11 @@ local t = 0
 repeat task.wait(0.1); t=t+0.1; if not SpawnPoint then SpawnPoint = Map:FindFirstChild("Spawn", true) end
 until SpawnPoint or t > 10 or CleanedUp
 
-if not SpawnPoint then Log("Failed to resolve map spawn.", "Error") Cleanup(true) return end
+if not SpawnPoint then Log("Hmm, couldn't find where to spawn on this map.", "Error") Cleanup(true) return end
 
 -- // MAP PRE-PROCESSING //
 CacheWaterParts(Map)
 
--- [HITBOX EXPANDER]
 for _, v in next, Map:GetDescendants() do
     if v.Name == 'ButtonIcon' then
         pcall(function()
@@ -309,10 +371,10 @@ for _, v in next, Map:GetDescendants() do
         end)
     end
 end
-Log("Map volumes processed.", "Success")
+Log("Map buttons and elements processed.", "Success")
 
 task.wait(0.1)
-Log("Executing playback...", "Success")
+Log("Starting the run! Sit back and relax.", "Success")
 
 local RootPart = LP.Character:WaitForChild("HumanoidRootPart", 10)
 local Humanoid = LP.Character:WaitForChild("Humanoid", 10)
@@ -322,7 +384,6 @@ while (RootPart.Anchored == true) or (Humanoid.WalkSpeed <= 0) do
     task.wait()
 end
 
-local TimeStart = os.clock()
 if LP.Character and LP.Character:FindFirstChild("Humanoid") then
     LP.Character.Humanoid.AutoRotate = false
 end
@@ -347,7 +408,6 @@ local function activateAnimation(AnimData, Elapsed)
     local animTime = AnimData[2] or 0.1
     Elapsed = Elapsed or 0
 
-    -- // WATER LOGIC //
     local checkSubmerged = IsInWater(RootPart.Position + Vector3.new(0, 1, 0))
     if checkSubmerged then
         IsCurrentlySwimming = true
@@ -389,18 +449,29 @@ local OldFrame = 3
 local RenderedFrames = 0
 local FinishedRun = false
 
--- // PHYSICS LOOP //
+-- // PHYSICS LOOP SETUP //
+local VisualElapsed = 0
+local LastClock = os.clock()
+
 local MainLoop
 MainLoop = RS.Heartbeat:Connect(function()
     if not RootPart or not RootPart.Parent or not Humanoid or not Humanoid.Parent or CleanedUp then 
         if MainLoop then MainLoop:Disconnect() end
+        if not CleanedUp then
+            Log("Player removed from game. Halting the run.", "Warning")
+            Cleanup(false) 
+        end
         return 
     end
     
     RenderedFrames = RenderedFrames + 1
-    local Elapsed = os.clock() - TimeStart
     
-    -- [WALLJUMP BLOCKER]
+    local CurrentClock = os.clock()
+    local Delta = CurrentClock - LastClock
+    LastClock = CurrentClock
+    
+    VisualElapsed = VisualElapsed + (Delta * (1 / (TimeModifier * DynamicTimeScale)))
+    
     local liveWeld = RootPart:FindFirstChild("WalljumpWeld_Live")
     if liveWeld then liveWeld:Destroy() end
     local serverWeld = RootPart:FindFirstChild("WalljumpWeld_Server")
@@ -408,15 +479,17 @@ MainLoop = RS.Heartbeat:Connect(function()
 
     Humanoid.Health = 99999
     
-    while OldFrame < #TAS and TAS[OldFrame + 1].time <= Elapsed do OldFrame = OldFrame + 1 end
+    while OldFrame < #TAS and TAS[OldFrame + 1].time <= VisualElapsed do OldFrame = OldFrame + 1 end
+    
     if OldFrame >= #TAS then
         if not FinishedRun then
             FinishedRun = true
-            Log("Playback successfully concluded.", "Success")
-            if Animate and OriginalPlayAnim then
-                 Animate.playAnimation = OriginalPlayAnim
-                 pcall(function() OriginalPlayAnim("idle", 0.1, Humanoid) end)
+            Log("Run completed successfully! Awesome.", "Success")
+            if getgenv().TAS_RestoreAnim then 
+                pcall(getgenv().TAS_RestoreAnim)
+                getgenv().TAS_RestoreAnim = nil
             end
+            pcall(function() OriginalPlayAnim("idle", 0.1, Humanoid) end)
             Cleanup(false) 
         end
         return
@@ -425,9 +498,8 @@ MainLoop = RS.Heartbeat:Connect(function()
     local FA = TAS[OldFrame]
     local FB = TAS[OldFrame + 1] or FA
     
-    -- // KINEMATIC INTERPOLATION //
     local Dur = FB.time - FA.time
-    local Alpha = (Dur > 0) and math.clamp((Elapsed - FA.time) / Dur, 0, 1) or 0
+    local Alpha = (Dur > 0) and math.clamp((VisualElapsed - FA.time) / Dur, 0, 1) or 0
 
     local cfA = NewC(FA.CCFrame[1], FA.CCFrame[2], FA.CCFrame[3]) * AngC(FA.CCFrame[4], FA.CCFrame[5], FA.CCFrame[6])
     local cfB = NewC(FB.CCFrame[1], FB.CCFrame[2], FB.CCFrame[3]) * AngC(FB.CCFrame[4], FB.CCFrame[5], FB.CCFrame[6])
@@ -437,7 +509,6 @@ MainLoop = RS.Heartbeat:Connect(function()
     local TargetVelocity = vA:Lerp(vB, Alpha)
     getgenv().TASCurrentMoveDir = TargetVelocity.Magnitude > 0 and TargetVelocity.Unit or Vector3.zero
 
-    -- // ADVANCED ROTATION LERP & PITCH //
     local TargetCFrame = cfA:Lerp(cfB, Alpha) + Offset
     
     if IsCurrentlySwimming and TargetVelocity.Magnitude > 0.5 then
@@ -448,6 +519,6 @@ MainLoop = RS.Heartbeat:Connect(function()
     end
     
     RootPart.Velocity = TargetVelocity
-    pcall(activateAnimation, FA.AAnimation, Elapsed)
+    pcall(activateAnimation, FA.AAnimation, VisualElapsed)
 end)
 AddConnection(MainLoop)
