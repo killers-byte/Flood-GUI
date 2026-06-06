@@ -16,11 +16,11 @@ local CoreGui = game:GetService("CoreGui") -- Added for potential future use or 
 -- // Constants & Configuration //
 local CONFIG = {
     SCRIPT_VERSION_NAME = "Flood GUI v3",
-    LATEST_BUILD = 63.2,
+    LATEST_BUILD = 65,
     DEFAULT_BRANCH = "testing",
-    UI_LIBRARY_URL = "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua",
-    TAS_BASE_URL = "https://raw.githubusercontent.com/Swelllow/Testing/main/Flood-GUI-main/TAS%20FILES/",
-    TAS_PLAYER_URL_FORMAT = "https://raw.githubusercontent.com/Swelllow/Flood-GUI/%s/TAS/TAS%%20Player", -- %s for branch
+    UI_LIBRARY_URL = "https://raw.githubusercontent.com/tomatotxt/code/refs/heads/main/kavomobile.luau",
+    TAS_BASE_URL = "https://raw.githubusercontent.com/tomatotxt/Testing/main/Flood-GUI-main/TAS%20FILES/",
+    TAS_PLAYER_URL_FORMAT = "https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/testing/TAS/PLAYER/newtasplayer.luau", -- %s for branch
     DISCORD_INVITE = "https://discord.gg/8N2M9fHJqa",
     FILES_FOLDER = "Flood-GUI",
     TAS_SUBFOLDER = "TAS FILES",
@@ -60,6 +60,7 @@ if not LocalPlayer then
 end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+local Multiplayer = workspace.Multiplayer
 
 -- Accessing client environment safely
 local ClientMainScriptEnv = nil
@@ -85,6 +86,7 @@ local State = {
     NoclipEnabled = false,
     AirJumpEnabled = false,
     AutoPlayEnabled = false, -- Formerly 'play'
+    AutoCollectEnabled = false,
     SwimEnabled = false,     -- For TAS recording hook
     AutoLeaveEnabled = false,
     UIEnabled = true,
@@ -94,6 +96,9 @@ local State = {
     KavoLibrary = nil,
     UI = {}                 -- Store references to UI elements if needed later
 }
+getgenv().State = function()
+    return State
+end
 getgenv().FloodGUI_Loaded = false
 -- Check if already executed
 if getgenv().FloodGUI_Loaded then
@@ -275,6 +280,14 @@ local function getRemoteKey()
     end
 end
 
+local function Touch(Character, Part)
+    local RootPart = Character.HumanoidRootPart
+    local OriginalCFrame = RootPart.CFrame
+    RootPart.CFrame = CFrame.new(Part.Position)
+    task.wait()
+    RootPart.CFrame = OriginalCFrame
+end
+
 -- // Core Logic Functions //
 local function updateMovement()
     local char = LocalPlayer.Character
@@ -381,7 +394,17 @@ local function initializeUI()
         -- end
     end)
     State.AutoPlayEnabled = false -- Set initial state
+    secAuto:NewToggle("Auto Collect (Page-Escapee)", "Collects LostPage and Escapee automatically.", function(enabled)
+        State.AutoCollectEnabled = enabled
+        if enabled then
+             showAlert("Auto Collect Enabled", CONFIG.ALERT_COLORS.INFO)
+        else
+             showAlert("Auto Collect Disabled.", CONFIG.ALERT_COLORS.INFO)
+        end
+    end)
+    State.AutoCollectEnabled = false
 
+--[[
     secAuto:NewButton("Download TAS files", "Downloads required TAS files from GitHub.", function()
         local tasFolderPath = CONFIG.FILES_FOLDER .. "/" .. CONFIG.TAS_SUBFOLDER
         if getgenv().isfolder and not isfolder(tasFolderPath) then
@@ -433,7 +456,7 @@ local function initializeUI()
             showAlert(("Finished downloading TAS files. Success: %d, Failed/Skipped: %d"):format(downloadedCount, failedCount + (#State.Maps - downloadedCount - failedCount)), CONFIG.ALERT_COLORS.INFO)
         end)
     end)
-
+]]
     -- == Local Player Tab ==
     secLocalPlayer:NewSlider("Walkspeed", "Changes your movement speed.", CONFIG.MAX_WALKSPEED, CONFIG.DEFAULT_WALKSPEED, function(value)
         State.WalkSpeed = math.max(1, value) -- Ensure walkspeed is at least 1
@@ -462,9 +485,10 @@ local function initializeUI()
     end)
 
     -- == TAS Tab ==
-    secTAS:NewButton("Create-TAS [WIP]", "Create a TAS recording.", function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Swelllow/Flood-GUI/refs/heads/testing/TAS/TAS%20Record%20Voiz"))()
+    secTAS:NewButton("Create TAS", "Create a TAS recording.", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/tomatotxt/Flood-GUI/refs/heads/testing/TAS/CREATOR/creator.luau"))()
     end)
+
 
     secTAS:NewKeybind("Toggle Swim [TAS]", "For TAS recording. Simulates being in water.", CONFIG.SWIM_TOGGLE_KEY, function()
          State.SwimEnabled = not State.SwimEnabled
@@ -472,16 +496,8 @@ local function initializeUI()
          -- Logic is handled by the __index hook (if available and enabled)
     end)
 
-    secTAS:NewToggle("Auto-Leave", "Automatically leaves the game if another player joins.", function(enabled)
-        State.AutoLeaveEnabled = enabled
-        showAlert("Auto-Leave " .. (enabled and "Enabled" or "Disabled"), enabled and CONFIG.ALERT_COLORS.INFO or CONFIG.ALERT_COLORS.INFO)
-        -- Logic handled in Players.PlayerAdded
-    end)
-    State.AutoLeaveEnabled = false -- Set Initial Value
-     secTAS:NewButton("Rejoin Server", "Teleports you to a new server of the same game.", function()
-        showAlert("Attempting to rejoin...", CONFIG.ALERT_COLORS.INFO)
-        pcall(TeleportService.Teleport, TeleportService, game.PlaceId, LocalPlayer)
-        -- Consider adding error handling/feedback if Teleport fails
+    secTAS:NewButton("Load Infinite Yield", "Loads Infinite Yield Admin Script", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/edgeiy/infiniteyield/master/source"))()
     end)
 
     -- == Other Tab ==
@@ -495,15 +511,18 @@ local function initializeUI()
         end
     end)
 
-    secOther:NewLabel("Discord Invite")
-    secOther:NewButton("Copy Support Server Invite", "Copies the Discord invite link to your clipboard.", function()
-        if setclipboard then
-            pcall(setclipboard, CONFIG.DISCORD_INVITE)
-            showAlert("Discord invite copied to clipboard!", CONFIG.ALERT_COLORS.SUCCESS)
-        else
-            showAlert("Clipboard access not supported by your exploit.", CONFIG.ALERT_COLORS.WARNING)
-        end
+    secOther:NewToggle("Auto-Leave", "Automatically leaves the game if another player joins.", function(enabled)
+        State.AutoLeaveEnabled = enabled
+        showAlert("Auto-Leave " .. (enabled and "Enabled" or "Disabled"), enabled and CONFIG.ALERT_COLORS.INFO or CONFIG.ALERT_COLORS.INFO)
+        -- Logic handled in Players.PlayerAdded
     end)
+    State.AutoLeaveEnabled = false -- Set Initial Value
+    secOther:NewButton("Rejoin Server", "Teleports you to a new server of the same game.", function()
+        showAlert("Attempting to rejoin...", CONFIG.ALERT_COLORS.INFO)
+        pcall(TeleportService.Teleport, TeleportService, game.PlaceId, LocalPlayer)
+        -- Consider adding error handling/feedback if Teleport fails
+    end)
+
 
     -- == Credits Tab ==
     secCredits:NewLabel("TAS Record/Playback: Voiz#5668")
@@ -511,6 +530,15 @@ local function initializeUI()
     secCredits:NewLabel("Stat Tracker Concept & Misc: Moz") -- Added note about concept if not implemented
     secCredits:NewLabel("UI Library: xHeptc (Kavo)")
     secCredits:NewLabel("Refactoring & Improvements: AI")
+    secCredits:NewLabel("Discord Invite")
+    secCredits:NewButton("Copy Support Server Invite", "Copies the Discord invite link to your clipboard.", function()
+        if setclipboard then
+            pcall(setclipboard, CONFIG.DISCORD_INVITE)
+            showAlert("Discord invite copied to clipboard!", CONFIG.ALERT_COLORS.SUCCESS)
+        else
+            showAlert("Clipboard access not supported by your exploit.", CONFIG.ALERT_COLORS.WARNING)
+        end
+    end)
 
     -- == Stat Tracker Section (Optional - Uncomment and integrate if needed) ==
     --[[
@@ -640,29 +668,63 @@ end
 
 -- // TAS Player Loop //
 local function runTASPlayerLoop()
-    -- This loop attempts to load and execute the TAS player script repeatedly
-    -- if AutoPlay is enabled. This is INEFFICIENT but matches original behavior
-    -- (likely for live updates from the GitHub source without re-running the main GUI).
     local tasPlayerUrl = CONFIG.TAS_PLAYER_URL_FORMAT:format(State.Branch)
-    local lastLoadAttempt = 0
-    local loadInterval = 2 -- Seconds between load attempts when active
 
     task.spawn(function()
-        while task.wait(0.5) do -- Check state periodically
-            if State.AutoPlayEnabled and tick() - lastLoadAttempt > loadInterval then
-                lastLoadAttempt = tick()
-                local playerSource = safeHttpGet(tasPlayerUrl)
-                if playerSource then
-                    local success, err = pcall(loadstring(playerSource))
-                    if not success then
-                        warn("Error loading/running TAS player script:", err)
-                        -- Optionally disable autoplay on error?
-                        -- State.AutoPlayEnabled = false
-                        -- showAlert("Disabled Auto-Play due to script error.", CONFIG.ALERT_COLORS.ERROR)
+        while task.wait(1) do -- Check every second
+            if State.AutoPlayEnabled then
+                -- CHECK: Is the TAS already running?
+                -- We look at the global table. If it has connections, the script is active.
+                local connections = getgenv().TASConnections
+                local isRunning = connections and #connections > 0
+
+                if not isRunning then
+                    -- Only download and run if it is NOT currently running
+                    print("Flood GUI: Auto-Play starting new TAS instance...")
+                    
+                    -- NOTE: If you haven't updated the GitHub file with the code I gave you,
+                    -- this will download the OLD/BROKEN version. 
+                    -- To test your local fix, replace 'safeHttpGet(tasPlayerUrl)' with 'readfile("MyFixedTAS.lua")'
+                    local playerSource = safeHttpGet(tasPlayerUrl)
+                    
+                    if playerSource then
+                        local taskFunc, err = loadstring(playerSource)
+                        if taskFunc then
+                            task.spawn(taskFunc) -- Execute safely
+                        else
+                            warn("Error loading TAS script:", err)
+                        end
+                    else
+                        warn("Failed to download TAS player script.")
                     end
-                else
-                    warn("Failed to download TAS player script.")
-                    -- Optionally disable autoplay on error?
+
+                    -- Wait a moment to allow the new script to initialize and fill the table
+                    task.wait(3) 
+                end
+            end
+        end
+    end)
+end
+
+local function runAutoCollectLoop()
+    task.spawn(function()
+        while task.wait() do
+            local Map = Multiplayer:WaitForChild("NewMap")
+            Map:GetPropertyChangedSignal("Name"):Wait()
+            
+            -- FIX: Check if the toggle is enabled
+            if State.AutoCollectEnabled then
+                print("Map Loaded! V2")
+                local Character = LocalPlayer.Character
+                local Rescue = Map:FindFirstChild("_Rescue", true)
+                local LostPage = Map:FindFirstChild("_LostPage", true)
+                if Rescue then
+                    Touch(Character, Rescue.Contact)
+                    print("Got Escapee.")
+                end
+                if LostPage then
+                    Touch(Character, LostPage)
+                    print("Got Lost Page.")
                 end
             end
         end
@@ -689,6 +751,8 @@ local function main()
 
     -- Start the TAS player loading loop (only if AutoPlay is intended to work this way)
     runTASPlayerLoop()
+    -- Start the Auto Collect loop.
+    runAutoCollectLoop()
 
     State.IsLoaded = true
     print("Flood GUI Initialized.")
