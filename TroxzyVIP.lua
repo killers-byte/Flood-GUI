@@ -74,7 +74,7 @@ end
 
 -- Version
 local SCRIPT_VERSION = "16.2"
-local UPDATE_URL = "https://raw.githubusercontent.com/KenshinEra/random-files/refs/heads/main/TroxzyVIP.lua"
+local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
     notify("Checking for updates...", "Updater")
