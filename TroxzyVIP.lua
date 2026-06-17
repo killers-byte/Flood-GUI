@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v19.1 – ANTI-ADMIN + ANTI-REPORT (STAY IN SERVER)
--- 🔥 Tetap di server meski ada admin / pemain lain
--- 🛡️ Blokir remote berbahaya + matikan report abuse
--- ✅ Perubahan dari v19.0: proteksi admin & report tanpa auto-leave
+-- TROXZY VIP v19.2 – TAS FILE CHECK + ANTI-ADMIN/ANTI-REPORT (STAY)
+-- 🔥 Cek ketersediaan file .json sebelum jalankan TAS
+-- 🛡️ Anti-Admin: blokir remote berbahaya tanpa leave
+-- 🛡️ Anti-Report: cegah laporan abuse, tetap stay di server
+-- 📱 UI selalu muncul, mobile optimized
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -101,7 +102,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.1"
+local SCRIPT_VERSION = "19.2"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -134,7 +135,7 @@ local CONFIG = {
     AIR_SWIM = true,
     TIMER_HOOK = false,
     ANTI_REPORT = false,
-    ANTI_ADMIN = false,               -- 🔥 baru: proteksi admin tanpa leave
+    ANTI_ADMIN = false,
     CUSTOM_FLOOD_COLORS = false,
     FLOOD_COLOR = "Blue"
 }
@@ -209,7 +210,7 @@ local function detectAdmins()
     return false
 end
 
--- 🔥 FUNGSI BARU: Blokir remote admin yang berbahaya
+-- 🔥 Blokir remote admin berbahaya
 local function blockAdminRemotes()
     local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
     local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
@@ -218,7 +219,6 @@ local function blockAdminRemotes()
             local lowerName = remote.Name:lower()
             for _, kw in ipairs(dangerousKeywords) do
                 if lowerName:find(kw) then
-                    -- Pasang handler kosong untuk menelan event berbahaya
                     remote.OnClientEvent:Connect(function() end)
                     notify("Blocked remote: " .. remote.Name, "Anti-Admin")
                     break
@@ -228,22 +228,30 @@ local function blockAdminRemotes()
     end
 end
 
--- 🔥 FUNGSI BARU: Cegah laporan (report abuse)
+-- 🔥 Cegah laporan
 local function preventReports()
     if not CONFIG.ANTI_REPORT then return end
-    -- Override fungsi report abuse agar tidak melakukan apa-apa
-    local oldReportAbuse = Players.ReportAbuse
-    Players.ReportAbuse = function() end
-    notify("Report abuse disabled!", "Anti-Report")
+    pcall(function()
+        local oldReportAbuse = Players.ReportAbuse
+        Players.ReportAbuse = function() end
+        notify("Report abuse disabled!", "Anti-Report")
+    end)
 end
 
--- Deteksi admin: jika ketemu, jalankan proteksi (tanpa leave)
+-- 🔥 Pengecekan ketersediaan file TAS
+local function isTASFileAvailable(mapName)
+    if not isfile then return true end -- fallback untuk executor tanpa isfile
+    local path = "TAS FILES/" .. mapName .. ".json"
+    return isfile(path)
+end
+
+-- Deteksi admin, jalankan proteksi (tetap stay)
 local lastAdminAlert = 0
 local function handleAdminDetection()
     if not CONFIG.ADMIN_DETECTOR then return end
     if not detectAdmins() then return end
     local now = tick()
-    if now - lastAdminAlert < 10 then return end -- jangan spam notifikasi
+    if now - lastAdminAlert < 10 then return end
     lastAdminAlert = now
     Stats.adminDetected = Stats.adminDetected + 1
     notify("Admin terdeteksi! Mengaktifkan proteksi...", "Anti-Admin")
@@ -253,7 +261,7 @@ local function handleAdminDetection()
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
 end
 
--- Anti-Report: pasang pencegahan report (tetap di server)
+-- Anti-Report: pasang pencegahan
 local function handleAntiReport()
     if not CONFIG.ANTI_REPORT then return end
     preventReports()
@@ -601,16 +609,21 @@ local function OnMapLoad(map)
     clearESPCache()
     local settings = map:WaitForChild("Settings", 10)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-    handleAdminDetection()  -- cek admin dan proteksi
+    handleAdminDetection()
     handleAntiReport()
 
-    -- TAS Play Auto early return with MapDetect reset
+    -- TAS Play Auto: cek apakah file TAS tersedia
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-        _G.TroxzyAutoFarm = true
-        DisconnectMapDetection()
-        CONFIG.TAS_MODE = "Play"
-        task.spawn(ExecuteTAS)
-        return
+        if isTASFileAvailable(mapName) then
+            _G.TroxzyAutoFarm = true
+            DisconnectMapDetection()
+            CONFIG.TAS_MODE = "Play"
+            task.spawn(ExecuteTAS)
+            return
+        else
+            notify("TAS file not found for: " .. mapName .. ". Farming instead.", "TAS")
+            -- lanjut farming biasa
+        end
     end
 
     if isMapBlacklisted(mapName) then
@@ -702,7 +715,7 @@ local function OnMapLoad(map)
     while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
         if not CurrentlyFarming then break end
 
-        -- Timer Hook: teleport ke ExitRegion setelah 3 detik
+        -- Timer Hook
         if TimerHookActive and CONFIG.TIMER_HOOK and (tick() - TimerHookStart > 3) then
             local exitRegion = map:FindFirstChild("ExitRegion", true)
             if exitRegion then
@@ -772,6 +785,11 @@ local function OnMapLoad(map)
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
     notify("Complete!", "System")
     clearESPCache()
+
+    -- Reset MapDetect jika TAS Play Auto aktif
+    if _G.TAS_PLAY_AUTO_ACTIVE then
+        DisconnectMapDetection()
+    end
 end
 
 -- ==================== MAP DETECTION ====================
@@ -832,8 +850,13 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         task.wait(1)
         AddedWaiting:FireServer()
         if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-            CONFIG.TAS_MODE = "Play"
-            task.spawn(ExecuteTAS)
+            local mapName = ft.name or CONFIG.TARGET_MAP
+            if isTASFileAvailable(mapName) then
+                CONFIG.TAS_MODE = "Play"
+                task.spawn(ExecuteTAS)
+            else
+                notify("TAS file not found for: " .. mapName, "TAS")
+            end
         elseif CONFIG.TAS_AUTO_START then
             notify("TAS Auto-Start is ON but Play Auto is OFF. Skipping TAS.", "Info")
         else
@@ -1452,8 +1475,8 @@ AddInput("Visual", "FOV", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL = v end)
 AddSection("Stealth", "ANTI-DETECTION")
 AddToggle("Stealth", "Stealth Mode", "STEALTH_MODE")
 AddToggle("Stealth", "Admin Detector", "ADMIN_DETECTOR")
-AddToggle("Stealth", "Anti-Admin", "ANTI_ADMIN")          -- 🔥 toggle baru
-AddToggle("Stealth", "Anti-Report", "ANTI_REPORT")        -- 🔥 toggle baru (tetap stay)
+AddToggle("Stealth", "Anti-Admin", "ANTI_ADMIN")
+AddToggle("Stealth", "Anti-Report", "ANTI_REPORT")
 AddToggle("Stealth", "Random Delay", "RANDOM_DELAY")
 AddToggle("Stealth", "Hide Script", "HIDE_SCRIPT")
 AddToggle("Stealth", "Map Rotation", "MAP_ROTATION")
@@ -1508,7 +1531,7 @@ CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 -- Notification
-notify("Troxzy VIP loaded! Tap ☰ to toggle menu.", "Welcome")
+notify("Troxzy VIP v19.2 loaded! ☰ to toggle menu.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1543,7 +1566,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
 
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
 
-        -- Air Swim (selalu aktifkan anti-stuck, tapi hanya override jika AIR_SWIM on)
+        -- Anti-stuck renang (selalu, tapi Air Swim hanya jika toggled)
         if hum:GetState() == Enum.HumanoidStateType.Swimming then
             hum:ChangeState(Enum.HumanoidStateType.Landed)
             hum.PlatformStand = false
@@ -1593,6 +1616,7 @@ task.spawn(function()
     end
 end)
 
+-- Admin detection loop
 task.spawn(function()
     while task.wait(10) do
         if CONFIG.ADMIN_DETECTOR then
@@ -1623,6 +1647,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.1 – Anti-Admin & Anti-Report (Stay in Server)")
-print("Now you stay in game while being protected from admins and reports.")
--- end of script
+print("Troxzy VIP v19.2 – TAS File Check + Anti-Admin/Report (Stay)")
+print("Now verifies TAS files before playing. Protected without leaving.")
