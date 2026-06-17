@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v19.3 – TAS PAUSE + AUTO-QUEUE DI LIFT
--- 🔥 Pause TAS tanpa matikan auto‑queue
--- 🔥 TAS otomatis berjalan lagi setelah map berganti (auto‑queue stabil)
--- 🛡️ Anti-Admin & Anti-Report (stay in server)
+-- TROXZY VIP v19.4 – TAS AUTO‑QUEUE STABIL + FILE CHECK ROBUST
+-- 🔥 TAS otomatis berjalan tiap map, tanpa henti
+-- 🔥 Deteksi akhir TAS real‑time, reset flag executing
+-- 🔥 Pengecekan file .json lebih toleran (case/spasi)
+-- 🔥 Anti‑Admin & Anti‑Report (stay in server)
 -- 📱 UI selalu tampil
 -- ============================================
 
@@ -104,7 +105,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.3"
+local SCRIPT_VERSION = "19.4"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -240,10 +241,18 @@ local function preventReports()
     end)
 end
 
--- Pengecekan ketersediaan file TAS
+-- Pengecekan ketersediaan file TAS (toleran terhadap case dan spasi)
 local function isTASFileAvailable(mapName)
-    if not isfile then return true end
+    if not isfile then return true end -- fallback
+    local cleanName = mapName:gsub("^%s+", ""):gsub("%s+$", ""):lower()
+    -- cek langsung
     local path = "TAS FILES/" .. mapName .. ".json"
+    if isfile(path) then return true end
+    -- cek dengan lowercase
+    path = "TAS FILES/" .. cleanName .. ".json"
+    if isfile(path) then return true end
+    -- cek dengan mengganti spasi menjadi tanda hubung (untuk map seperti Dark Sci-Forest)
+    path = "TAS FILES/" .. cleanName:gsub(" ", "-") .. ".json"
     return isfile(path)
 end
 
@@ -383,6 +392,7 @@ local function ExecuteTAS()
         return
     end
     if _G.TAS_EXECUTING then
+        notify("TAS masih berjalan...", "TAS")
         return
     end
 
@@ -405,17 +415,19 @@ local function ExecuteTAS()
         _G.TAS_EXECUTING = false
         return
     end
-    local execOk, execErr = pcall(f)
-    if not execOk then
-        notify("TAS Error: " .. tostring(execErr), "Error")
-    else
-        notify("TAS Loaded!", "Success")
-    end
-
-    -- Reset executing flag setelah 10 detik (fallback jika TAS macet)
-    task.delay(10, function()
+    -- Jalankan TAS dalam thread terpisah, setelah selesai reset flag
+    task.spawn(function()
+        pcall(f)
+        -- TAS selesai, reset executing flag
         _G.TAS_EXECUTING = false
+        notify("TAS completed!", "TAS")
+        -- Kembalikan AutoFarm true agar Watchdog loop tetap hidup
+        if _G.TAS_PLAY_AUTO_ACTIVE then
+            _G.TroxzyAutoFarm = true
+            DisconnectMapDetection() -- putuskan MapDetect, nanti Watchdog akan reconnect
+        end
     end)
+    notify("TAS Loaded!", "Success")
 end
 
 -- ==================== GAME DETECTION ====================
@@ -1486,7 +1498,7 @@ AddInfoLabel("Farm", "[Target] " .. CONFIG.TARGET_MAP)
 AddSection("TAS", "TAS LOADER")
 AddToggle("TAS", "TAS Auto-Start", "TAS_AUTO_START")
 AddToggle("TAS", "TAS Play Auto", "TAS_PLAY_AUTO")
-AddToggle("TAS", "Pause TAS", "TAS_PAUSE")       -- 🔥 Toggle Pause
+AddToggle("TAS", "Pause TAS", "TAS_PAUSE")
 AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
     if not CONFIG.TAS_AUTO_START then
         notify("Enable TAS Auto-Start first", "TAS")
@@ -1569,7 +1581,7 @@ CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 -- Notification
-notify("Troxzy VIP v19.3 loaded! ☰ to toggle menu.", "Welcome")
+notify("Troxzy VIP v19.4 loaded! ☰ to toggle menu.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1632,15 +1644,20 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP (AUTO‑QUEUE) ====================
+-- ==================== WATCHDOG LOOP (AUTO‑QUEUE DENGAN RESET FLAG) ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            -- Jika di lift, pastikan MapDetect siap untuk map baru
+            -- Jika di lift, putuskan MapDetect agar siap koneksi baru
             if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
                 DisconnectMapDetection()
+                -- Reset flag executing jika TAS sebelumnya sudah selesai (fallback)
+                if _G.TAS_EXECUTING and not CurrentlyFarming then
+                    _G.TAS_EXECUTING = false
+                end
             end
-            -- Jika di game, dan TAS tidak pause/tidak executing, jalankan TAS lagi
+            -- Jika di game dan TAS tidak pause/tidak executing, jalankan TAS
+            -- (ini hanya fallback, seharusnya OnMapLoad sudah menjalankan TAS)
             if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
                 local map = Multiplayer:FindFirstChildWhichIsA("Model")
                 if map then
@@ -1702,5 +1719,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.3 – TAS Pause + Auto-Queue di Lift")
-print("Pause button added. TAS resumes automatically on next map.")
+print("Troxzy VIP v19.4 – TAS Auto-Queue Stabil + File Check Robust")
+print("TAS flag reset properly, file name matching improved.")
