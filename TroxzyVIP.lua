@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v17.7 [AUTO FARM FLAG FIXED]
--- 🔥 _G.TroxzyAutoFarm dikembalikan ke true setelah map selesai
+-- TROXZY VIP v17.8 [TAS PRIORITY OVER FARM]
+-- 🔥 Saat TAS Play Auto aktif, OnMapLoad langsung jalankan TAS, bypass farming
 -- 📱 Mobile-first optimized
 -- ============================================
 
@@ -91,7 +91,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "17.7"
+local SCRIPT_VERSION = "17.8"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -441,6 +441,14 @@ local function OnMapLoad(map)
     local settings = map:WaitForChild("Settings", 10)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
     autoLeaveIfAdmin()
+
+    -- 🔥 Jika TAS Play Auto aktif, langsung jalankan TAS dan jangan lanjut ke farming
+    if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
+        CONFIG.TAS_MODE = "Play"
+        task.spawn(ExecuteTAS)
+        return
+    end
+
     if isMapBlacklisted(mapName) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
         notify("Blacklisted: " .. mapName, "Skip"); saveStats()
@@ -511,7 +519,7 @@ local function OnMapLoad(map)
     notify("Complete!", "System")
     clearESPCache()
 
-    -- 🔥 Kunci: Set AutoFarm true agar Watchdog loop bisa reconnect
+    -- Set AutoFarm true agar Watchdog loop bisa reconnect untuk map berikutnya
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         _G.TroxzyAutoFarm = true
         CONFIG.TAS_MODE = "Play"
@@ -989,5 +997,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v17.7 - Auto Farm Flag Fixed")
-print("_G.TroxzyAutoFarm dikembalikan true setelah map selesai, Watchdog tetap hidup")
+print("Troxzy VIP v17.8 - TAS Priority Over Farm")
+print("OnMapLoad langsung bypass farming saat TAS Play Auto aktif")
