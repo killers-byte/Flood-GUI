@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v16.5 [UI POLISHED]
--- 🔥 Layout rapi, title & version terpisah, tab proporsional
+-- TROXZY VIP v16.6 [UI REFINED]
+-- 🔥 Warna header menyatu, area kosong hilang, padding rapi
 -- 📱 100% Mobile Optimized
 -- ============================================
 
@@ -73,7 +73,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "16.5"
+local SCRIPT_VERSION = "16.6"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -535,79 +535,107 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
 end))
 
 -- ==================== UI ====================
+-- Palet warna konsisten (monokromatik biru gelap)
+local COLORS = {
+    MainBg = Color3.fromRGB(20,20,26),
+    HeaderBg = Color3.fromRGB(22,22,28),  -- Sedikit lebih terang dari Main, masih menyatu
+    TabActive = Color3.fromRGB(40,50,65),
+    TabInactive = Color3.fromRGB(25,25,33),
+    StatsBg = Color3.fromRGB(28,38,52),
+    ToggleBg = Color3.fromRGB(35,35,45),
+    ToggleDot = Color3.fromRGB(100,100,115),
+    ToggleDotActive = Color3.fromRGB(100,200,255),
+    ToggleBgActive = Color3.fromRGB(30,60,90),
+    SectionText = Color3.fromRGB(180,200,220),
+    TextBright = Color3.fromRGB(245,245,250),
+    TextMedium = Color3.fromRGB(220,225,235),
+    TextDim = Color3.fromRGB(160,160,175),
+    InfoBg = Color3.fromRGB(30,40,55),
+    InfoText = Color3.fromRGB(180,210,255),
+    InputBg = Color3.fromRGB(35,35,45),
+    CloseBg = Color3.fromRGB(180,50,50),
+    ButtonRecord = Color3.fromRGB(180,40,40),
+    ButtonPlay = Color3.fromRGB(30,160,50),
+    ButtonUpdate = Color3.fromRGB(60,120,180),
+    ButtonPanic = Color3.fromRGB(255,80,80),
+    ButtonForceLeave = Color3.fromRGB(180,50,50),
+    DividerColor = Color3.fromRGB(45,45,55),
+    VersionText = Color3.fromRGB(100,120,140)
+}
+
 local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 
 local ToggleBtn = Instance.new("TextButton", ScreenGui)
 ToggleBtn.Size = UDim2.new(0,48,0,48); ToggleBtn.Position = UDim2.new(0.015,0,0.015,0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(25,25,32); ToggleBtn.Text = "T"; ToggleBtn.TextSize = 24
-ToggleBtn.Font = Enum.Font.GothamBlack; ToggleBtn.TextColor3 = Color3.fromRGB(180,200,220); addCorner(ToggleBtn, 12)
+ToggleBtn.BackgroundColor3 = COLORS.TabInactive; ToggleBtn.Text = "T"; ToggleBtn.TextSize = 24
+ToggleBtn.Font = Enum.Font.GothamBlack; ToggleBtn.TextColor3 = COLORS.TextMedium; addCorner(ToggleBtn, 12)
 
--- 🔥 Main frame disesuaikan tingginya
+-- Main Frame (tinggi disesuaikan)
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0,360,0,560); Main.Position = UDim2.new(0.5,-180,0.5,-280)
-Main.BackgroundColor3 = Color3.fromRGB(20,20,26); Main.BorderSizePixel = 0
+Main.Size = UDim2.new(0,360,0,520); Main.Position = UDim2.new(0.5,-180,0.5,-260)
+Main.BackgroundColor3 = COLORS.MainBg; Main.BorderSizePixel = 0
 Main.Visible = false; Main.Active = true; Main.Draggable = true; addCorner(Main, 12)
 
--- Header
+-- Header (warna menyatu dengan Main)
 local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1,0,0,52); Header.BackgroundColor3 = Color3.fromRGB(28,28,36); Header.BorderSizePixel = 0; addCorner(Header, 12)
+Header.Size = UDim2.new(1,0,0,50); Header.BackgroundColor3 = COLORS.HeaderBg; Header.BorderSizePixel = 0; addCorner(Header, 12)
 Instance.new("Frame", Header).Size = UDim2.new(1,0,0.5,0)
-local hc = Instance.new("Frame", Header); hc.Position = UDim2.new(0,0,0.5,0); hc.BackgroundColor3 = Color3.fromRGB(28,28,36); hc.BorderSizePixel = 0
+local hc = Instance.new("Frame", Header); hc.Position = UDim2.new(0,0,0.5,0); hc.BackgroundColor3 = COLORS.HeaderBg; hc.BorderSizePixel = 0
 
 -- Avatar
 local AvatarFrame = Instance.new("Frame", Header)
-AvatarFrame.Size = UDim2.new(0,40,0,40); AvatarFrame.Position = UDim2.new(0,10,0.5,-20)
-AvatarFrame.BackgroundColor3 = Color3.fromRGB(35,35,45); AvatarFrame.BorderSizePixel = 0; addCorner(AvatarFrame, 20)
+AvatarFrame.Size = UDim2.new(0,38,0,38); AvatarFrame.Position = UDim2.new(0,10,0.5,-19)
+AvatarFrame.BackgroundColor3 = Color3.fromRGB(35,35,45); AvatarFrame.BorderSizePixel = 0; addCorner(AvatarFrame, 19)
 local Avatar = Instance.new("ImageLabel", AvatarFrame)
-Avatar.Size = UDim2.new(0,34,0,34); Avatar.Position = UDim2.new(0,3,0,3)
-Avatar.BackgroundColor3 = Color3.fromRGB(45,45,55); Avatar.BorderSizePixel = 0; addCorner(Avatar, 17)
+Avatar.Size = UDim2.new(0,32,0,32); Avatar.Position = UDim2.new(0,3,0,3)
+Avatar.BackgroundColor3 = Color3.fromRGB(45,45,55); Avatar.BorderSizePixel = 0; addCorner(Avatar, 16)
 spawn(function() pcall(function() Avatar.Image = Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420) end) end)
 
 -- Player Name
 local PlayerName = Instance.new("TextLabel", Header)
-PlayerName.Size = UDim2.new(0,130,0,18); PlayerName.Position = UDim2.new(0,58,0.5,-15)
-PlayerName.Text = Player.DisplayName; PlayerName.TextColor3 = Color3.fromRGB(245,245,250)
+PlayerName.Size = UDim2.new(0,130,0,18); PlayerName.Position = UDim2.new(0,56,0.5,-14)
+PlayerName.Text = Player.DisplayName; PlayerName.TextColor3 = COLORS.TextBright
 PlayerName.TextSize = 13; PlayerName.Font = Enum.Font.GothamBold; PlayerName.BackgroundTransparency = 1
 PlayerName.TextXAlignment = Enum.TextXAlignment.Left; PlayerName.TextTruncate = Enum.TextTruncate.AtEnd
 
 -- Username
 local Username = Instance.new("TextLabel", Header)
-Username.Size = UDim2.new(0,130,0,12); Username.Position = UDim2.new(0,58,0.5,5)
-Username.Text = "@"..Player.Name; Username.TextColor3 = Color3.fromRGB(160,160,175)
+Username.Size = UDim2.new(0,130,0,12); Username.Position = UDim2.new(0,56,0.5,6)
+Username.Text = "@"..Player.Name; Username.TextColor3 = COLORS.TextDim
 Username.TextSize = 9; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1
 Username.TextXAlignment = Enum.TextXAlignment.Left; Username.TextTruncate = Enum.TextTruncate.AtEnd
 
--- 🔥 Title (tanpa versi)
+-- Title
 local TitleLabel = Instance.new("TextLabel", Header)
-TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-128,0.5,-14)
-TitleLabel.Text = "Troxzy VIP"; TitleLabel.TextColor3 = Color3.fromRGB(180,200,220)
+TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-128,0.5,-13)
+TitleLabel.Text = "Troxzy VIP"; TitleLabel.TextColor3 = COLORS.SectionText
 TitleLabel.TextSize = 14; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 -- User ID
 local UserID = Instance.new("TextLabel", Header)
-UserID.Size = UDim2.new(0,120,0,12); UserID.Position = UDim2.new(1,-128,0.5,6)
-UserID.Text = "ID: "..Player.UserId; UserID.TextColor3 = Color3.fromRGB(140,140,155)
+UserID.Size = UDim2.new(0,120,0,12); UserID.Position = UDim2.new(1,-128,0.5,7)
+UserID.Text = "ID: "..Player.UserId; UserID.TextColor3 = COLORS.TextDim
 UserID.TextSize = 8; UserID.Font = Enum.Font.Gotham; UserID.BackgroundTransparency = 1; UserID.TextXAlignment = Enum.TextXAlignment.Right
 
 -- Divider
 local Divider = Instance.new("Frame", Main)
-Divider.Size = UDim2.new(1,0,0,1); Divider.Position = UDim2.new(0,0,0,52)
-Divider.BackgroundColor3 = Color3.fromRGB(50,50,60); Divider.BorderSizePixel = 0
+Divider.Size = UDim2.new(1,0,0,1); Divider.Position = UDim2.new(0,0,0,50)
+Divider.BackgroundColor3 = COLORS.DividerColor; Divider.BorderSizePixel = 0
 
 -- Stats Bar
 local StatsBar = Instance.new("Frame", Main)
-StatsBar.Size = UDim2.new(1,-16,0,22); StatsBar.Position = UDim2.new(0,8,0,57)
-StatsBar.BackgroundColor3 = Color3.fromRGB(30,40,55); StatsBar.BorderSizePixel = 0; addCorner(StatsBar, 4)
+StatsBar.Size = UDim2.new(1,-16,0,22); StatsBar.Position = UDim2.new(0,8,0,55)
+StatsBar.BackgroundColor3 = COLORS.StatsBg; StatsBar.BorderSizePixel = 0; addCorner(StatsBar, 4)
 local StatsLabel = Instance.new("TextLabel", StatsBar)
 StatsLabel.Size = UDim2.new(1,-6,1,0); StatsLabel.Position = UDim2.new(0,3,0,0); StatsLabel.BackgroundTransparency = 1
-StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = Color3.fromRGB(180,210,255)
+StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = COLORS.InfoText
 StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 9; StatsLabel.TextTruncate = Enum.TextTruncate.AtEnd
 task.spawn(function() while task.wait(5) do pcall(function() StatsLabel.Text = getStatsText() end) end end)
 
--- 🔥 Tab Bar dengan padding proporsional
+-- Tab Bar
 local TabBar = Instance.new("Frame", Main)
-TabBar.Size = UDim2.new(1,-16,0,32); TabBar.Position = UDim2.new(0,8,0,83); TabBar.BackgroundTransparency = 1
+TabBar.Size = UDim2.new(1,-16,0,30); TabBar.Position = UDim2.new(0,8,0,81); TabBar.BackgroundTransparency = 1
 local TabList = Instance.new("UIListLayout", TabBar)
 TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,3); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 TabList.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -617,67 +645,67 @@ local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton", TabBar)
-    tabBtn.Size = UDim2.new(0.15,0,0,28) -- 🔥 Ukuran tab lebih proporsional
-    tabBtn.BackgroundColor3 = (tab.key=="Farm") and Color3.fromRGB(40,50,65) or Color3.fromRGB(25,25,33)
+    tabBtn.Size = UDim2.new(0.15,0,0,26)
+    tabBtn.BackgroundColor3 = (tab.key=="Farm") and COLORS.TabActive or COLORS.TabInactive
     tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold
-    tabBtn.TextColor3 = (tab.key=="Farm") and Color3.fromRGB(220,230,245) or Color3.fromRGB(160,160,175)
+    tabBtn.TextColor3 = (tab.key=="Farm") and COLORS.TextMedium or COLORS.TextDim
     addCorner(tabBtn,5); table.insert(tabBtns,tabBtn)
 
     local contentFrame = Instance.new("Frame", Main)
-    contentFrame.Size = UDim2.new(1,-16,1,-122); contentFrame.Position = UDim2.new(0,8,0,118)
+    contentFrame.Size = UDim2.new(1,-16,1,-118); contentFrame.Position = UDim2.new(0,8,0,115)
     contentFrame.BackgroundTransparency = 1; contentFrame.Visible = (tab.key=="Farm")
 
     local scrollFrame = Instance.new("ScrollingFrame", contentFrame)
     scrollFrame.Size = UDim2.new(1,0,1,0); scrollFrame.BackgroundTransparency = 1; scrollFrame.ScrollBarThickness = 3
     scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,120); scrollFrame.CanvasSize = UDim2.new(0,0,0,0); scrollFrame.ScrollingEnabled = true
-    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,3)
+    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,2)
     table.insert(tabContents, {scroll=scrollFrame, layout=scrollLayout})
 
     tabBtn.MouseButton1Click:Connect(function()
         for j, btn in ipairs(tabBtns) do
-            if j==i then btn.BackgroundColor3=Color3.fromRGB(40,50,65); btn.TextColor3=Color3.fromRGB(220,230,245); tabContents[j].scroll.Parent.Visible=true
-            else btn.BackgroundColor3=Color3.fromRGB(25,25,33); btn.TextColor3=Color3.fromRGB(160,160,175); tabContents[j].scroll.Parent.Visible=false end
+            if j==i then btn.BackgroundColor3=COLORS.TabActive; btn.TextColor3=COLORS.TextMedium; tabContents[j].scroll.Parent.Visible=true
+            else btn.BackgroundColor3=COLORS.TabInactive; btn.TextColor3=COLORS.TextDim; tabContents[j].scroll.Parent.Visible=false end
         end
     end)
 end
 
 local function updateScrollSize(tabKey)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end
-    if not tabIdx then return end; tabContents[tabIdx].scroll.CanvasSize = UDim2.new(0,0,0,tabContents[tabIdx].layout.AbsoluteContentSize.Y+10)
+    if not tabIdx then return end; tabContents[tabIdx].scroll.CanvasSize = UDim2.new(0,0,0,tabContents[tabIdx].layout.AbsoluteContentSize.Y+8)
 end
 
 local function AddSection(tabKey, title)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local s = Instance.new("TextLabel", tabContents[tabIdx].scroll)
-    s.Size = UDim2.new(1,0,0,16); s.Text = title; s.TextColor3 = Color3.fromRGB(180,200,220)
+    s.Size = UDim2.new(1,0,0,16); s.Text = title; s.TextColor3 = COLORS.SectionText
     s.Font = Enum.Font.GothamBold; s.TextSize = 10; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; updateScrollSize(tabKey)
 end
 
 local function AddButton(tabKey, name, color, callback)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local b = Instance.new("TextButton", tabContents[tabIdx].scroll)
-    b.Size = UDim2.new(1,0,0,36); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamBold
+    b.Size = UDim2.new(1,0,0,34); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 11; b.Font = Enum.Font.GothamBold
     b.TextColor3 = Color3.fromRGB(255,255,255); addCorner(b,6); b.MouseButton1Click:Connect(function() pcall(callback) end); updateScrollSize(tabKey)
 end
 
 local function AddInfoLabel(tabKey, text)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local l = Instance.new("TextLabel", tabContents[tabIdx].scroll)
-    l.Size = UDim2.new(1,0,0,32); l.BackgroundColor3 = Color3.fromRGB(30,40,55); l.Text = text
-    l.TextColor3 = Color3.fromRGB(180,210,255); l.Font = Enum.Font.GothamMedium; l.TextSize = 10; l.BorderSizePixel = 0; addCorner(l,6); updateScrollSize(tabKey); return l
+    l.Size = UDim2.new(1,0,0,30); l.BackgroundColor3 = COLORS.InfoBg; l.Text = text
+    l.TextColor3 = COLORS.InfoText; l.Font = Enum.Font.GothamMedium; l.TextSize = 10; l.BorderSizePixel = 0; addCorner(l,6); updateScrollSize(tabKey); return l
 end
 
 local function AddToggle(tabKey, name, stateKey)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1,0,0,36); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
+    f.Size = UDim2.new(1,0,0,34); f.BackgroundColor3 = COLORS.TabInactive; f.BorderSizePixel = 0; addCorner(f,6)
     local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(0.48,0,1,0); lbl.Position = UDim2.new(0,10,0,0)
-    lbl.Text = name; lbl.TextColor3 = Color3.fromRGB(220,225,235); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 10
+    lbl.Text = name; lbl.TextColor3 = COLORS.TextMedium; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 10
     lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
     local sb = Instance.new("Frame", f); sb.Size = UDim2.new(0,36,0,18); sb.Position = UDim2.new(1,-48,0.5,-9)
-    sb.BackgroundColor3 = Color3.fromRGB(40,40,50); sb.BorderSizePixel = 0; addCorner(sb,9)
+    sb.BackgroundColor3 = COLORS.ToggleBg; sb.BorderSizePixel = 0; addCorner(sb,9)
     local dot = Instance.new("Frame", sb); dot.Size = UDim2.new(0,12,0,12); dot.Position = UDim2.new(0,3,0.5,-6)
-    dot.BackgroundColor3 = Color3.fromRGB(100,100,115); dot.BorderSizePixel = 0; addCorner(dot,6)
+    dot.BackgroundColor3 = COLORS.ToggleDot; dot.BorderSizePixel = 0; addCorner(dot,6)
     local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(1,0,1,0); btn.BackgroundTransparency = 1; btn.Text = ""
 
     local state = false
@@ -705,26 +733,26 @@ local function AddToggle(tabKey, name, stateKey)
 
         local pos = state and UDim2.new(0,18,0.5,-6) or UDim2.new(0,3,0.5,-6)
         dot:TweenPosition(pos,"Out","Quad",0.15)
-        dot.BackgroundColor3 = state and Color3.fromRGB(100,200,255) or Color3.fromRGB(100,100,115)
-        sb.BackgroundColor3 = state and Color3.fromRGB(30,60,90) or Color3.fromRGB(40,40,50)
+        dot.BackgroundColor3 = state and COLORS.ToggleDotActive or COLORS.ToggleDot
+        sb.BackgroundColor3 = state and COLORS.ToggleBgActive or COLORS.ToggleBg
     end); updateScrollSize(tabKey)
 end
 
 local function AddInput(tabKey, label, defaultVal, callback)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1,0,0,42); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
+    f.Size = UDim2.new(1,0,0,40); f.BackgroundColor3 = COLORS.TabInactive; f.BorderSizePixel = 0; addCorner(f,6)
     local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(1,0,0,16); lbl.Position = UDim2.new(0,0,0,2)
-    lbl.Text = label; lbl.TextColor3 = Color3.fromRGB(170,170,185); lbl.Font = Enum.Font.Gotham; lbl.TextSize = 10; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Center
-    local inp = Instance.new("TextBox", f); inp.Size = UDim2.new(0,65,0,22); inp.Position = UDim2.new(0.5,-32,0,17)
-    inp.BackgroundColor3 = Color3.fromRGB(35,35,45); inp.TextColor3 = Color3.fromRGB(240,240,245)
+    lbl.Text = label; lbl.TextColor3 = COLORS.TextDim; lbl.Font = Enum.Font.Gotham; lbl.TextSize = 10; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Center
+    local inp = Instance.new("TextBox", f); inp.Size = UDim2.new(0,65,0,20); inp.Position = UDim2.new(0.5,-32,0,17)
+    inp.BackgroundColor3 = COLORS.InputBg; inp.TextColor3 = COLORS.TextBright
     inp.PlaceholderText = tostring(defaultVal); inp.Text = tostring(defaultVal); inp.Font = Enum.Font.Gotham; inp.TextSize = 11; addCorner(inp,5)
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) end end); updateScrollSize(tabKey)
 end
 
 -- Themes
-local DARK_THEME = { MainBg = Color3.fromRGB(20,20,26), HeaderBg = Color3.fromRGB(28,28,36), TabActive = Color3.fromRGB(40,50,65), TabInactive = Color3.fromRGB(25,25,33), TextBright = Color3.fromRGB(245,245,250), TextMedium = Color3.fromRGB(220,225,235), TextDim = Color3.fromRGB(160,160,175), StatsBg = Color3.fromRGB(30,40,55), StatsText = Color3.fromRGB(180,210,255), SectionText = Color3.fromRGB(180,200,220), ToggleBg = Color3.fromRGB(40,40,50), ToggleDot = Color3.fromRGB(100,100,115), InputBg = Color3.fromRGB(35,35,45), CloseBg = Color3.fromRGB(180,50,50) }
-local LIGHT_THEME = { MainBg = Color3.fromRGB(240,240,245), HeaderBg = Color3.fromRGB(220,220,230), TabActive = Color3.fromRGB(200,210,225), TabInactive = Color3.fromRGB(230,230,235), TextBright = Color3.fromRGB(20,20,30), TextMedium = Color3.fromRGB(40,40,50), TextDim = Color3.fromRGB(80,80,90), StatsBg = Color3.fromRGB(200,210,225), StatsText = Color3.fromRGB(30,40,60), SectionText = Color3.fromRGB(40,50,70), ToggleBg = Color3.fromRGB(200,200,210), ToggleDot = Color3.fromRGB(120,120,130), InputBg = Color3.fromRGB(220,220,225), CloseBg = Color3.fromRGB(200,60,60) }
+local DARK_THEME = { MainBg = Color3.fromRGB(20,20,26), HeaderBg = Color3.fromRGB(22,22,28), TabActive = Color3.fromRGB(40,50,65), TabInactive = Color3.fromRGB(25,25,33), TextBright = Color3.fromRGB(245,245,250), TextMedium = Color3.fromRGB(220,225,235), TextDim = Color3.fromRGB(160,160,175), StatsBg = Color3.fromRGB(28,38,52), StatsText = Color3.fromRGB(180,210,255), SectionText = Color3.fromRGB(180,200,220), ToggleBg = Color3.fromRGB(35,35,45), ToggleDot = Color3.fromRGB(100,100,115), InputBg = Color3.fromRGB(35,35,45), CloseBg = Color3.fromRGB(180,50,50) }
+local LIGHT_THEME = { MainBg = Color3.fromRGB(240,240,245), HeaderBg = Color3.fromRGB(235,235,240), TabActive = Color3.fromRGB(200,210,225), TabInactive = Color3.fromRGB(230,230,235), TextBright = Color3.fromRGB(20,20,30), TextMedium = Color3.fromRGB(40,40,50), TextDim = Color3.fromRGB(80,80,90), StatsBg = Color3.fromRGB(200,210,225), StatsText = Color3.fromRGB(30,40,60), SectionText = Color3.fromRGB(40,50,70), ToggleBg = Color3.fromRGB(200,200,210), ToggleDot = Color3.fromRGB(120,120,130), InputBg = Color3.fromRGB(220,220,225), CloseBg = Color3.fromRGB(200,60,60) }
 local currentTheme = "Dark"
 
 local function applyTheme(theme)
@@ -732,9 +760,9 @@ local function applyTheme(theme)
     if Main then Main.BackgroundColor3 = t.MainBg end
     if Header then Header.BackgroundColor3 = t.HeaderBg; hc.BackgroundColor3 = t.HeaderBg end
     for _, btn in ipairs(tabBtns) do
-        if btn.BackgroundColor3 == Color3.fromRGB(40,50,65) or btn.BackgroundColor3 == Color3.fromRGB(200,210,225) then btn.BackgroundColor3 = t.TabActive
+        if btn.BackgroundColor3 == COLORS.TabActive or btn.BackgroundColor3 == Color3.fromRGB(200,210,225) then btn.BackgroundColor3 = t.TabActive
         else btn.BackgroundColor3 = t.TabInactive end
-        if btn.TextColor3 == Color3.fromRGB(220,230,245) or btn.TextColor3 == Color3.fromRGB(40,40,50) then btn.TextColor3 = t.TextMedium
+        if btn.TextColor3 == COLORS.TextMedium or btn.TextColor3 == Color3.fromRGB(40,40,50) then btn.TextColor3 = t.TextMedium
         else btn.TextColor3 = t.TextDim end
     end
     if StatsBar then StatsBar.BackgroundColor3 = t.StatsBg end
@@ -746,7 +774,7 @@ local Dashboard = Instance.new("Frame", ScreenGui)
 Dashboard.Size = UDim2.new(0, 190, 0, 80)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
 Dashboard.AnchorPoint = Vector2.new(1, 0)
-Dashboard.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+Dashboard.BackgroundColor3 = COLORS.MainBg
 Dashboard.BorderSizePixel = 0
 Dashboard.Visible = CONFIG.DASHBOARD
 addCorner(Dashboard, 8)
@@ -754,22 +782,22 @@ addCorner(Dashboard, 8)
 local function createDashboardContent()
     local title = Instance.new("TextLabel", Dashboard)
     title.Size = UDim2.new(1,0,0,18); title.Position = UDim2.new(0,0,0,4)
-    title.Text = "Live Dashboard"; title.TextColor3 = Color3.fromRGB(180,200,220)
+    title.Text = "Live Dashboard"; title.TextColor3 = COLORS.SectionText
     title.Font = Enum.Font.GothamBold; title.TextSize = 10; title.BackgroundTransparency = 1
 
     local mapLabel = Instance.new("TextLabel", Dashboard)
     mapLabel.Size = UDim2.new(1,0,0,14); mapLabel.Position = UDim2.new(0,0,0,22)
-    mapLabel.Text = "Map: Waiting..."; mapLabel.TextColor3 = Color3.fromRGB(160,180,200)
+    mapLabel.Text = "Map: Waiting..."; mapLabel.TextColor3 = COLORS.TextDim
     mapLabel.Font = Enum.Font.Gotham; mapLabel.TextSize = 9; mapLabel.BackgroundTransparency = 1; mapLabel.Name = "MapLabel"
 
     local timeLabel = Instance.new("TextLabel", Dashboard)
     timeLabel.Size = UDim2.new(1,0,0,14); timeLabel.Position = UDim2.new(0,0,0,36)
-    timeLabel.Text = "Time: 0m"; timeLabel.TextColor3 = Color3.fromRGB(160,180,200)
+    timeLabel.Text = "Time: 0m"; timeLabel.TextColor3 = COLORS.TextDim
     timeLabel.Font = Enum.Font.Gotham; timeLabel.TextSize = 9; timeLabel.BackgroundTransparency = 1; timeLabel.Name = "TimeLabel"
 
     local speedLabel = Instance.new("TextLabel", Dashboard)
     speedLabel.Size = UDim2.new(1,0,0,14); speedLabel.Position = UDim2.new(0,0,0,50)
-    speedLabel.Text = "Maps/hr: 0"; speedLabel.TextColor3 = Color3.fromRGB(160,180,200)
+    speedLabel.Text = "Maps/hr: 0"; speedLabel.TextColor3 = COLORS.TextDim
     speedLabel.Font = Enum.Font.Gotham; speedLabel.TextSize = 9; speedLabel.BackgroundTransparency = 1; speedLabel.Name = "SpeedLabel"
 
     local statusLabel = Instance.new("TextLabel", Dashboard)
@@ -802,13 +830,13 @@ AddInfoLabel("Farm","[Target] "..CONFIG.TARGET_MAP)
 AddSection("TAS","TAS LOADER")
 AddToggle("TAS","TAS Auto-Start","TAS_AUTO_START")
 AddToggle("TAS","TAS Play Auto","TAS_PLAY_AUTO")
-AddButton("TAS","Record Mode",Color3.fromRGB(180,40,40),function()
+AddButton("TAS","Record Mode",COLORS.ButtonRecord,function()
     if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first", "TAS"); return end
     notify("TAS Record akan dimulai. Pastikan Auto Farm OFF.", "TAS")
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
-AddButton("TAS","Play Mode (Manual)",Color3.fromRGB(30,160,50),function()
+AddButton("TAS","Play Mode (Manual)",COLORS.ButtonPlay,function()
     if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first", "TAS"); return end
     CONFIG.TAS_MODE = "Play"
     ExecuteTAS()
@@ -834,22 +862,22 @@ AddToggle("Stealth","Auto-Leave Admin","AUTO_LEAVE_ADMIN")
 AddToggle("Stealth","Random Delay","RANDOM_DELAY")
 AddToggle("Stealth","Hide Script","HIDE_SCRIPT")
 AddToggle("Stealth","Map Rotation","MAP_ROTATION")
-AddButton("Stealth","Force Leave",Color3.fromRGB(180,50,50),function() forceReconnect() end)
+AddButton("Stealth","Force Leave",COLORS.ButtonForceLeave,function() forceReconnect() end)
 
 AddSection("Premium","PREMIUM FEATURES")
 AddToggle("Premium","Live Dashboard","DASHBOARD")
 AddToggle("Premium","Smart Alerts","SMART_ALERTS")
 AddToggle("Premium","Night Mode","NIGHT_MODE")
 AddToggle("Premium","Auto-Updater","AUTO_UPDATE")
-AddButton("Premium","Check Updates",Color3.fromRGB(60,120,180),function() checkForUpdates() end)
-AddButton("Premium","Panic Mode [P]",Color3.fromRGB(255,80,80),function() activatePanicMode() end)
+AddButton("Premium","Check Updates",COLORS.ButtonUpdate,function() checkForUpdates() end)
+AddButton("Premium","Panic Mode [P]",COLORS.ButtonPanic,function() activatePanicMode() end)
 
--- 🔥 Version Label — terpisah, di pojok kiri bawah
+-- Version Label
 local VersionLabel = Instance.new("TextLabel", Main)
-VersionLabel.Size = UDim2.new(0,80,0,16)
-VersionLabel.Position = UDim2.new(0.04,0,1,-36)
+VersionLabel.Size = UDim2.new(0,80,0,14)
+VersionLabel.Position = UDim2.new(0.04,0,1,-33)
 VersionLabel.Text = "v" .. SCRIPT_VERSION
-VersionLabel.TextColor3 = Color3.fromRGB(100,120,140)
+VersionLabel.TextColor3 = COLORS.VersionText
 VersionLabel.TextSize = 9
 VersionLabel.Font = Enum.Font.Gotham
 VersionLabel.BackgroundTransparency = 1
@@ -857,8 +885,8 @@ VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Close Button
 local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.new(1,-20,0,32); CloseBtn.Position = UDim2.new(0,10,1,-36)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180,50,50); CloseBtn.Text = "Close Panel"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Size = UDim2.new(1,-20,0,30); CloseBtn.Position = UDim2.new(0,10,1,-33)
+CloseBtn.BackgroundColor3 = COLORS.CloseBg; CloseBtn.Text = "Close Panel"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible=false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
@@ -910,5 +938,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v16.5 - UI Polished")
-print("Title & version separated, layout proportional, clean design")
+print("Troxzy VIP v16.6 - UI Refined")
+print("Consistent color palette, header blends, zero empty spaces")
