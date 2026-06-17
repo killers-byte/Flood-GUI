@@ -2,10 +2,11 @@
 -- TROXZY VIP v20.4-PAUSE-QUEUE-FIX
 -- 🔥 Auto Queue hanya jalan di PLAY mode
 -- 🔥 Pause TAS beneran berhenti & lanjut (inject ke script TAS)
+-- 🔥 Semua wait() -> task.wait() | Notifikasi inject
 -- ============================================
 
-repeat wait() until game:IsLoaded()
-wait(2)
+repeat task.wait() until game:IsLoaded()
+task.wait(2)
 
 -- Services
 local RunService = game:GetService("RunService")
@@ -22,8 +23,8 @@ local HttpService = game:GetService("HttpService")
 -- Player
 local Player = Players.LocalPlayer
 if not Player then return end
-repeat wait() until Player.Character
-wait(1)
+repeat task.wait() until Player.Character
+task.wait(1)
 
 local Camera = Workspace.CurrentCamera
 if not Camera then return end
@@ -379,19 +380,27 @@ end
 
 -- ==================== INJECT PAUSE KE SCRIPT TAS ====================
 local function injectPauseCode(script)
-    -- Cari pola RunService.Heartbeat:Connect(function()
-    local modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
+    local modified = script
+    local success = false
+
+    -- Coba inject ke Heartbeat
+    modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
+        success = true
         return match .. "function()\n    while _G.TAS_PAUSED do task.wait() end\n    "
     end)
-    -- Jika tidak ketemu, coba cari while true do
-    if modified == script then
+
+    -- Jika gagal, coba inject ke while true
+    if not success then
         modified = script:gsub("(while%s*true%s*do)", function(match)
+            success = true
             return match .. "\n    while _G.TAS_PAUSED do task.wait() end\n    "
         end)
     end
+
     -- Tambahkan variabel global di awal
     modified = "_G.TAS_PAUSED = false\n" .. modified
-    return modified
+
+    return modified, success
 end
 
 -- ==================== EXECUTE TAS (DENGAN PAUSE INJECT) ====================
@@ -427,7 +436,10 @@ local function ExecuteTAS()
     if not ok then notify("Failed to download TAS", "Error"); return end
 
     -- Inject pause code
-    local modifiedScript = injectPauseCode(res)
+    local modifiedScript, injectSuccess = injectPauseCode(res)
+    if not injectSuccess then
+        notify("Pause injection failed! TAS may not pause.", "Warning")
+    end
 
     local f, e = loadstring(modifiedScript)
     if not f then notify("Failed to compile TAS: " .. tostring(e), "Error"); return end
@@ -502,7 +514,7 @@ local function AutoQueueLoop()
         end
         
         -- Tunggu vote & load map
-        wait(2)
+        task.wait(2)
         
         -- Tunggu TAS selesai
         WaitForTASComplete()
@@ -587,7 +599,7 @@ local function applyNoclip(state)
     end
 end
 TrackConnection(Player.CharacterAdded:Connect(function()
-    repeat wait() until Player.Character
+    repeat task.wait() until Player.Character
     refreshNoclipCache()
     noclipActive = false
 end))
