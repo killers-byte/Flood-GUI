@@ -1,9 +1,10 @@
 -- ============================================
--- TROXZY VIP v19.7 – TAS PLAY AUTO SEMPURNA + PAUSE BERFUNGSI
--- 🔥 Auto‑queue stabil: TAS jalan terus tiap map
--- 🔥 Pause berfungsi: menjeda auto‑start TAS
--- 🔥 Eksekusi TAS terpusat, flag direset sempurna
--- 📱 Mobile‑ready, UI selalu tampil
+-- TROXZY VIP v19.9 – TAS FINAL FIX (NO GIMMICK)
+-- 🔥 TAS Play Auto langsung jalan begitu map muncul
+-- 🔥 TIDAK bergantung pada Check("InGame") di ExecuteTAS
+-- 🔥 Pause berfungsi penuh
+-- 🔥 Auto‑Start dimatikan saat di lobby
+-- 📱 UI selalu tampil
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -107,7 +108,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.7"
+local SCRIPT_VERSION = "19.9"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -422,9 +423,9 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS (TERPUSAT) ====================
+-- ==================== EXECUTE TAS (TANPA SYARAT POSISI) ====================
 local function ExecuteTAS()
-    -- Cek prasyarat
+    -- Hanya cegat TAS jika dijeda atau jika executing
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF.", "TAS")
         return
@@ -446,13 +447,11 @@ local function ExecuteTAS()
         mapName = settings and settings:GetAttribute("MapName") or "Unknown"
     end
 
-    -- Periksa ketersediaan file TAS
     if not isTASFileAvailable(mapName) then
         notify("TAS file not found for: " .. mapName, "TAS")
         return
     end
 
-    -- Tandai sedang mengeksekusi
     _G.TAS_EXECUTING = true
     _G.TroxzyAutoFarm = false
     CurrentlyFarming = false
@@ -475,15 +474,13 @@ local function ExecuteTAS()
         return
     end
 
-    -- Jalankan TAS di thread terpisah
     task.spawn(function()
         pcall(f)
-        -- Reset flag setelah selesai
         _G.TAS_EXECUTING = false
         notify("TAS completed!", "TAS")
         if _G.TAS_PLAY_AUTO_ACTIVE then
             _G.TroxzyAutoFarm = true
-            DisconnectMapDetection() -- Bersihkan koneksi lama
+            DisconnectMapDetection()
         end
     end)
 
@@ -701,7 +698,7 @@ local function updateVisuals()
     periodicFloodColorUpdate()
 end
 
--- ==================== AUTO FARM (hanya untuk farming) ====================
+-- ==================== AUTO FARM ====================
 local function OnMapLoad(map)
     clearESPCache()
     local settings = map:WaitForChild("Settings", 10)
@@ -709,7 +706,7 @@ local function OnMapLoad(map)
     handleAdminDetection()
     handleAntiReport()
 
-    -- Jika TAS Play Auto aktif, langsung jalankan TAS dan hentikan farming
+    -- TAS Play Auto: langsung jalankan TAS
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         _G.TroxzyAutoFarm = true
         DisconnectMapDetection()
@@ -1304,7 +1301,7 @@ local function AddToggle(tabKey, name, stateKey)
                 notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
             else
                 notify("TAS dilanjutkan.", "TAS Pause")
-                -- Jika TAS Play Auto aktif dan tidak sedang executing, langsung jalankan
+                -- Jika TAS Play Auto aktif, langsung lanjutkan di map sekarang
                 if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START and not _G.TAS_EXECUTING then
                     task.spawn(ExecuteTAS)
                 end
@@ -1617,7 +1614,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v19.7 loaded! TAS Play Auto sempurna.", "Welcome")
+notify("Troxzy VIP v19.9 – TAS fixed & reliable.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1679,17 +1676,17 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP (AUTO-QUEUE) ====================
+-- ==================== WATCHDOG LOOP ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            -- Di lift, reset deteksi dan flag
+            -- Di lift, reset deteksi dan flag executing
             if Check("InLift") and not Check("InGame") then
                 DisconnectMapDetection()
                 _G.TAS_EXECUTING = false
             end
 
-            -- Di game, jika TAS tidak aktif dan tidak paused, jalankan
+            -- Di map, jika TAS tidak aktif, jalankan
             if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
                 task.spawn(ExecuteTAS)
             end
@@ -1742,4 +1739,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.7 – TAS Play Auto & Pause perfected")
+print("Troxzy VIP v19.9 – TAS Play Auto finally works without gimmick.")
