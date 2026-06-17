@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v16.9 [VARIABLE DECLARATION FIXED]
--- 🔥 CurrentlyFarming, Main, ToggleBtn deklarasi di awal
+-- TROXZY VIP v17.0 [FULL AUTO TAS + LIFT DETECTION]
+-- 🔥 No more manual Play button, TAS auto-activates
 -- 📱 Mobile-first optimized
 -- ============================================
 
@@ -28,10 +28,9 @@ wait(1)
 local Camera = Workspace.CurrentCamera
 if not Camera then return end
 
--- 🔥 Deteksi perangkat mobile
 local IS_MOBILE = UIS.TouchEnabled
 
--- 🔥 DEKLARASI AWAL untuk variabel yang dipakai fungsi di bawah
+-- DEKLARASI AWAL
 local CurrentlyFarming = false
 local Escaped = false
 local Main = nil
@@ -89,7 +88,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "16.9"
+local SCRIPT_VERSION = "17.0"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -549,6 +548,25 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     end
 end))
 
+-- ==================== LIFT DETECTION (AUTO-TRIGGER TAS) ====================
+task.spawn(function()
+    while task.wait(1) do
+        if not CONFIG.TAS_PLAY_AUTO then break end
+        if not CONFIG.TAS_AUTO_START then break end
+
+        local char = GetChar()
+        if not char then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        local inLift = hrp.Position.X < 50 and hrp.Position.Z > 70
+        if inLift and not CurrentlyFarming then
+            CONFIG.TAS_MODE = "Play"
+            task.spawn(ExecuteTAS)
+        end
+    end
+end)
+
 -- ==================== UI ====================
 local COLORS = {
     MainBg = Color3.fromRGB(20,20,26),
@@ -569,7 +587,6 @@ local COLORS = {
     InputBg = Color3.fromRGB(35,35,45),
     CloseBg = Color3.fromRGB(180,50,50),
     ButtonRecord = Color3.fromRGB(180,40,40),
-    ButtonPlay = Color3.fromRGB(30,160,50),
     ButtonUpdate = Color3.fromRGB(60,120,180),
     ButtonPanic = Color3.fromRGB(255,80,80),
     ButtonForceLeave = Color3.fromRGB(180,50,50),
@@ -582,8 +599,7 @@ local COLORS = {
 local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 
--- 🔥 Toggle Button
-ToggleBtn = Instance.new("TextButton", ScreenGui)  -- assign ke variabel global
+ToggleBtn = Instance.new("TextButton", ScreenGui)
 ToggleBtn.Size = UDim2.new(0,60,0,60)
 ToggleBtn.Position = IS_MOBILE and UDim2.new(0.88,0,0.05,0) or UDim2.new(0.015,0,0.015,0)
 ToggleBtn.BackgroundColor3 = COLORS.ToggleBtnBg
@@ -594,14 +610,12 @@ ToggleBtn.TextColor3 = COLORS.ToggleBtnText
 addCorner(ToggleBtn, 14)
 addStroke(ToggleBtn, 2, Color3.fromRGB(255,255,255))
 
--- 🔥 Main Panel
-Main = Instance.new("Frame", ScreenGui)  -- assign ke variabel global
+Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0,360,0,520); Main.Position = UDim2.new(0.5,-180,0.5,-260)
 Main.BackgroundColor3 = COLORS.MainBg; Main.BorderSizePixel = 0
 Main.Visible = IS_MOBILE
 Main.Active = true; Main.Draggable = true; addCorner(Main, 12)
 
--- Header
 local Header = Instance.new("Frame", Main)
 Header.Size = UDim2.new(1,0,0,50); Header.BackgroundColor3 = COLORS.HeaderBg; Header.BorderSizePixel = 0; addCorner(Header, 12)
 Instance.new("Frame", Header).Size = UDim2.new(1,0,0.5,0)
@@ -853,11 +867,7 @@ AddButton("TAS","Record Mode",COLORS.ButtonRecord,function()
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
-AddButton("TAS","Play Mode (Manual)",COLORS.ButtonPlay,function()
-    if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first", "TAS"); return end
-    CONFIG.TAS_MODE = "Play"
-    ExecuteTAS()
-end)
+-- Tidak ada lagi "Play Mode (Manual)"
 
 AddSection("Move","MOVEMENT")
 AddToggle("Move","Noclip","NOCLIP")
@@ -957,5 +967,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v16.9 - Variable Declaration Fixed")
-print("CurrentlyFarming, Main, ToggleBtn declared early")
+print("Troxzy VIP v17.0 - Full Auto TAS + Lift Detection")
+print("Play button removed, TAS auto-activates on lift, loops forever")
