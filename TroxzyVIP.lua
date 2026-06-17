@@ -1,8 +1,6 @@
 -- ============================================
--- TROXZY VIP v20.4 PAUSE-QUEUE (Delta Fix)
--- 🔥 Auto Queue hanya di PLAY mode
--- 🔥 Pause TAS beneran berhenti & lanjut
--- 🔥 Kompatibel Delta, Arceus, Hydrogen
+-- TROXZY VIP v20.4-DELTA-FIX-DASHBOARD (FIXED)
+-- 🔥 Pause TAS menggunakan wait() bawaan
 -- ============================================
 
 local function safeWait(t)
@@ -108,7 +106,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.4-DELTA-FIX"
+local SCRIPT_VERSION = "20.4-DELTA-FIX-DASHBOARD"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -144,7 +142,8 @@ local CONFIG = {
     BLACKLIST_ENABLED = true, AUTO_RECONNECT = true, STAT_TRACKER = true,
     STEALTH_MODE = true, ADMIN_DETECTOR = true, AUTO_LEAVE_ADMIN = true,
     RANDOM_DELAY = true, HIDE_SCRIPT = true, MAP_ROTATION = false,
-    NIGHT_MODE = false, DASHBOARD = false, SMART_ALERTS = true,
+    NIGHT_MODE = false, DASHBOARD = true,
+    SMART_ALERTS = true,
     AUTO_UPDATE = false, PANIC_MODE = false,
     COLLECT_ITEMS = true,
     AIR_SWIM = true,
@@ -370,14 +369,15 @@ end
 local function injectPauseCode(script)
     local modified = script
     local success = false
+    -- Ganti safeWait dengan wait() bawaan
     modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
         success = true
-        return match .. "function()\n    while _G.TAS_PAUSED do safeWait() end\n    "
+        return match .. "function()\n    while _G.TAS_PAUSED do wait() end\n    "
     end)
     if not success then
         modified = script:gsub("(while%s*true%s*do)", function(match)
             success = true
-            return match .. "\n    while _G.TAS_PAUSED do safeWait() end\n    "
+            return match .. "\n    while _G.TAS_PAUSED do wait() end\n    "
         end)
     end
     modified = "_G.TAS_PAUSED = false\n" .. modified
@@ -564,7 +564,7 @@ TrackConnection(Player.CharacterAdded:Connect(function()
 end))
 refreshNoclipCache()
 
--- ESP (sederhana)
+-- ESP
 local espCache = {}
 local lastESPUpdate = 0
 local function updateESP()
@@ -1233,8 +1233,10 @@ local function AddToggle(tabKey, name, stateKey)
             if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
         elseif stateKey == "NIGHT_MODE" then
             applyTheme(state and "Light" or "Dark")
-        elseif stateKey == "DASHBOARD" and Dashboard then
-            Dashboard.Visible = state
+        elseif stateKey == "DASHBOARD" then
+            CONFIG.DASHBOARD = state
+            if Dashboard then Dashboard.Visible = state end
+            notify("Dashboard " .. (state and "ON" or "OFF"), "Dashboard")
         elseif stateKey == "PANIC_MODE" then
             if state then activatePanicMode() else deactivatePanicMode() end
         else
@@ -1345,7 +1347,7 @@ local function applyTheme(theme)
     if StatsLabel then StatsLabel.TextColor3 = t.StatsText end
 end
 
--- Dashboard
+-- ==================== DASHBOARD (LIVE) ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0,190,0,80)
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
@@ -1413,32 +1415,43 @@ local function createDashboardContent()
 end
 createDashboardContent()
 
+-- ==================== UPDATE DASHBOARD LOOP ====================
 local function updateDashboard()
     if not Dashboard or not Dashboard.Visible then return end
     local mapLabel = Dashboard:FindFirstChild("MapLabel")
     local timeLabel = Dashboard:FindFirstChild("TimeLabel")
     local speedLabel = Dashboard:FindFirstChild("SpeedLabel")
     local statusLabel = Dashboard:FindFirstChild("StatusLabel")
-    if mapLabel then mapLabel.Text = "Map: " .. (Stats.currentMap or "Waiting...") end
-    if timeLabel then timeLabel.Text = "Time: " .. math.floor((tick()-Stats.sessionStart)/60) .. "m" end
+    if mapLabel then
+        mapLabel.Text = "Map: " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
+    end
+    if timeLabel then
+        local elapsed = tick() - Stats.sessionStart
+        timeLabel.Text = "Time: " .. math.floor(elapsed / 60) .. "m"
+    end
     if speedLabel then
-        local hours = (tick()-Stats.sessionStart)/3600
-        speedLabel.Text = "Maps/hr: " .. (hours>0 and math.floor(Stats.mapsCompleted/hours) or 0)
+        local hours = (tick() - Stats.sessionStart) / 3600
+        local rate = (hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0
+        speedLabel.Text = "Maps/hr: " .. rate
     end
     if statusLabel then
         if panicActive then
-            statusLabel.Text = "Status: PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,50,50)
+            statusLabel.Text = "Status: PANIC"
+            statusLabel.TextColor3 = Color3.fromRGB(255,50,50)
         elseif CurrentlyFarming then
-            statusLabel.Text = "Status: Farming"; statusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+            statusLabel.Text = "Status: Farming"
+            statusLabel.TextColor3 = Color3.fromRGB(100,255,100)
         elseif CONFIG.STEALTH_MODE then
-            statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,200,50)
+            statusLabel.Text = "Status: Stealth"
+            statusLabel.TextColor3 = Color3.fromRGB(255,200,50)
         else
-            statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = Color3.fromRGB(160,160,160)
+            statusLabel.Text = "Status: Idle"
+            statusLabel.TextColor3 = Color3.fromRGB(160,160,160)
         end
     end
 end
 
--- Build Menu
+-- ==================== BUILD MENU ====================
 AddSection("Farm", "AUTO FARM")
 AddToggle("Farm", "Auto Farm", "AutoFarm")
 AddInfoLabel("Farm", "[Target] " .. CONFIG.TARGET_MAP)
@@ -1530,7 +1543,7 @@ CloseBtn.Parent = Main
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.4 – Delta Fix Ready", "Welcome")
+notify("Troxzy VIP v20.4 – Dashboard Fix", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1574,8 +1587,9 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     pcall(updateVisuals)
 end))
 
+-- UPDATE DASHBOARD SETIAP DETIK
 spawn(function()
-    while safeWait(2) do
+    while safeWait(1) do
         pcall(updateDashboard)
     end
 end)
@@ -1633,4 +1647,4 @@ if AUTO_QUEUE_ENABLED then
     notify("Auto Queue TAS AKTIF (hanya PLAY mode)!", "Queue")
 end
 
-print("Troxzy VIP v20.4-DELTA-FIX loaded.")
+print("Troxzy VIP v20.4-DELTA-FIX-DASHBOARD (FIXED) loaded.")
