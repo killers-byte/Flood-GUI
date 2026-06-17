@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP - FLOOD ESCAPE 2 v16.2 [POLISHED + PATCHED]
--- 🔥 TAS URLs updated to forked repo
+-- TROXZY VIP v16.3 [ESP FULLY FIXED + CONNECTION TRACKED]
+-- 🔥 ESP muncul di semua player, real-time, no leak
 -- 📱 100% Mobile Optimized
 -- ============================================
 
@@ -52,7 +52,7 @@ local function addCorner(obj, r)
 end
 
 local function notify(msg, title)
-    pcall(function() StarterGui:SetCore("SendNotification", {Title = title or "Troxzy", Text = msg, Duration = 2}) end)
+    pcall(function() StarterGui:SetCore("SendNotification", {Title = title or "Troxzy VIP", Text = msg, Duration = 2}) end)
 end
 
 local SOUND_IDS = {
@@ -73,7 +73,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "16.2"
+local SCRIPT_VERSION = "16.3"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -92,7 +92,7 @@ end
 -- Config
 local CONFIG = {
     TARGET_MAP = "Sandswept Ruins", TARGET_DIFFICULTY = "Crazy",
-    TAS_MODE = "Record", TAS_AUTO_START = false,
+    TAS_MODE = "Record", TAS_AUTO_START = false, TAS_PLAY_AUTO = false,
     NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false,
     ESP = false, FULLBRIGHT = false, FOV = false,
     SPEED_VAL = 20, FOV_VAL = 90,
@@ -229,7 +229,7 @@ local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"
 local MapDetect = nil
 local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
--- ==================== PATCHED: TAS URLs dari fork killers-byte ====================
+-- ExecuteTAS dengan mode Play Auto dan Record Confirmation
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS"); return
@@ -246,7 +246,6 @@ local function ExecuteTAS()
     local execOk, execErr = pcall(f)
     if not execOk then notify("TAS Error: " .. tostring(execErr), "Error") else notify("TAS Loaded!", "Success") end
 end
--- ==================== END PATCH ====================
 
 -- Game Detection
 local Multiplayer = Workspace:WaitForChild("Multiplayer")
@@ -297,30 +296,108 @@ end
 TrackConnection(Player.CharacterAdded:Connect(function() repeat wait() until Player.Character; refreshNoclipCache(); noclipActive = false end))
 refreshNoclipCache()
 
--- ESP
-local lastESPUpdate, espCache = 0, {}
-local function clearESPCache()
-    for player, highlight in pairs(espCache) do pcall(function() highlight:Destroy() end) end
-    espCache = {}; lastESPUpdate = 0
+-- ==================== ESP FULL FIX + CONNECTION TRACKED ====================
+local espCache = {}
+local lastESPUpdate = 0
+local ESP_UPDATE_INTERVAL = 0.1
+
+local function clearESPForPlayer(plr)
+    local hl = espCache[plr]
+    if hl then
+        pcall(function() hl:Destroy() end)
+        espCache[plr] = nil
+    end
 end
+
+local function clearAllESP()
+    for plr, hl in pairs(espCache) do
+        pcall(function() hl:Destroy() end)
+    end
+    espCache = {}
+end
+
+local function createHighlight(plr)
+    if not plr.Character then return end
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return end
+    clearESPForPlayer(plr)
+    local hl = Instance.new("Highlight")
+    hl.Name = "PlayerHighlight"
+    hl.FillColor = Color3.fromRGB(160, 180, 200)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.Parent = plr.Character
+    espCache[plr] = hl
+end
+
+local function onPlayerAdded(plr)
+    if plr == Player then return end
+    local conn
+    conn = plr.CharacterAdded:Connect(function(char)
+        clearESPForPlayer(plr)
+        task.wait(0.1)
+        if CONFIG.ESP and plr.Character and plr.Character:FindFirstChild("Head") then
+            createHighlight(plr)
+        end
+    end)
+    -- 🔥 PATCH: Track koneksi CharacterAdded agar ikut di-cleanup
+    TrackConnection(conn)
+    
+    TrackConnection(plr.AncestryChanged:Connect(function()
+        if not plr:IsDescendantOf(Players) then
+            clearESPForPlayer(plr)
+            if conn then conn:Disconnect() end
+        end
+    end))
+    if plr.Character and plr.Character:FindFirstChild("Head") and CONFIG.ESP then
+        createHighlight(plr)
+    end
+end
+
+local function onPlayerRemoving(plr)
+    clearESPForPlayer(plr)
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= Player then
+        onPlayerAdded(plr)
+    end
+end
+TrackConnection(Players.PlayerAdded:Connect(onPlayerAdded))
+TrackConnection(Players.PlayerRemoving:Connect(onPlayerRemoving))
+
 local function updateESP()
-    local now = tick(); if now - lastESPUpdate < 0.3 then return end; lastESPUpdate = now
-    local toRemove = {}
-    for p, hl in pairs(espCache) do
-        if not p or not p.Parent or not p.Character or not p.Character:FindFirstChild("Head") then
-            table.insert(toRemove, p); pcall(function() hl:Destroy() end)
+    local now = tick()
+    if now - lastESPUpdate < ESP_UPDATE_INTERVAL then return end
+    lastESPUpdate = now
+
+    if not CONFIG.ESP then
+        if next(espCache) then
+            clearAllESP()
         end
+        return
     end
-    for _, p in ipairs(toRemove) do espCache[p] = nil end
-    if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= Player and p.Character and p.Character:FindFirstChild("Head") and not espCache[p] then
-            local hl = p.Character:FindFirstChild("PlayerHighlight")
-            if not hl then hl = Instance.new("Highlight", p.Character); hl.Name = "PlayerHighlight"; hl.FillColor = Color3.fromRGB(160, 180, 200) end
-            espCache[p] = hl
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            local hl = espCache[plr]
+            local char = plr.Character
+            local head = char and char:FindFirstChild("Head")
+            if head then
+                if not hl or not hl.Parent or hl.Parent ~= char then
+                    clearESPForPlayer(plr)
+                    createHighlight(plr)
+                end
+            else
+                clearESPForPlayer(plr)
+            end
         end
     end
 end
+
+local function clearESPCache()
+    clearAllESP()
+end
+-- ==================== END ESP FIX ====================
 
 -- Panic Mode
 local panicActive = false
@@ -484,7 +561,14 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         if key then UpdMapVote:FireServer(key, ft.ID, CalculateCost(ft, pVotes[tostring(Player.UserId)])); notify("Voted!", "Success")
         else notify("Vote Failed", "Error") end
         task.wait(1); AddedWaiting:FireServer()
-        if CONFIG.TAS_AUTO_START then task.spawn(ExecuteTAS) else notify("TAS Auto-Start is OFF.", "Info") end
+        if CONFIG.TAS_PLAY_AUTO and CONFIG.TAS_AUTO_START then
+            CONFIG.TAS_MODE = "Play"
+            task.spawn(ExecuteTAS)
+        elseif CONFIG.TAS_AUTO_START then
+            notify("TAS Auto-Start is ON but Play Auto is OFF. Skipping TAS.", "Info")
+        else
+            notify("TAS Auto-Start is OFF.", "Info")
+        end
     end
 end))
 
@@ -528,12 +612,12 @@ Username.TextSize = 9; Username.Font = Enum.Font.Gotham; Username.BackgroundTran
 Username.TextXAlignment = Enum.TextXAlignment.Left; Username.TextTruncate = Enum.TextTruncate.AtEnd
 
 local TitleLabel = Instance.new("TextLabel", Header)
-TitleLabel.Size = UDim2.new(0,110,0,20); TitleLabel.Position = UDim2.new(1,-120,0.5,-14)
-TitleLabel.Text = "Troxzy VIP v16"; TitleLabel.TextColor3 = Color3.fromRGB(180,200,220)
-TitleLabel.TextSize = 14; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
+TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-128,0.5,-14)
+TitleLabel.Text = "Troxzy VIP v16.3"; TitleLabel.TextColor3 = Color3.fromRGB(180,200,220)
+TitleLabel.TextSize = 12; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 local UserID = Instance.new("TextLabel", Header)
-UserID.Size = UDim2.new(0,110,0,12); UserID.Position = UDim2.new(1,-120,0.5,4)
+UserID.Size = UDim2.new(0,120,0,12); UserID.Position = UDim2.new(1,-128,0.5,4)
 UserID.Text = "ID: "..Player.UserId; UserID.TextColor3 = Color3.fromRGB(140,140,155)
 UserID.TextSize = 8; UserID.Font = Enum.Font.Gotham; UserID.BackgroundTransparency = 1; UserID.TextXAlignment = Enum.TextXAlignment.Right
 
@@ -542,27 +626,27 @@ Divider.Size = UDim2.new(1,0,0,1); Divider.Position = UDim2.new(0,0,0,55)
 Divider.BackgroundColor3 = Color3.fromRGB(50,50,60); Divider.BorderSizePixel = 0
 
 local StatsBar = Instance.new("Frame", Main)
-StatsBar.Size = UDim2.new(1,-16,0,22); StatsBar.Position = UDim2.new(0,8,0,56)
+StatsBar.Size = UDim2.new(1,-16,0,24); StatsBar.Position = UDim2.new(0,8,0,56)
 StatsBar.BackgroundColor3 = Color3.fromRGB(30,40,55); StatsBar.BorderSizePixel = 0; addCorner(StatsBar, 4)
 local StatsLabel = Instance.new("TextLabel", StatsBar)
 StatsLabel.Size = UDim2.new(1,0,1,0); StatsLabel.BackgroundTransparency = 1
 StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = Color3.fromRGB(180,210,255)
-StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 10
+StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 9; StatsLabel.TextTruncate = Enum.TextTruncate.AtEnd
 task.spawn(function() while task.wait(5) do pcall(function() StatsLabel.Text = getStatsText() end) end end)
 
 local TabBar = Instance.new("Frame", Main)
 TabBar.Size = UDim2.new(1,-16,0,34); TabBar.Position = UDim2.new(0,8,0,82); TabBar.BackgroundTransparency = 1
 local TabList = Instance.new("UIListLayout", TabBar)
-TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,2); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,3); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local tabItems = { {name="Farm",key="Farm"}, {name="TAS",key="TAS"}, {name="Move",key="Move"}, {name="Visual",key="Visual"}, {name="Stealth",key="Stealth"}, {name="Premium",key="Premium"} }
 local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton", TabBar)
-    tabBtn.Size = UDim2.new(0.155,-2,1,0)
+    tabBtn.Size = UDim2.new(0.15,0,1,0)
     tabBtn.BackgroundColor3 = (tab.key=="Farm") and Color3.fromRGB(40,50,65) or Color3.fromRGB(25,25,33)
-    tabBtn.Text = tab.name; tabBtn.TextSize = 8; tabBtn.Font = Enum.Font.GothamBold
+    tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold
     tabBtn.TextColor3 = (tab.key=="Farm") and Color3.fromRGB(220,230,245) or Color3.fromRGB(160,160,175)
     addCorner(tabBtn,5); table.insert(tabBtns,tabBtn)
     
@@ -573,7 +657,7 @@ for i, tab in ipairs(tabItems) do
     local scrollFrame = Instance.new("ScrollingFrame", contentFrame)
     scrollFrame.Size = UDim2.new(1,0,1,0); scrollFrame.BackgroundTransparency = 1; scrollFrame.ScrollBarThickness = 3
     scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,120); scrollFrame.CanvasSize = UDim2.new(0,0,0,0); scrollFrame.ScrollingEnabled = true
-    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,3)
+    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,4)
     table.insert(tabContents, {scroll=scrollFrame, layout=scrollLayout})
     
     tabBtn.MouseButton1Click:Connect(function()
@@ -592,8 +676,8 @@ end
 local function AddSection(tabKey, title)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local s = Instance.new("TextLabel", tabContents[tabIdx].scroll)
-    s.Size = UDim2.new(1,0,0,16); s.Text = title; s.TextColor3 = Color3.fromRGB(180,200,220)
-    s.Font = Enum.Font.GothamBold; s.TextSize = 9; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; updateScrollSize(tabKey)
+    s.Size = UDim2.new(1,0,0,18); s.Text = title; s.TextColor3 = Color3.fromRGB(180,200,220)
+    s.Font = Enum.Font.GothamBold; s.TextSize = 10; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; updateScrollSize(tabKey)
 end
 
 local function AddButton(tabKey, name, color, callback)
@@ -607,15 +691,15 @@ local function AddInfoLabel(tabKey, text)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local l = Instance.new("TextLabel", tabContents[tabIdx].scroll)
     l.Size = UDim2.new(1,0,0,34); l.BackgroundColor3 = Color3.fromRGB(30,40,55); l.Text = text
-    l.TextColor3 = Color3.fromRGB(180,210,255); l.Font = Enum.Font.GothamMedium; l.TextSize = 11; l.BorderSizePixel = 0; addCorner(l,6); updateScrollSize(tabKey); return l
+    l.TextColor3 = Color3.fromRGB(180,210,255); l.Font = Enum.Font.GothamMedium; l.TextSize = 10; l.BorderSizePixel = 0; addCorner(l,6); updateScrollSize(tabKey); return l
 end
 
 local function AddToggle(tabKey, name, stateKey)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
     f.Size = UDim2.new(1,0,0,38); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
-    local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(0.45,0,1,0); lbl.Position = UDim2.new(0,10,0,0)
-    lbl.Text = name; lbl.TextColor3 = Color3.fromRGB(220,225,235); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 11
+    local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(0.48,0,1,0); lbl.Position = UDim2.new(0,10,0,0)
+    lbl.Text = name; lbl.TextColor3 = Color3.fromRGB(220,225,235); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 10
     lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
     local sb = Instance.new("Frame", f); sb.Size = UDim2.new(0,38,0,20); sb.Position = UDim2.new(1,-50,0.5,-10)
     sb.BackgroundColor3 = Color3.fromRGB(40,40,50); sb.BorderSizePixel = 0; addCorner(sb,10)
@@ -722,22 +806,59 @@ local function updateDashboard()
     end
 end
 
--- Build Menu
-AddSection("Farm","AUTO FARM"); AddToggle("Farm","Auto Farm","AutoFarm"); AddInfoLabel("Farm","[Target] "..CONFIG.TARGET_MAP)
+-- ==================== BUILD MENU ====================
+AddSection("Farm","AUTO FARM")
+AddToggle("Farm","Auto Farm","AutoFarm")
+AddInfoLabel("Farm","[Target] "..CONFIG.TARGET_MAP)
+
 AddSection("TAS","TAS LOADER")
 AddToggle("TAS","TAS Auto-Start","TAS_AUTO_START")
-AddButton("TAS","Record Mode",Color3.fromRGB(180,40,40),function() CONFIG.TAS_MODE="Record"; if CONFIG.TAS_AUTO_START then ExecuteTAS() else notify("Enable TAS Auto-Start first", "TAS") end end)
-AddButton("TAS","Play Mode",Color3.fromRGB(30,160,50),function() CONFIG.TAS_MODE="Play"; if CONFIG.TAS_AUTO_START then ExecuteTAS() else notify("Enable TAS Auto-Start first", "TAS") end end)
-AddSection("Move","MOVEMENT"); AddToggle("Move","Noclip","NOCLIP"); AddToggle("Move","Speed Boost","SPEED"); AddToggle("Move","Infinite Jump","INF_JUMP"); AddInput("Move","Speed",CONFIG.SPEED_VAL,function(v) CONFIG.SPEED_VAL=v end)
-AddSection("Visual","COMBAT + RENDER"); AddToggle("Visual","God Mode","GOD_MODE"); AddToggle("Visual","ESP","ESP"); AddToggle("Visual","Fullbright","FULLBRIGHT"); AddToggle("Visual","FOV Changer","FOV"); AddInput("Visual","FOV",CONFIG.FOV_VAL,function(v) CONFIG.FOV_VAL=v end)
+AddToggle("TAS","TAS Play Auto","TAS_PLAY_AUTO")
+AddButton("TAS","Record Mode",Color3.fromRGB(180,40,40),function()
+    if not CONFIG.TAS_AUTO_START then
+        notify("Enable TAS Auto-Start first", "TAS")
+        return
+    end
+    notify("TAS Record akan dimulai. Pastikan Auto Farm OFF.", "TAS")
+    CONFIG.TAS_MODE = "Record"
+    ExecuteTAS()
+end)
+AddButton("TAS","Play Mode (Manual)",Color3.fromRGB(30,160,50),function()
+    if not CONFIG.TAS_AUTO_START then
+        notify("Enable TAS Auto-Start first", "TAS")
+        return
+    end
+    CONFIG.TAS_MODE = "Play"
+    ExecuteTAS()
+end)
+
+AddSection("Move","MOVEMENT")
+AddToggle("Move","Noclip","NOCLIP")
+AddToggle("Move","Speed Boost","SPEED")
+AddToggle("Move","Infinite Jump","INF_JUMP")
+AddInput("Move","Speed",CONFIG.SPEED_VAL,function(v) CONFIG.SPEED_VAL=v end)
+
+AddSection("Visual","COMBAT + RENDER")
+AddToggle("Visual","God Mode","GOD_MODE")
+AddToggle("Visual","ESP","ESP")
+AddToggle("Visual","Fullbright","FULLBRIGHT")
+AddToggle("Visual","FOV Changer","FOV")
+AddInput("Visual","FOV",CONFIG.FOV_VAL,function(v) CONFIG.FOV_VAL=v end)
+
 AddSection("Stealth","ANTI-DETECTION")
-AddToggle("Stealth","Stealth Mode","STEALTH_MODE"); AddToggle("Stealth","Admin Detector","ADMIN_DETECTOR")
-AddToggle("Stealth","Auto-Leave Admin","AUTO_LEAVE_ADMIN"); AddToggle("Stealth","Random Delay","RANDOM_DELAY")
-AddToggle("Stealth","Hide Script","HIDE_SCRIPT"); AddToggle("Stealth","Map Rotation","MAP_ROTATION")
+AddToggle("Stealth","Stealth Mode","STEALTH_MODE")
+AddToggle("Stealth","Admin Detector","ADMIN_DETECTOR")
+AddToggle("Stealth","Auto-Leave Admin","AUTO_LEAVE_ADMIN")
+AddToggle("Stealth","Random Delay","RANDOM_DELAY")
+AddToggle("Stealth","Hide Script","HIDE_SCRIPT")
+AddToggle("Stealth","Map Rotation","MAP_ROTATION")
 AddButton("Stealth","Force Leave",Color3.fromRGB(180,50,50),function() forceReconnect() end)
+
 AddSection("Premium","PREMIUM FEATURES")
-AddToggle("Premium","Live Dashboard","DASHBOARD"); AddToggle("Premium","Smart Alerts","SMART_ALERTS")
-AddToggle("Premium","Night Mode","NIGHT_MODE"); AddToggle("Premium","Auto-Updater","AUTO_UPDATE")
+AddToggle("Premium","Live Dashboard","DASHBOARD")
+AddToggle("Premium","Smart Alerts","SMART_ALERTS")
+AddToggle("Premium","Night Mode","NIGHT_MODE")
+AddToggle("Premium","Auto-Updater","AUTO_UPDATE")
 AddButton("Premium","Check Updates",Color3.fromRGB(60,120,180),function() checkForUpdates() end)
 AddButton("Premium","Panic Mode [P]",Color3.fromRGB(255,80,80),function() activatePanicMode() end)
 
@@ -747,13 +868,12 @@ CloseBtn.BackgroundColor3 = Color3.fromRGB(180,50,50); CloseBtn.Text = "Close Pa
 CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.MouseButton1Click:Connect(function() Main.Visible=false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
--- Panic keybind
-UIS.InputBegan:Connect(function(input, gameProcessed)
+TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.P then
         if not panicActive then activatePanicMode() else deactivatePanicMode() end
     end
-end)
+end))
 
 -- Loops
 local lastHeartbeat = 0
@@ -769,14 +889,20 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     end)
 end))
 
-TrackConnection(RunService.Heartbeat:Connect(function() if tick() - lastESPUpdate < 0.3 then return end; pcall(updateESP) end))
-TrackConnection(RunService.Heartbeat:Connect(function() if tick() - lastVisualUpdate < 0.5 then return end; pcall(updateVisuals) end))
+-- ESP dan Visual update
+TrackConnection(RunService.Heartbeat:Connect(function()
+    pcall(updateESP)
+    pcall(updateVisuals)
+end))
 
 task.spawn(function() while task.wait(2) do pcall(updateDashboard) end end)
 
-UIS.JumpRequest:Connect(function()
-    if CONFIG.INF_JUMP and Player.Character then local hum = Player.Character:FindFirstChild("Humanoid"); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end end
-end)
+TrackConnection(UIS.JumpRequest:Connect(function()
+    if CONFIG.INF_JUMP and Player.Character then
+        local hum = Player.Character:FindFirstChild("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end))
 
 task.spawn(function() while task.wait(1) do if not _G.TroxzyAutoFarm then break end; if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then if not Check("InLift") and not Check("InGame") then AddedWaiting:FireServer() end end end end)
 task.spawn(function() while task.wait(0.5) do if not _G.TroxzyAutoFarm then DisconnectMapDetection(); break end; if not MapDetect then ConnectMapDetection() end end end)
@@ -790,5 +916,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v16.2 - Polished + PATCHED (forked TAS URLs)")
-print("Fork: killers-byte/Flood-GUI")
+print("Troxzy VIP v16.3 - ESP Fixed + Connection Tracked")
+print("All player highlights stable, zero event leaks.")
