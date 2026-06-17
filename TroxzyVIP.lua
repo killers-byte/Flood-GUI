@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v16.3 [ESP FULLY FIXED + CONNECTION TRACKED]
--- 🔥 ESP muncul di semua player, real-time, no leak
+-- TROXZY VIP v16.5 [UI POLISHED]
+-- 🔥 Layout rapi, title & version terpisah, tab proporsional
 -- 📱 100% Mobile Optimized
 -- ============================================
 
@@ -73,7 +73,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "16.3"
+local SCRIPT_VERSION = "16.5"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -130,7 +130,7 @@ local function updateStats(d)
 end
 
 local function getStatsText()
-    return string.format("Maps: %d | Adm: %d", Stats.mapsCompleted, Stats.adminLeft)
+    return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft)
 end
 
 -- Blacklist
@@ -170,7 +170,6 @@ local function autoLeaveIfAdmin()
     local now = tick()
     if now - lastAdminCheck < ADMIN_CHECK_COOLDOWN then return end
     lastAdminCheck = now
-    
     if not CONFIG.AUTO_LEAVE_ADMIN or not detectAdmins() then return end
     Stats.adminDetected = Stats.adminDetected + 1; Stats.adminLeft = Stats.adminLeft + 1
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
@@ -229,12 +228,11 @@ local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"
 local MapDetect = nil
 local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
--- ExecuteTAS dengan mode Play Auto dan Record Confirmation
+-- ExecuteTAS
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS"); return
     end
-    
     _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
     local url = CONFIG.TAS_MODE == "Record"
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
@@ -296,23 +294,18 @@ end
 TrackConnection(Player.CharacterAdded:Connect(function() repeat wait() until Player.Character; refreshNoclipCache(); noclipActive = false end))
 refreshNoclipCache()
 
--- ==================== ESP FULL FIX + CONNECTION TRACKED ====================
+-- ESP
 local espCache = {}
 local lastESPUpdate = 0
 local ESP_UPDATE_INTERVAL = 0.1
 
 local function clearESPForPlayer(plr)
     local hl = espCache[plr]
-    if hl then
-        pcall(function() hl:Destroy() end)
-        espCache[plr] = nil
-    end
+    if hl then pcall(function() hl:Destroy() end); espCache[plr] = nil end
 end
 
 local function clearAllESP()
-    for plr, hl in pairs(espCache) do
-        pcall(function() hl:Destroy() end)
-    end
+    for plr, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end
     espCache = {}
 end
 
@@ -339,9 +332,7 @@ local function onPlayerAdded(plr)
             createHighlight(plr)
         end
     end)
-    -- 🔥 PATCH: Track koneksi CharacterAdded agar ikut di-cleanup
     TrackConnection(conn)
-    
     TrackConnection(plr.AncestryChanged:Connect(function()
         if not plr:IsDescendantOf(Players) then
             clearESPForPlayer(plr)
@@ -358,9 +349,7 @@ local function onPlayerRemoving(plr)
 end
 
 for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= Player then
-        onPlayerAdded(plr)
-    end
+    if plr ~= Player then onPlayerAdded(plr) end
 end
 TrackConnection(Players.PlayerAdded:Connect(onPlayerAdded))
 TrackConnection(Players.PlayerRemoving:Connect(onPlayerRemoving))
@@ -369,14 +358,7 @@ local function updateESP()
     local now = tick()
     if now - lastESPUpdate < ESP_UPDATE_INTERVAL then return end
     lastESPUpdate = now
-
-    if not CONFIG.ESP then
-        if next(espCache) then
-            clearAllESP()
-        end
-        return
-    end
-
+    if not CONFIG.ESP then if next(espCache) then clearAllESP() end; return end
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player then
             local hl = espCache[plr]
@@ -387,17 +369,12 @@ local function updateESP()
                     clearESPForPlayer(plr)
                     createHighlight(plr)
                 end
-            else
-                clearESPForPlayer(plr)
-            end
+            else clearESPForPlayer(plr) end
         end
     end
 end
 
-local function clearESPCache()
-    clearAllESP()
-end
--- ==================== END ESP FIX ====================
+local function clearESPCache() clearAllESP() end
 
 -- Panic Mode
 local panicActive = false
@@ -444,12 +421,9 @@ end
 -- Auto Farm
 local function OnMapLoad(map)
     clearESPCache()
-    
     local settings = map:WaitForChild("Settings", 10)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-    
     autoLeaveIfAdmin()
-    
     if isMapBlacklisted(mapName) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
         notify("Blacklisted: " .. mapName, "Skip"); saveStats()
@@ -458,20 +432,16 @@ local function OnMapLoad(map)
             if hrp and hum then hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0 end end
         CurrentlyFarming = false; return
     end
-    
     CurrentlyFarming, Escaped = true, false; Stats.currentMap = mapName
-    
     local char = GetChar(); if not char then CurrentlyFarming = false; return end
     local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then CurrentlyFarming = false; return end
-    
     local currentRank, currentName = GetCurrentDifficultyRank()
     if currentRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
         notify("Difficulty High! Reset...", "Error")
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
         hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; return
     end
-    
     local buttons = {}
     for _, obj in pairs(map:GetDescendants()) do
         if isRandomString(obj.Name) and obj.ClassName == "Model" then
@@ -482,26 +452,19 @@ local function OnMapLoad(map)
             if hitbox and isRandomString(hitbox.Name) then hitbox.Name = "Hitbox"; table.insert(buttons, obj) end
         end
     end
-    
     local lostPage, rescue = map:FindFirstChild("_LostPage", true), map:FindFirstChild("_Rescue", true)
     local ocf = hrp.CFrame
     if lostPage then hrp.CFrame = lostPage.CFrame; task.wait(); hrp.CFrame = ocf end
     if rescue then hrp.CFrame = rescue.Contact.CFrame; task.wait(); hrp.CFrame = ocf end
-    
     local godMode = hum:GetPropertyChangedSignal("Health"):Connect(function() hum.Health = 1000 end); TrackConnection(godMode)
     applyNoclip(true)
-    
     while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
         if not CurrentlyFarming then break end
-        
         if CONFIG.HIDE_SCRIPT and Main then Main.Visible = not isPlayerNearby() end
-        
         if shouldTakeBreak() then task.wait(getRandomFarmDelay()) end
-        
         local exitRegion = map:FindFirstChild("ExitRegion", true)
         local currentHRP = GetChar():FindFirstChild("HumanoidRootPart"); if not currentHRP then break end
         local failedScan = true
-        
         if not exitRegion then
             if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end; currentHRP.Anchored = true
             for _, button in pairs(buttons) do
@@ -524,7 +487,6 @@ local function OnMapLoad(map)
             else Escaped = false; Camera.CameraSubject = hum; hum:ChangeState(Enum.HumanoidStateType.Dead); break end
         end
     end
-    
     Camera.CameraSubject = hum; applyNoclip(false)
     if godMode then godMode:Disconnect() end; CurrentlyFarming = false
     updateStats(currentName); rotateMap()
@@ -581,85 +543,96 @@ ToggleBtn.Size = UDim2.new(0,48,0,48); ToggleBtn.Position = UDim2.new(0.015,0,0.
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(25,25,32); ToggleBtn.Text = "T"; ToggleBtn.TextSize = 24
 ToggleBtn.Font = Enum.Font.GothamBlack; ToggleBtn.TextColor3 = Color3.fromRGB(180,200,220); addCorner(ToggleBtn, 12)
 
+-- 🔥 Main frame disesuaikan tingginya
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0,360,0,580); Main.Position = UDim2.new(0.5,-180,0.5,-290)
+Main.Size = UDim2.new(0,360,0,560); Main.Position = UDim2.new(0.5,-180,0.5,-280)
 Main.BackgroundColor3 = Color3.fromRGB(20,20,26); Main.BorderSizePixel = 0
 Main.Visible = false; Main.Active = true; Main.Draggable = true; addCorner(Main, 12)
 
+-- Header
 local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1,0,0,55); Header.BackgroundColor3 = Color3.fromRGB(28,28,36); Header.BorderSizePixel = 0; addCorner(Header, 12)
+Header.Size = UDim2.new(1,0,0,52); Header.BackgroundColor3 = Color3.fromRGB(28,28,36); Header.BorderSizePixel = 0; addCorner(Header, 12)
 Instance.new("Frame", Header).Size = UDim2.new(1,0,0.5,0)
 local hc = Instance.new("Frame", Header); hc.Position = UDim2.new(0,0,0.5,0); hc.BackgroundColor3 = Color3.fromRGB(28,28,36); hc.BorderSizePixel = 0
 
+-- Avatar
 local AvatarFrame = Instance.new("Frame", Header)
-AvatarFrame.Size = UDim2.new(0,42,0,42); AvatarFrame.Position = UDim2.new(0,8,0.5,-21)
-AvatarFrame.BackgroundColor3 = Color3.fromRGB(35,35,45); AvatarFrame.BorderSizePixel = 0; addCorner(AvatarFrame, 21)
+AvatarFrame.Size = UDim2.new(0,40,0,40); AvatarFrame.Position = UDim2.new(0,10,0.5,-20)
+AvatarFrame.BackgroundColor3 = Color3.fromRGB(35,35,45); AvatarFrame.BorderSizePixel = 0; addCorner(AvatarFrame, 20)
 local Avatar = Instance.new("ImageLabel", AvatarFrame)
-Avatar.Size = UDim2.new(0,36,0,36); Avatar.Position = UDim2.new(0,3,0,3)
-Avatar.BackgroundColor3 = Color3.fromRGB(45,45,55); Avatar.BorderSizePixel = 0; addCorner(Avatar, 18)
+Avatar.Size = UDim2.new(0,34,0,34); Avatar.Position = UDim2.new(0,3,0,3)
+Avatar.BackgroundColor3 = Color3.fromRGB(45,45,55); Avatar.BorderSizePixel = 0; addCorner(Avatar, 17)
 spawn(function() pcall(function() Avatar.Image = Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420) end) end)
 
+-- Player Name
 local PlayerName = Instance.new("TextLabel", Header)
-PlayerName.Size = UDim2.new(0,130,0,18); PlayerName.Position = UDim2.new(0,56,0.5,-16)
+PlayerName.Size = UDim2.new(0,130,0,18); PlayerName.Position = UDim2.new(0,58,0.5,-15)
 PlayerName.Text = Player.DisplayName; PlayerName.TextColor3 = Color3.fromRGB(245,245,250)
 PlayerName.TextSize = 13; PlayerName.Font = Enum.Font.GothamBold; PlayerName.BackgroundTransparency = 1
 PlayerName.TextXAlignment = Enum.TextXAlignment.Left; PlayerName.TextTruncate = Enum.TextTruncate.AtEnd
 
+-- Username
 local Username = Instance.new("TextLabel", Header)
-Username.Size = UDim2.new(0,130,0,12); Username.Position = UDim2.new(0,56,0.5,4)
+Username.Size = UDim2.new(0,130,0,12); Username.Position = UDim2.new(0,58,0.5,5)
 Username.Text = "@"..Player.Name; Username.TextColor3 = Color3.fromRGB(160,160,175)
 Username.TextSize = 9; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1
 Username.TextXAlignment = Enum.TextXAlignment.Left; Username.TextTruncate = Enum.TextTruncate.AtEnd
 
+-- 🔥 Title (tanpa versi)
 local TitleLabel = Instance.new("TextLabel", Header)
 TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-128,0.5,-14)
-TitleLabel.Text = "Troxzy VIP v16.3"; TitleLabel.TextColor3 = Color3.fromRGB(180,200,220)
-TitleLabel.TextSize = 12; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
+TitleLabel.Text = "Troxzy VIP"; TitleLabel.TextColor3 = Color3.fromRGB(180,200,220)
+TitleLabel.TextSize = 14; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
 
+-- User ID
 local UserID = Instance.new("TextLabel", Header)
-UserID.Size = UDim2.new(0,120,0,12); UserID.Position = UDim2.new(1,-128,0.5,4)
+UserID.Size = UDim2.new(0,120,0,12); UserID.Position = UDim2.new(1,-128,0.5,6)
 UserID.Text = "ID: "..Player.UserId; UserID.TextColor3 = Color3.fromRGB(140,140,155)
 UserID.TextSize = 8; UserID.Font = Enum.Font.Gotham; UserID.BackgroundTransparency = 1; UserID.TextXAlignment = Enum.TextXAlignment.Right
 
+-- Divider
 local Divider = Instance.new("Frame", Main)
-Divider.Size = UDim2.new(1,0,0,1); Divider.Position = UDim2.new(0,0,0,55)
+Divider.Size = UDim2.new(1,0,0,1); Divider.Position = UDim2.new(0,0,0,52)
 Divider.BackgroundColor3 = Color3.fromRGB(50,50,60); Divider.BorderSizePixel = 0
 
+-- Stats Bar
 local StatsBar = Instance.new("Frame", Main)
-StatsBar.Size = UDim2.new(1,-16,0,24); StatsBar.Position = UDim2.new(0,8,0,56)
+StatsBar.Size = UDim2.new(1,-16,0,22); StatsBar.Position = UDim2.new(0,8,0,57)
 StatsBar.BackgroundColor3 = Color3.fromRGB(30,40,55); StatsBar.BorderSizePixel = 0; addCorner(StatsBar, 4)
 local StatsLabel = Instance.new("TextLabel", StatsBar)
-StatsLabel.Size = UDim2.new(1,0,1,0); StatsLabel.BackgroundTransparency = 1
+StatsLabel.Size = UDim2.new(1,-6,1,0); StatsLabel.Position = UDim2.new(0,3,0,0); StatsLabel.BackgroundTransparency = 1
 StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = Color3.fromRGB(180,210,255)
 StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 9; StatsLabel.TextTruncate = Enum.TextTruncate.AtEnd
 task.spawn(function() while task.wait(5) do pcall(function() StatsLabel.Text = getStatsText() end) end end)
 
+-- 🔥 Tab Bar dengan padding proporsional
 local TabBar = Instance.new("Frame", Main)
-TabBar.Size = UDim2.new(1,-16,0,34); TabBar.Position = UDim2.new(0,8,0,82); TabBar.BackgroundTransparency = 1
+TabBar.Size = UDim2.new(1,-16,0,32); TabBar.Position = UDim2.new(0,8,0,83); TabBar.BackgroundTransparency = 1
 local TabList = Instance.new("UIListLayout", TabBar)
 TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,3); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabList.VerticalAlignment = Enum.VerticalAlignment.Center
 
 local tabItems = { {name="Farm",key="Farm"}, {name="TAS",key="TAS"}, {name="Move",key="Move"}, {name="Visual",key="Visual"}, {name="Stealth",key="Stealth"}, {name="Premium",key="Premium"} }
 local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton", TabBar)
-    tabBtn.Size = UDim2.new(0.15,0,1,0)
+    tabBtn.Size = UDim2.new(0.15,0,0,28) -- 🔥 Ukuran tab lebih proporsional
     tabBtn.BackgroundColor3 = (tab.key=="Farm") and Color3.fromRGB(40,50,65) or Color3.fromRGB(25,25,33)
     tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold
     tabBtn.TextColor3 = (tab.key=="Farm") and Color3.fromRGB(220,230,245) or Color3.fromRGB(160,160,175)
     addCorner(tabBtn,5); table.insert(tabBtns,tabBtn)
-    
+
     local contentFrame = Instance.new("Frame", Main)
     contentFrame.Size = UDim2.new(1,-16,1,-122); contentFrame.Position = UDim2.new(0,8,0,118)
     contentFrame.BackgroundTransparency = 1; contentFrame.Visible = (tab.key=="Farm")
-    
+
     local scrollFrame = Instance.new("ScrollingFrame", contentFrame)
     scrollFrame.Size = UDim2.new(1,0,1,0); scrollFrame.BackgroundTransparency = 1; scrollFrame.ScrollBarThickness = 3
     scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,120); scrollFrame.CanvasSize = UDim2.new(0,0,0,0); scrollFrame.ScrollingEnabled = true
-    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,4)
+    local scrollLayout = Instance.new("UIListLayout", scrollFrame); scrollLayout.Padding = UDim.new(0,3)
     table.insert(tabContents, {scroll=scrollFrame, layout=scrollLayout})
-    
+
     tabBtn.MouseButton1Click:Connect(function()
         for j, btn in ipairs(tabBtns) do
             if j==i then btn.BackgroundColor3=Color3.fromRGB(40,50,65); btn.TextColor3=Color3.fromRGB(220,230,245); tabContents[j].scroll.Parent.Visible=true
@@ -676,37 +649,37 @@ end
 local function AddSection(tabKey, title)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local s = Instance.new("TextLabel", tabContents[tabIdx].scroll)
-    s.Size = UDim2.new(1,0,0,18); s.Text = title; s.TextColor3 = Color3.fromRGB(180,200,220)
+    s.Size = UDim2.new(1,0,0,16); s.Text = title; s.TextColor3 = Color3.fromRGB(180,200,220)
     s.Font = Enum.Font.GothamBold; s.TextSize = 10; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; updateScrollSize(tabKey)
 end
 
 local function AddButton(tabKey, name, color, callback)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local b = Instance.new("TextButton", tabContents[tabIdx].scroll)
-    b.Size = UDim2.new(1,0,0,38); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamBold
+    b.Size = UDim2.new(1,0,0,36); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamBold
     b.TextColor3 = Color3.fromRGB(255,255,255); addCorner(b,6); b.MouseButton1Click:Connect(function() pcall(callback) end); updateScrollSize(tabKey)
 end
 
 local function AddInfoLabel(tabKey, text)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local l = Instance.new("TextLabel", tabContents[tabIdx].scroll)
-    l.Size = UDim2.new(1,0,0,34); l.BackgroundColor3 = Color3.fromRGB(30,40,55); l.Text = text
+    l.Size = UDim2.new(1,0,0,32); l.BackgroundColor3 = Color3.fromRGB(30,40,55); l.Text = text
     l.TextColor3 = Color3.fromRGB(180,210,255); l.Font = Enum.Font.GothamMedium; l.TextSize = 10; l.BorderSizePixel = 0; addCorner(l,6); updateScrollSize(tabKey); return l
 end
 
 local function AddToggle(tabKey, name, stateKey)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1,0,0,38); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
+    f.Size = UDim2.new(1,0,0,36); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
     local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(0.48,0,1,0); lbl.Position = UDim2.new(0,10,0,0)
     lbl.Text = name; lbl.TextColor3 = Color3.fromRGB(220,225,235); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 10
     lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
-    local sb = Instance.new("Frame", f); sb.Size = UDim2.new(0,38,0,20); sb.Position = UDim2.new(1,-50,0.5,-10)
-    sb.BackgroundColor3 = Color3.fromRGB(40,40,50); sb.BorderSizePixel = 0; addCorner(sb,10)
-    local dot = Instance.new("Frame", sb); dot.Size = UDim2.new(0,14,0,14); dot.Position = UDim2.new(0,3,0.5,-7)
-    dot.BackgroundColor3 = Color3.fromRGB(100,100,115); dot.BorderSizePixel = 0; addCorner(dot,7)
+    local sb = Instance.new("Frame", f); sb.Size = UDim2.new(0,36,0,18); sb.Position = UDim2.new(1,-48,0.5,-9)
+    sb.BackgroundColor3 = Color3.fromRGB(40,40,50); sb.BorderSizePixel = 0; addCorner(sb,9)
+    local dot = Instance.new("Frame", sb); dot.Size = UDim2.new(0,12,0,12); dot.Position = UDim2.new(0,3,0.5,-6)
+    dot.BackgroundColor3 = Color3.fromRGB(100,100,115); dot.BorderSizePixel = 0; addCorner(dot,6)
     local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(1,0,1,0); btn.BackgroundTransparency = 1; btn.Text = ""
-    
+
     local state = false
     btn.MouseButton1Click:Connect(function()
         state = not state
@@ -715,7 +688,22 @@ local function AddToggle(tabKey, name, stateKey)
         elseif stateKey=="DASHBOARD" and Dashboard then Dashboard.Visible = state
         elseif stateKey=="PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
         else CONFIG[stateKey]=state end
-        local pos = state and UDim2.new(0,21,0.5,-7) or UDim2.new(0,3,0.5,-7)
+
+        if stateKey=="TAS_PLAY_AUTO" and state then
+            if CONFIG.TAS_AUTO_START then
+                CONFIG.TAS_MODE = "Play"
+                notify("TAS Play Auto Activated! Running...", "TAS")
+                task.spawn(ExecuteTAS)
+            else
+                notify("Enable TAS Auto-Start first!", "TAS")
+                CONFIG.TAS_PLAY_AUTO = false
+                state = false
+            end
+        elseif stateKey=="TAS_PLAY_AUTO" and not state then
+            notify("TAS Play Auto deactivated.", "TAS")
+        end
+
+        local pos = state and UDim2.new(0,18,0.5,-6) or UDim2.new(0,3,0.5,-6)
         dot:TweenPosition(pos,"Out","Quad",0.15)
         dot.BackgroundColor3 = state and Color3.fromRGB(100,200,255) or Color3.fromRGB(100,100,115)
         sb.BackgroundColor3 = state and Color3.fromRGB(30,60,90) or Color3.fromRGB(40,40,50)
@@ -725,10 +713,10 @@ end
 local function AddInput(tabKey, label, defaultVal, callback)
     local tabIdx; for i,t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1,0,0,44); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
-    local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(1,0,0,16); lbl.Position = UDim2.new(0,0,0,3)
+    f.Size = UDim2.new(1,0,0,42); f.BackgroundColor3 = Color3.fromRGB(28,28,36); f.BorderSizePixel = 0; addCorner(f,6)
+    local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(1,0,0,16); lbl.Position = UDim2.new(0,0,0,2)
     lbl.Text = label; lbl.TextColor3 = Color3.fromRGB(170,170,185); lbl.Font = Enum.Font.Gotham; lbl.TextSize = 10; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Center
-    local inp = Instance.new("TextBox", f); inp.Size = UDim2.new(0,65,0,22); inp.Position = UDim2.new(0.5,-32,0,18)
+    local inp = Instance.new("TextBox", f); inp.Size = UDim2.new(0,65,0,22); inp.Position = UDim2.new(0.5,-32,0,17)
     inp.BackgroundColor3 = Color3.fromRGB(35,35,45); inp.TextColor3 = Color3.fromRGB(240,240,245)
     inp.PlaceholderText = tostring(defaultVal); inp.Text = tostring(defaultVal); inp.Font = Enum.Font.Gotham; inp.TextSize = 11; addCorner(inp,5)
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) end end); updateScrollSize(tabKey)
@@ -755,7 +743,7 @@ end
 
 -- Dashboard
 local Dashboard = Instance.new("Frame", ScreenGui)
-Dashboard.Size = UDim2.new(0, 200, 0, 80)
+Dashboard.Size = UDim2.new(0, 190, 0, 80)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
 Dashboard.AnchorPoint = Vector2.new(1, 0)
 Dashboard.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
@@ -768,22 +756,22 @@ local function createDashboardContent()
     title.Size = UDim2.new(1,0,0,18); title.Position = UDim2.new(0,0,0,4)
     title.Text = "Live Dashboard"; title.TextColor3 = Color3.fromRGB(180,200,220)
     title.Font = Enum.Font.GothamBold; title.TextSize = 10; title.BackgroundTransparency = 1
-    
+
     local mapLabel = Instance.new("TextLabel", Dashboard)
     mapLabel.Size = UDim2.new(1,0,0,14); mapLabel.Position = UDim2.new(0,0,0,22)
     mapLabel.Text = "Map: Waiting..."; mapLabel.TextColor3 = Color3.fromRGB(160,180,200)
     mapLabel.Font = Enum.Font.Gotham; mapLabel.TextSize = 9; mapLabel.BackgroundTransparency = 1; mapLabel.Name = "MapLabel"
-    
+
     local timeLabel = Instance.new("TextLabel", Dashboard)
     timeLabel.Size = UDim2.new(1,0,0,14); timeLabel.Position = UDim2.new(0,0,0,36)
     timeLabel.Text = "Time: 0m"; timeLabel.TextColor3 = Color3.fromRGB(160,180,200)
     timeLabel.Font = Enum.Font.Gotham; timeLabel.TextSize = 9; timeLabel.BackgroundTransparency = 1; timeLabel.Name = "TimeLabel"
-    
+
     local speedLabel = Instance.new("TextLabel", Dashboard)
     speedLabel.Size = UDim2.new(1,0,0,14); speedLabel.Position = UDim2.new(0,0,0,50)
     speedLabel.Text = "Maps/hr: 0"; speedLabel.TextColor3 = Color3.fromRGB(160,180,200)
     speedLabel.Font = Enum.Font.Gotham; speedLabel.TextSize = 9; speedLabel.BackgroundTransparency = 1; speedLabel.Name = "SpeedLabel"
-    
+
     local statusLabel = Instance.new("TextLabel", Dashboard)
     statusLabel.Size = UDim2.new(1,0,0,14); statusLabel.Position = UDim2.new(0,0,0,64)
     statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = Color3.fromRGB(100,255,100)
@@ -815,19 +803,13 @@ AddSection("TAS","TAS LOADER")
 AddToggle("TAS","TAS Auto-Start","TAS_AUTO_START")
 AddToggle("TAS","TAS Play Auto","TAS_PLAY_AUTO")
 AddButton("TAS","Record Mode",Color3.fromRGB(180,40,40),function()
-    if not CONFIG.TAS_AUTO_START then
-        notify("Enable TAS Auto-Start first", "TAS")
-        return
-    end
+    if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first", "TAS"); return end
     notify("TAS Record akan dimulai. Pastikan Auto Farm OFF.", "TAS")
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
 AddButton("TAS","Play Mode (Manual)",Color3.fromRGB(30,160,50),function()
-    if not CONFIG.TAS_AUTO_START then
-        notify("Enable TAS Auto-Start first", "TAS")
-        return
-    end
+    if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first", "TAS"); return end
     CONFIG.TAS_MODE = "Play"
     ExecuteTAS()
 end)
@@ -862,10 +844,23 @@ AddToggle("Premium","Auto-Updater","AUTO_UPDATE")
 AddButton("Premium","Check Updates",Color3.fromRGB(60,120,180),function() checkForUpdates() end)
 AddButton("Premium","Panic Mode [P]",Color3.fromRGB(255,80,80),function() activatePanicMode() end)
 
+-- 🔥 Version Label — terpisah, di pojok kiri bawah
+local VersionLabel = Instance.new("TextLabel", Main)
+VersionLabel.Size = UDim2.new(0,80,0,16)
+VersionLabel.Position = UDim2.new(0.04,0,1,-36)
+VersionLabel.Text = "v" .. SCRIPT_VERSION
+VersionLabel.TextColor3 = Color3.fromRGB(100,120,140)
+VersionLabel.TextSize = 9
+VersionLabel.Font = Enum.Font.Gotham
+VersionLabel.BackgroundTransparency = 1
+VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Close Button
 local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.new(1,-20,0,34); CloseBtn.Position = UDim2.new(0,10,1,-42)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180,50,50); CloseBtn.Text = "Close Panel"; CloseBtn.TextSize = 12; CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.MouseButton1Click:Connect(function() Main.Visible=false end)
+CloseBtn.Size = UDim2.new(1,-20,0,32); CloseBtn.Position = UDim2.new(0,10,1,-36)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180,50,50); CloseBtn.Text = "Close Panel"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6)
+CloseBtn.MouseButton1Click:Connect(function() Main.Visible=false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -889,7 +884,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     end)
 end))
 
--- ESP dan Visual update
 TrackConnection(RunService.Heartbeat:Connect(function()
     pcall(updateESP)
     pcall(updateVisuals)
@@ -916,5 +910,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v16.3 - ESP Fixed + Connection Tracked")
-print("All player highlights stable, zero event leaks.")
+print("Troxzy VIP v16.5 - UI Polished")
+print("Title & version separated, layout proportional, clean design")
