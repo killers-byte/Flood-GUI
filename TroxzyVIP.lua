@@ -1,8 +1,8 @@
 -- ============================================
--- TROXZY VIP v19.4 – TAS AUTO‑QUEUE STABIL + FILE CHECK ROBUST
--- 🔥 TAS otomatis berjalan tiap map, tanpa henti
--- 🔥 Deteksi akhir TAS real‑time, reset flag executing
--- 🔥 Pengecekan file .json lebih toleran (case/spasi)
+-- TROXZY VIP v19.5 – TAS AUTO‑QUEUE ROCK SOLID
+-- 🔥 Deteksi map & file .json jauh lebih tangguh
+-- 🔥 Flag _G.TAS_EXECUTING direset paksa di lobby
+-- 🔥 Gunakan listfiles untuk pencocokan file (fallback)
 -- 🔥 Anti‑Admin & Anti‑Report (stay in server)
 -- 📱 UI selalu tampil
 -- ============================================
@@ -46,6 +46,9 @@ local ToggleBtn = nil
 local MapDetect = nil
 local TimerHookActive = false
 local TimerHookStart = 0
+
+-- Cache nama file TAS yang tersedia (diisi saat start)
+local TASFileCache = {}
 
 -- Cleanup
 for _, gui in pairs(Player.PlayerGui:GetChildren()) do
@@ -105,7 +108,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.4"
+local SCRIPT_VERSION = "19.5"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -241,20 +244,61 @@ local function preventReports()
     end)
 end
 
--- Pengecekan ketersediaan file TAS (toleran terhadap case dan spasi)
-local function isTASFileAvailable(mapName)
-    if not isfile then return true end -- fallback
-    local cleanName = mapName:gsub("^%s+", ""):gsub("%s+$", ""):lower()
-    -- cek langsung
-    local path = "TAS FILES/" .. mapName .. ".json"
-    if isfile(path) then return true end
-    -- cek dengan lowercase
-    path = "TAS FILES/" .. cleanName .. ".json"
-    if isfile(path) then return true end
-    -- cek dengan mengganti spasi menjadi tanda hubung (untuk map seperti Dark Sci-Forest)
-    path = "TAS FILES/" .. cleanName:gsub(" ", "-") .. ".json"
-    return isfile(path)
+-- ==================== TAS FILE MATCHING SUPER ROBUST ====================
+local function buildTASFileCache()
+    TASFileCache = {}
+    if not isfolder or not listfiles then return end
+    if not isfolder("TAS FILES") then return end
+    local files = listfiles("TAS FILES")
+    for _, fullPath in ipairs(files) do
+        local name = fullPath:match("([^/\\]+)%.json$")
+        if name then
+            TASFileCache[name:lower()] = name
+        end
+    end
 end
+
+local function isTASFileAvailable(mapName)
+    -- Cek cache dulu
+    local clean = mapName:gsub("^%s+", ""):gsub("%s+$", ""):lower()
+    if TASFileCache[clean] then
+        return true
+    end
+
+    -- Jika cache kosong (executor tidak support listfiles), fallback ke isfile
+    if not isfile then return true end -- executor tanpa isfile, anggap selalu tersedia
+
+    -- Coba berbagai variasi nama
+    local paths = {
+        "TAS FILES/" .. mapName .. ".json",
+        "TAS FILES/" .. clean .. ".json",
+        "TAS FILES/" .. clean:gsub(" ", "-") .. ".json",
+        "TAS FILES/" .. clean:gsub("[^%w%s]", "") .. ".json", -- hilangkan karakter non-alfanumerik
+    }
+    for _, p in ipairs(paths) do
+        if isfile(p) then
+            TASFileCache[clean] = mapName -- cache
+            return true
+        end
+    end
+
+    -- Coba cek apakah ada file yang mengandung nama map (parsial)
+    if isfolder and listfiles then
+        local files = listfiles("TAS FILES")
+        for _, f in ipairs(files) do
+            local fname = f:match("([^/\\]+)%.json$")
+            if fname and (fname:lower():find(clean, 1, true) or clean:find(fname:lower(), 1, true)) then
+                TASFileCache[clean] = fname
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+-- Panggil build cache saat start
+buildTASFileCache()
 
 -- Deteksi admin, jalankan proteksi (tetap stay)
 local lastAdminAlert = 0
@@ -415,6 +459,7 @@ local function ExecuteTAS()
         _G.TAS_EXECUTING = false
         return
     end
+
     -- Jalankan TAS dalam thread terpisah, setelah selesai reset flag
     task.spawn(function()
         pcall(f)
@@ -1581,7 +1626,7 @@ CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 -- Notification
-notify("Troxzy VIP v19.4 loaded! ☰ to toggle menu.", "Welcome")
+notify("Troxzy VIP v19.5 loaded! ☰ to toggle menu.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1644,20 +1689,17 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP (AUTO‑QUEUE DENGAN RESET FLAG) ====================
+-- ==================== WATCHDOG LOOP (AUTO‑QUEUE DENGAN RESET FLAG PAKSA) ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            -- Jika di lift, putuskan MapDetect agar siap koneksi baru
+            -- Reset paksa flag executing saat di lobby
             if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
                 DisconnectMapDetection()
-                -- Reset flag executing jika TAS sebelumnya sudah selesai (fallback)
-                if _G.TAS_EXECUTING and not CurrentlyFarming then
-                    _G.TAS_EXECUTING = false
-                end
+                _G.TAS_EXECUTING = false
             end
-            -- Jika di game dan TAS tidak pause/tidak executing, jalankan TAS
-            -- (ini hanya fallback, seharusnya OnMapLoad sudah menjalankan TAS)
+
+            -- Jika di game dan TAS tidak aktif, coba jalankan (fallback)
             if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
                 local map = Multiplayer:FindFirstChildWhichIsA("Model")
                 if map then
@@ -1671,6 +1713,7 @@ task.spawn(function()
                     end
                 end
             end
+
             -- Pastikan MapDetect selalu hidup
             if not MapDetect then
                 ConnectMapDetection()
@@ -1719,5 +1762,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.4 – TAS Auto-Queue Stabil + File Check Robust")
-print("TAS flag reset properly, file name matching improved.")
+print("Troxzy VIP v19.5 – TAS Auto-Queue Super Robust")
+print("File matching improved, executing flag reset forced in lobby.")
