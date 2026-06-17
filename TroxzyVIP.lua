@@ -1,8 +1,8 @@
 -- ============================================
--- TROXZY VIP v19.0 – ALL FEATURES + PRO UI
+-- TROXZY VIP v19.0 – UI FIX (ALWAYS VISIBLE)
 -- 🔥 Auto Farm + TAS Play Auto (loop stabil)
 -- 🎁 Item Collector, Air Swim, Timer Hook, Anti-Report, Custom Flood Colors
--- 📱 UI profesional, mobile optimized
+-- 📱 UI selalu muncul, mobile optimized
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -816,7 +816,7 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     end
 end))
 
--- ==================== UI PROFESIONAL ====================
+-- ==================== UI PROFESIONAL (ALWAYS VISIBLE) ====================
 local COLORS = {
     -- Backgrounds
     MainBg = Color3.fromRGB(20, 20, 26),
@@ -869,7 +869,7 @@ Main.Size = UDim2.new(0, 370, 0, 530)
 Main.Position = UDim2.new(0.5, -185, 0.5, -265)
 Main.BackgroundColor3 = COLORS.MainBg
 Main.BorderSizePixel = 0
-Main.Visible = IS_MOBILE
+Main.Visible = true  -- 🔥 Always visible
 Main.Active = true
 Main.Draggable = true
 addCorner(Main, 12)
@@ -1483,9 +1483,8 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-if IS_MOBILE then
-    notify("Tap tombol ☰ di pojok untuk buka/tutup menu", "Welcome")
-end
+-- Notification
+notify("Troxzy VIP loaded! Tap ☰ to toggle menu.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1607,5 +1606,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.0 – All Features + Pro UI")
+print("Troxzy VIP v19.0 – UI Always Visible")
 print("Auto Farm, TAS Play Auto, Extra Features, Professional UI")
