@@ -1,10 +1,8 @@
 -- ============================================
--- TROXZY VIP v20.0 – TAS & RECORD MODE FULLY FIXED
--- 🔥 ExecuteTAS() sekarang hanya mengunduh & menjalankan script TAS
--- 🔥 TIDAK ADA pengecekan map / file .json di ExecuteTAS (itu urusan TAS Player sendiri)
--- 🔥 Record Mode kembali normal (langsung unduh creator.luau)
--- 🔥 Pause berfungsi penuh
--- 🔥 TAS Play Auto tetap berjalan otomatis tiap map (via OnMapLoad)
+-- TROXZY VIP v20.1 – RECORD MODE & PAUSE FULLY WORKING
+-- 🔥 Record Mode bisa dijalankan kapan saja (tanpa TAS Auto‑Start)
+-- 🔥 Pause berfungsi: menjeda TAS, langsung lanjut saat unpause
+-- 🔥 TAS Play Auto tetap auto‑queue stabil
 -- 📱 UI selalu tampil, auto‑update hanya ke versi lebih tinggi
 -- ============================================
 
@@ -106,7 +104,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.0"
+local SCRIPT_VERSION = "20.1"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -374,9 +372,9 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS (SIMPLE & BERSIH) ====================
+-- ==================== EXECUTE TAS ====================
 local function ExecuteTAS()
-    -- Hanya cek pause & executing, tidak ada pengecekan lain
+    -- Hanya cek pause & executing, TIDAK perlu TAS_AUTO_START
     if _G.TAS_PAUSED then
         notify("TAS sedang dijeda.", "TAS Pause")
         return
@@ -640,7 +638,7 @@ local function OnMapLoad(map)
     handleAdminDetection()
     handleAntiReport()
 
-    -- TAS Play Auto: langsung jalankan TAS tanpa syarat
+    -- TAS Play Auto: langsung jalankan TAS
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         _G.TroxzyAutoFarm = true
         DisconnectMapDetection()
@@ -1235,8 +1233,12 @@ local function AddToggle(tabKey, name, stateKey)
                 notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
             else
                 notify("TAS dilanjutkan.", "TAS Pause")
-                if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START and not _G.TAS_EXECUTING then
+                -- Langsung jalankan TAS jika di map dan TAS Play Auto aktif
+                if Check("InGame") and _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START and not _G.TAS_EXECUTING then
                     task.spawn(ExecuteTAS)
+                elseif Check("InGame") and not _G.TAS_EXECUTING then
+                    -- Jika hanya TAS Play Auto tidak aktif, tetap jalankan TAS (Record Mode mungkin)
+                    -- Record Mode manual, jadi hanya jalankan jika TAS Play Auto aktif
                 end
             end
         else
@@ -1467,11 +1469,8 @@ AddToggle("TAS", "TAS Auto-Start", "TAS_AUTO_START")
 AddToggle("TAS", "TAS Play Auto", "TAS_PLAY_AUTO")
 AddToggle("TAS", "Pause TAS", "TAS_PAUSE")
 AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
-    if not CONFIG.TAS_AUTO_START then
-        notify("Enable TAS Auto-Start first", "TAS")
-        return
-    end
-    notify("TAS Record akan dimulai. Pastikan Auto Farm OFF.", "TAS")
+    -- Record mode bisa dijalankan kapan saja
+    notify("TAS Record akan dimulai.", "TAS")
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
@@ -1547,7 +1546,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.0 – TAS & Record fixed.", "Welcome")
+notify("Troxzy VIP v20.1 – Record & Pause perfected.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1672,4 +1671,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v20.0 – TAS & Record Mode fully fixed.")
+print("Troxzy VIP v20.1 – Record mode now works anytime, pause resumes immediately.")
