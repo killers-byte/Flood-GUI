@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v17.0 [FULL AUTO TAS + LIFT DETECTION]
--- 🔥 No more manual Play button, TAS auto-activates
+-- TROXZY VIP v17.4 [WATCHDOG LOOP FIXED]
+-- 🔥 Watchdog tidak lagi membunuh MapDetect saat TAS Play Auto aktif
 -- 📱 Mobile-first optimized
 -- ============================================
 
@@ -29,6 +29,9 @@ local Camera = Workspace.CurrentCamera
 if not Camera then return end
 
 local IS_MOBILE = UIS.TouchEnabled
+
+-- Global state untuk TAS Play Auto
+_G.TAS_PLAY_AUTO_ACTIVE = false
 
 -- DEKLARASI AWAL
 local CurrentlyFarming = false
@@ -88,7 +91,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "17.0"
+local SCRIPT_VERSION = "17.4"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -243,12 +246,12 @@ local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"
 local MapDetect = nil
 local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
--- ExecuteTAS
+-- ExecuteTAS (TIDAK lagi mematikan Map Detection)
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS"); return
     end
-    _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
+    _G.TroxzyAutoFarm = false; CurrentlyFarming = false
     local url = CONFIG.TAS_MODE == "Record"
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
         or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
@@ -507,6 +510,11 @@ local function OnMapLoad(map)
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
     notify("Complete!", "System")
     clearESPCache()
+
+    -- Biarkan _G.TAS_PLAY_AUTO_ACTIVE tetap true
+    if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
+        CONFIG.TAS_MODE = "Play"
+    end
 end
 
 -- Map Detection
@@ -531,13 +539,22 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     local ft
     for _, m in pairs(maps) do if m.name == CONFIG.TARGET_MAP and m.displayMap then ft = m; break end end
     if ft then
-        notify("Target Found!", "Success"); _G.TroxzyAutoFarm, CurrentlyFarming = false, false; DisconnectMapDetection()
-        if _G.TroxzyConnections then for _, c in pairs(_G.TroxzyConnections) do if c ~= MapDetect then pcall(function() c:Disconnect() end) end end end
+        notify("Target Found!", "Success")
+        _G.TroxzyAutoFarm, CurrentlyFarming = false, false
+        -- HAPUS DisconnectMapDetection()
+        if _G.TroxzyConnections then
+            for _, c in pairs(_G.TroxzyConnections) do
+                if c ~= MapDetect then
+                    pcall(function() c:Disconnect() end)
+                end
+            end
+        end
         local key = GetSessionKey()
         if key then UpdMapVote:FireServer(key, ft.ID, CalculateCost(ft, pVotes[tostring(Player.UserId)])); notify("Voted!", "Success")
         else notify("Vote Failed", "Error") end
         task.wait(1); AddedWaiting:FireServer()
-        if CONFIG.TAS_PLAY_AUTO and CONFIG.TAS_AUTO_START then
+        -- Gunakan _G.TAS_PLAY_AUTO_ACTIVE sebagai penentu
+        if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
             CONFIG.TAS_MODE = "Play"
             task.spawn(ExecuteTAS)
         elseif CONFIG.TAS_AUTO_START then
@@ -547,25 +564,6 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         end
     end
 end))
-
--- ==================== LIFT DETECTION (AUTO-TRIGGER TAS) ====================
-task.spawn(function()
-    while task.wait(1) do
-        if not CONFIG.TAS_PLAY_AUTO then break end
-        if not CONFIG.TAS_AUTO_START then break end
-
-        local char = GetChar()
-        if not char then continue end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then continue end
-
-        local inLift = hrp.Position.X < 50 and hrp.Position.Z > 70
-        if inLift and not CurrentlyFarming then
-            CONFIG.TAS_MODE = "Play"
-            task.spawn(ExecuteTAS)
-        end
-    end
-end)
 
 -- ==================== UI ====================
 local COLORS = {
@@ -750,6 +748,7 @@ local function AddToggle(tabKey, name, stateKey)
 
         if stateKey=="TAS_PLAY_AUTO" and state then
             if CONFIG.TAS_AUTO_START then
+                _G.TAS_PLAY_AUTO_ACTIVE = true
                 CONFIG.TAS_MODE = "Play"
                 notify("TAS Play Auto Activated! Running...", "TAS")
                 task.spawn(ExecuteTAS)
@@ -759,6 +758,7 @@ local function AddToggle(tabKey, name, stateKey)
                 state = false
             end
         elseif stateKey=="TAS_PLAY_AUTO" and not state then
+            _G.TAS_PLAY_AUTO_ACTIVE = false
             notify("TAS Play Auto deactivated.", "TAS")
         end
 
@@ -867,7 +867,6 @@ AddButton("TAS","Record Mode",COLORS.ButtonRecord,function()
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
--- Tidak ada lagi "Play Mode (Manual)"
 
 AddSection("Move","MOVEMENT")
 AddToggle("Move","Noclip","NOCLIP")
@@ -955,8 +954,26 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
-task.spawn(function() while task.wait(1) do if not _G.TroxzyAutoFarm then break end; if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then if not Check("InLift") and not Check("InGame") then AddedWaiting:FireServer() end end end end)
-task.spawn(function() while task.wait(0.5) do if not _G.TroxzyAutoFarm then DisconnectMapDetection(); break end; if not MapDetect then ConnectMapDetection() end end end)
+-- 🔥 WATCHDOG LOOP CERDAS
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.TAS_PLAY_AUTO_ACTIVE then
+            -- Jika TAS Play Auto aktif, pastikan MapDetect tetap terhubung
+            if not MapDetect then
+                ConnectMapDetection()
+            end
+        else
+            -- Mode normal: auto farm
+            if not _G.TroxzyAutoFarm then
+                DisconnectMapDetection()
+                break
+            end
+            if not MapDetect then
+                ConnectMapDetection()
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     while task.wait(10) do
@@ -967,5 +984,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v17.0 - Full Auto TAS + Lift Detection")
-print("Play button removed, TAS auto-activates on lift, loops forever")
+print("Troxzy VIP v17.4 - Watchdog Loop Fixed")
+print("MapDetect stays alive when TAS Play Auto is active")
