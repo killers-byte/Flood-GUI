@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v20.2 – TAS PAUSE FULLY FIXED
--- 🔥 Saat unpause, flag executing langsung direset → TAS langsung lanjut
--- 🔥 Record Mode tetap berfungsi tanpa syarat
--- 📱 UI selalu tampil, auto‑update hanya ke versi lebih tinggi
+-- TROXZY VIP v20.3 – PAUSE TAS SESUAI VERSI LAMA
+-- 🔥 Pause hanya berfungsi saat TAS Play Auto AKTIF
+-- 🔥 Unpause langsung reset flag + lanjutkan TAS di map
+-- 🔥 Record & Play Mode mandiri tanpa syarat
+-- 📱 UI selalu tampil
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -103,7 +104,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.2"
+local SCRIPT_VERSION = "20.3"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -373,6 +374,7 @@ end
 
 -- ==================== EXECUTE TAS ====================
 local function ExecuteTAS()
+    -- Hanya cek pause
     if _G.TAS_PAUSED then
         notify("TAS sedang dijeda.", "TAS Pause")
         return
@@ -896,6 +898,7 @@ local COLORS = {
     InputBg = Color3.fromRGB(35, 35, 45),
     CloseBg = Color3.fromRGB(180, 50, 50),
     ButtonRecord = Color3.fromRGB(180, 40, 40),
+    ButtonPlay = Color3.fromRGB(30, 160, 50),
     ButtonUpdate = Color3.fromRGB(60, 120, 180),
     ButtonPanic = Color3.fromRGB(255, 80, 80),
     ButtonForceLeave = Color3.fromRGB(180, 50, 50),
@@ -1226,18 +1229,20 @@ local function AddToggle(tabKey, name, stateKey)
         elseif stateKey == "PANIC_MODE" then
             if state then activatePanicMode() else deactivatePanicMode() end
         elseif stateKey == "TAS_PAUSE" then
+            -- Hanya bisa pause jika TAS Play Auto aktif
+            if not _G.TAS_PLAY_AUTO_ACTIVE then
+                notify("Pause hanya berfungsi saat TAS Play Auto aktif.", "TAS Pause")
+                return
+            end
             _G.TAS_PAUSED = state
             if state then
                 notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
             else
                 notify("TAS dilanjutkan.", "TAS Pause")
-                -- Reset executing flag agar TAS bisa langsung dijalankan kembali
+                -- Reset executing flag dan langsung lanjutkan
                 _G.TAS_EXECUTING = false
-                -- Langsung jalankan TAS jika di map dan TAS Play Auto aktif, atau jika Record Mode (manual)
                 if Check("InGame") and not CurrentlyFarming then
-                    if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-                        task.spawn(ExecuteTAS)
-                    end
+                    task.spawn(ExecuteTAS)
                 end
             end
         else
@@ -1258,6 +1263,8 @@ local function AddToggle(tabKey, name, stateKey)
             end
         elseif stateKey == "TAS_PLAY_AUTO" and not state then
             _G.TAS_PLAY_AUTO_ACTIVE = false
+            -- Matikan pause juga
+            _G.TAS_PAUSED = false
             notify("TAS Play Auto deactivated.", "TAS")
         end
 
@@ -1472,6 +1479,11 @@ AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
     CONFIG.TAS_MODE = "Record"
     ExecuteTAS()
 end)
+AddButton("TAS", "Play Mode", COLORS.ButtonPlay, function()
+    notify("TAS Play akan dimulai.", "TAS")
+    CONFIG.TAS_MODE = "Play"
+    ExecuteTAS()
+end)
 
 AddSection("Move", "MOVEMENT")
 AddToggle("Move", "Noclip", "NOCLIP")
@@ -1544,7 +1556,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.2 – Pause langsung lanjut setelah dimatikan.", "Welcome")
+notify("Troxzy VIP v20.3 – Pause sesuai versi lama.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1666,4 +1678,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v20.2 – Pause now properly resumes TAS.")
+print("Troxzy VIP v20.3 – Pause works exactly like original.")
