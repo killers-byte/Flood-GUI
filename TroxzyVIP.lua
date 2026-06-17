@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v17.4 [WATCHDOG LOOP FIXED]
--- 🔥 Watchdog tidak lagi membunuh MapDetect saat TAS Play Auto aktif
+-- TROXZY VIP v17.7 [AUTO FARM FLAG FIXED]
+-- 🔥 _G.TroxzyAutoFarm dikembalikan ke true setelah map selesai
 -- 📱 Mobile-first optimized
 -- ============================================
 
@@ -91,7 +91,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "17.4"
+local SCRIPT_VERSION = "17.7"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -246,7 +246,7 @@ local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"
 local MapDetect = nil
 local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
--- ExecuteTAS (TIDAK lagi mematikan Map Detection)
+-- ExecuteTAS
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS"); return
@@ -511,19 +511,28 @@ local function OnMapLoad(map)
     notify("Complete!", "System")
     clearESPCache()
 
-    -- Biarkan _G.TAS_PLAY_AUTO_ACTIVE tetap true
+    -- 🔥 Kunci: Set AutoFarm true agar Watchdog loop bisa reconnect
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
+        _G.TroxzyAutoFarm = true
         CONFIG.TAS_MODE = "Play"
+        if MapDetect then
+            MapDetect:Disconnect()
+            MapDetect = nil
+        end
     end
 end
 
 -- Map Detection
 local function ConnectMapDetection()
-    DisconnectMapDetection()
+    if MapDetect then return end
     MapDetect = Multiplayer.ChildAdded:Connect(function(newMap)
         newMap:GetPropertyChangedSignal("Name"):Wait()
-        if _G.TroxzyAutoFarm and not panicActive then OnMapLoad(newMap); notify("Map Detected!", "Info") end
-    end); TrackConnection(MapDetect)
+        if _G.TroxzyAutoFarm and not panicActive then
+            OnMapLoad(newMap)
+            notify("Map Detected!", "Info")
+        end
+    end)
+    TrackConnection(MapDetect)
 end
 
 -- Vote System
@@ -541,7 +550,6 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     if ft then
         notify("Target Found!", "Success")
         _G.TroxzyAutoFarm, CurrentlyFarming = false, false
-        -- HAPUS DisconnectMapDetection()
         if _G.TroxzyConnections then
             for _, c in pairs(_G.TroxzyConnections) do
                 if c ~= MapDetect then
@@ -553,7 +561,6 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         if key then UpdMapVote:FireServer(key, ft.ID, CalculateCost(ft, pVotes[tostring(Player.UserId)])); notify("Voted!", "Success")
         else notify("Vote Failed", "Error") end
         task.wait(1); AddedWaiting:FireServer()
-        -- Gunakan _G.TAS_PLAY_AUTO_ACTIVE sebagai penentu
         if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
             CONFIG.TAS_MODE = "Play"
             task.spawn(ExecuteTAS)
@@ -954,16 +961,14 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- 🔥 WATCHDOG LOOP CERDAS
+-- Watchdog loop cerdas
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            -- Jika TAS Play Auto aktif, pastikan MapDetect tetap terhubung
             if not MapDetect then
                 ConnectMapDetection()
             end
         else
-            -- Mode normal: auto farm
             if not _G.TroxzyAutoFarm then
                 DisconnectMapDetection()
                 break
@@ -984,5 +989,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v17.4 - Watchdog Loop Fixed")
-print("MapDetect stays alive when TAS Play Auto is active")
+print("Troxzy VIP v17.7 - Auto Farm Flag Fixed")
+print("_G.TroxzyAutoFarm dikembalikan true setelah map selesai, Watchdog tetap hidup")
