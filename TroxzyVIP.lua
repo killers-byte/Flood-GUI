@@ -1,12 +1,14 @@
 -- ============================================
--- TROXZY VIP v20.4-PAUSE-QUEUE-FIX
+-- TROXZY VIP v20.4-PAUSE-QUEUE-FIX (DEBUG)
 -- 🔥 Auto Queue hanya jalan di PLAY mode
--- 🔥 Pause TAS beneran berhenti & lanjut (inject ke script TAS)
--- 🔥 Semua wait() -> task.wait() | Notifikasi inject
+-- 🔥 Pause TAS beneran berhenti & lanjut
+-- 🔥 Debug print & error handling
 -- ============================================
 
 repeat task.wait() until game:IsLoaded()
 task.wait(2)
+
+print("Troxzy VIP v20.4 – DEBUG START")
 
 -- Services
 local RunService = game:GetService("RunService")
@@ -22,14 +24,30 @@ local HttpService = game:GetService("HttpService")
 
 -- Player
 local Player = Players.LocalPlayer
-if not Player then return end
+if not Player then
+    warn("DEBUG: Player is nil! Script stopped.")
+    return
+end
+print("DEBUG: Player found: " .. Player.Name)
+
 repeat task.wait() until Player.Character
+print("DEBUG: Character found")
+
 task.wait(1)
 
 local Camera = Workspace.CurrentCamera
-if not Camera then return end
+if not Camera then
+    warn("DEBUG: Camera is nil! Trying fallback...")
+    Camera = Workspace:FindFirstChild("CurrentCamera")
+    if not Camera then
+        warn("DEBUG: Still no camera. Exiting.")
+        return
+    end
+end
+print("DEBUG: Camera found")
 
 local IS_MOBILE = UIS.TouchEnabled
+print("DEBUG: IS_MOBILE = " .. tostring(IS_MOBILE))
 
 -- Global state
 _G.TroxzyAutoFarm = false
@@ -77,10 +95,11 @@ local function addCorner(obj, r)
 end
 
 local function addStroke(obj, thickness, color)
-    local s = Instance.new("UIStroke", obj)
+    local s = Instance.new("UIStroke")
     s.Thickness = thickness or 1.5
     s.Color = color or Color3.fromRGB(255,255,255)
     s.Transparency = 0.6
+    s.Parent = obj
 end
 
 local function notify(msg, title)
@@ -110,7 +129,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.4-PAUSE-QUEUE-FIX"
+local SCRIPT_VERSION = "20.4-PAUSE-QUEUE-FIX-DEBUG"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -383,13 +402,11 @@ local function injectPauseCode(script)
     local modified = script
     local success = false
 
-    -- Coba inject ke Heartbeat
     modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
         success = true
         return match .. "function()\n    while _G.TAS_PAUSED do task.wait() end\n    "
     end)
 
-    -- Jika gagal, coba inject ke while true
     if not success then
         modified = script:gsub("(while%s*true%s*do)", function(match)
             success = true
@@ -397,9 +414,7 @@ local function injectPauseCode(script)
         end)
     end
 
-    -- Tambahkan variabel global di awal
     modified = "_G.TAS_PAUSED = false\n" .. modified
-
     return modified, success
 end
 
@@ -435,7 +450,6 @@ local function ExecuteTAS()
     local ok, res = pcall(function() return game:HttpGet(url) end)
     if not ok then notify("Failed to download TAS", "Error"); return end
 
-    -- Inject pause code
     local modifiedScript, injectSuccess = injectPauseCode(res)
     if not injectSuccess then
         notify("Pause injection failed! TAS may not pause.", "Warning")
@@ -446,7 +460,7 @@ local function ExecuteTAS()
 
     TAS_COROUTINE = coroutine.create(function()
         TAS_RUNNING = true
-        _G.TAS_PAUSED = false  -- global buat pause
+        _G.TAS_PAUSED = false
         local execOk, execErr = pcall(f)
         TAS_RUNNING = false
         TAS_COROUTINE = nil
@@ -468,7 +482,7 @@ end
 -- ==================== TOGGLE PAUSE TAS ====================
 local function toggleTASPause()
     CONFIG.TAS_PAUSED = not CONFIG.TAS_PAUSED
-    _G.TAS_PAUSED = CONFIG.TAS_PAUSED  -- sync dengan script TAS
+    _G.TAS_PAUSED = CONFIG.TAS_PAUSED
 
     if CONFIG.TAS_PAUSED then
         notify("TAS Paused", "TAS")
@@ -480,7 +494,6 @@ local function toggleTASPause()
         if TAS_STATUS_LABEL then
             TAS_STATUS_LABEL.Text = "Status: ▶ RESUMING..."
         end
-        -- TAS akan lanjut otomatis karena loop internal cek _G.TAS_PAUSED
     end
     if TAS_PAUSE_BUTTON then
         TAS_PAUSE_BUTTON.Text = CONFIG.TAS_PAUSED and "Resume TAS" or "Pause TAS"
@@ -497,26 +510,20 @@ end
 
 local function AutoQueueLoop()
     while AUTO_QUEUE_ENABLED do
-        -- CEK MODE: hanya jalan jika PLAY
         if CONFIG.TAS_MODE ~= "Play" then
             notify("Auto Queue hanya aktif di PLAY mode!", "Queue")
             task.wait(10)
             goto continue
         end
 
-        -- Tunggu di lobby
         repeat task.wait(1) until not Check("InGame") and not Check("InLift")
         
-        -- Pastikan Auto Farm ON
         if not _G.TroxzyAutoFarm then
             _G.TroxzyAutoFarm = true
             ConnectMapDetection()
         end
         
-        -- Tunggu vote & load map
         task.wait(2)
-        
-        -- Tunggu TAS selesai
         WaitForTASComplete()
         
         notify("Auto Queue: Siap untuk map berikutnya!", "Queue")
@@ -1734,4 +1741,4 @@ if AUTO_QUEUE_ENABLED then
     notify("Auto Queue TAS AKTIF (hanya PLAY mode)!", "Queue")
 end
 
-print("Troxzy VIP v20.4-PAUSE-QUEUE-FIX – TAS + Pause + Auto Queue (PLAY only).")
+print("Troxzy VIP v20.4-PAUSE-QUEUE-FIX (DEBUG) – TAS + Pause + Auto Queue (PLAY only).")
