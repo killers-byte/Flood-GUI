@@ -1,9 +1,7 @@
 -- ============================================
--- TROXZY VIP v20.4 – TAS SEPERTI v16.2 + PAUSE TAS (MOBILE FRIENDLY)
--- 🔥 Fitur TAS sama persis dengan versi lama (v16.2)
--- 🔥 TAS Auto-Start + Record & Play Mode + PAUSE/RESUME via tombol UI
--- 🔥 Anti-Admin, Anti-Report, Extra Features tetap ada
--- 📱 UI selalu tampil, tombol pause ramah sentuh
+-- TROXZY VIP v20.4-PAUSE-QUEUE-FIX
+-- 🔥 Auto Queue hanya jalan di PLAY mode
+-- 🔥 Pause TAS beneran berhenti & lanjut (inject ke script TAS)
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -32,7 +30,7 @@ if not Camera then return end
 
 local IS_MOBILE = UIS.TouchEnabled
 
--- Global state (hanya untuk Auto Farm)
+-- Global state
 _G.TroxzyAutoFarm = false
 
 local CurrentlyFarming = false
@@ -43,12 +41,15 @@ local MapDetect = nil
 local TimerHookActive = false
 local TimerHookStart = 0
 
--- Variabel untuk pause TAS
+-- Variabel TAS
 local TAS_COROUTINE = nil
 local TAS_RUNNING = false
-local TAS_PAUSE_FLAG = false
 local TAS_PAUSE_BUTTON = nil
 local TAS_STATUS_LABEL = nil
+
+-- Auto Queue
+local AUTO_QUEUE_ENABLED = true
+local QUEUE_INTERVAL = 5
 
 -- Cleanup
 for _, gui in pairs(Player.PlayerGui:GetChildren()) do
@@ -108,7 +109,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.4-PAUSE"
+local SCRIPT_VERSION = "20.4-PAUSE-QUEUE-FIX"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -139,7 +140,7 @@ end
 local CONFIG = {
     TARGET_MAP = "Sandswept Ruins", TARGET_DIFFICULTY = "Crazy",
     TAS_MODE = "Record", TAS_AUTO_START = false,
-    TAS_PAUSED = false,  -- status pause
+    TAS_PAUSED = false,
     NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false,
     ESP = false, FULLBRIGHT = false, FOV = false,
     SPEED_VAL = 20, FOV_VAL = 90,
@@ -148,7 +149,6 @@ local CONFIG = {
     RANDOM_DELAY = true, HIDE_SCRIPT = true, MAP_ROTATION = false,
     NIGHT_MODE = false, DASHBOARD = false, SMART_ALERTS = true,
     AUTO_UPDATE = false, PANIC_MODE = false,
-    -- EXTRA FEATURES
     COLLECT_ITEMS = true,
     AIR_SWIM = true,
     TIMER_HOOK = false,
@@ -377,14 +377,30 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS (DENGAN PAUSE) ====================
+-- ==================== INJECT PAUSE KE SCRIPT TAS ====================
+local function injectPauseCode(script)
+    -- Cari pola RunService.Heartbeat:Connect(function()
+    local modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
+        return match .. "function()\n    while _G.TAS_PAUSED do task.wait() end\n    "
+    end)
+    -- Jika tidak ketemu, coba cari while true do
+    if modified == script then
+        modified = script:gsub("(while%s*true%s*do)", function(match)
+            return match .. "\n    while _G.TAS_PAUSED do task.wait() end\n    "
+        end)
+    end
+    -- Tambahkan variabel global di awal
+    modified = "_G.TAS_PAUSED = false\n" .. modified
+    return modified
+end
+
+-- ==================== EXECUTE TAS (DENGAN PAUSE INJECT) ====================
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS")
         return
     end
 
-    -- Jika sudah berjalan, hentikan dulu
     if TAS_RUNNING then
         if TAS_COROUTINE then
             pcall(coroutine.close, TAS_COROUTINE)
@@ -394,7 +410,6 @@ local function ExecuteTAS()
         task.wait(0.2)
     end
 
-    -- Jika sedang pause, jangan jalankan
     if CONFIG.TAS_PAUSED then
         notify("TAS is paused. Resume to start.", "TAS")
         return
@@ -411,13 +426,15 @@ local function ExecuteTAS()
     local ok, res = pcall(function() return game:HttpGet(url) end)
     if not ok then notify("Failed to download TAS", "Error"); return end
 
-    local f, e = loadstring(res)
+    -- Inject pause code
+    local modifiedScript = injectPauseCode(res)
+
+    local f, e = loadstring(modifiedScript)
     if not f then notify("Failed to compile TAS: " .. tostring(e), "Error"); return end
 
-    -- Jalankan di coroutine agar bisa di-stop
     TAS_COROUTINE = coroutine.create(function()
         TAS_RUNNING = true
-        TAS_PAUSE_FLAG = false
+        _G.TAS_PAUSED = false  -- global buat pause
         local execOk, execErr = pcall(f)
         TAS_RUNNING = false
         TAS_COROUTINE = nil
@@ -426,45 +443,72 @@ local function ExecuteTAS()
         else
             notify("TAS Loaded!", "Success")
         end
-        -- Update status label jika ada
         if TAS_STATUS_LABEL then
             TAS_STATUS_LABEL.Text = "Status: " .. (CONFIG.TAS_PAUSED and "⏸ PAUSED" or "▶ READY")
         end
     end)
     coroutine.resume(TAS_COROUTINE)
-    -- Update status
     if TAS_STATUS_LABEL then
         TAS_STATUS_LABEL.Text = "Status: ▶ RUNNING"
     end
 end
 
--- Fungsi toggle pause TAS
+-- ==================== TOGGLE PAUSE TAS ====================
 local function toggleTASPause()
     CONFIG.TAS_PAUSED = not CONFIG.TAS_PAUSED
+    _G.TAS_PAUSED = CONFIG.TAS_PAUSED  -- sync dengan script TAS
+
     if CONFIG.TAS_PAUSED then
-        -- Hentikan TAS yang sedang berjalan
-        if TAS_RUNNING and TAS_COROUTINE then
-            pcall(coroutine.close, TAS_COROUTINE)
-            TAS_COROUTINE = nil
-            TAS_RUNNING = false
-            notify("TAS Paused", "TAS")
-        else
-            notify("TAS Paused (no running TAS)", "TAS")
-        end
+        notify("TAS Paused", "TAS")
         if TAS_STATUS_LABEL then
             TAS_STATUS_LABEL.Text = "Status: ⏸ PAUSED"
         end
     else
-        -- Resume: jalankan ulang TAS
-        notify("Resuming TAS...", "TAS")
+        notify("TAS Resumed", "TAS")
         if TAS_STATUS_LABEL then
             TAS_STATUS_LABEL.Text = "Status: ▶ RESUMING..."
         end
-        task.spawn(ExecuteTAS)
+        -- TAS akan lanjut otomatis karena loop internal cek _G.TAS_PAUSED
     end
-    -- Update teks tombol jika ada
     if TAS_PAUSE_BUTTON then
         TAS_PAUSE_BUTTON.Text = CONFIG.TAS_PAUSED and "Resume TAS" or "Pause TAS"
+    end
+end
+
+-- ==================== AUTO QUEUE TAS (HANYA PLAY MODE) ====================
+local function WaitForTASComplete()
+    while TAS_RUNNING do
+        task.wait(0.5)
+    end
+    task.wait(QUEUE_INTERVAL)
+end
+
+local function AutoQueueLoop()
+    while AUTO_QUEUE_ENABLED do
+        -- CEK MODE: hanya jalan jika PLAY
+        if CONFIG.TAS_MODE ~= "Play" then
+            notify("Auto Queue hanya aktif di PLAY mode!", "Queue")
+            task.wait(10)
+            goto continue
+        end
+
+        -- Tunggu di lobby
+        repeat task.wait(1) until not Check("InGame") and not Check("InLift")
+        
+        -- Pastikan Auto Farm ON
+        if not _G.TroxzyAutoFarm then
+            _G.TroxzyAutoFarm = true
+            ConnectMapDetection()
+        end
+        
+        -- Tunggu vote & load map
+        wait(2)
+        
+        -- Tunggu TAS selesai
+        WaitForTASComplete()
+        
+        notify("Auto Queue: Siap untuk map berikutnya!", "Queue")
+        ::continue::
     end
 end
 
@@ -1490,12 +1534,10 @@ AddButton("TAS", "Play Mode", COLORS.ButtonPlay, function()
     task.spawn(ExecuteTAS)
 end)
 
--- Tombol Pause TAS
 TAS_PAUSE_BUTTON = AddButton("TAS", "Pause TAS", COLORS.ButtonPause, function()
     toggleTASPause()
 end)
 
--- Status label TAS
 TAS_STATUS_LABEL = AddInfoLabel("TAS", "Status: ▶ READY")
 
 AddSection("Move", "MOVEMENT")
@@ -1529,7 +1571,6 @@ AddToggle("Premium", "Auto-Updater", "AUTO_UPDATE")
 AddButton("Premium", "Check Updates", COLORS.ButtonUpdate, checkForUpdates)
 AddButton("Premium", "Panic Mode [P]", COLORS.ButtonPanic, activatePanicMode)
 
--- EXTRA TAB
 AddSection("Extra", "✨ EXTRA FEATURES")
 AddToggle("Extra", "Item Collector", "COLLECT_ITEMS")
 AddToggle("Extra", "Air Swim", "AIR_SWIM")
@@ -1569,7 +1610,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.4 – TAS seperti versi lama + PAUSE TAS.", "Welcome")
+notify("Troxzy VIP v20.4-PAUSE-QUEUE-FIX – Auto Queue hanya di PLAY, Pause beneran.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1631,7 +1672,7 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- Watchdog loop (seperti v16.2)
+-- Watchdog loop
 task.spawn(function()
     while task.wait(0.5) do
         if not _G.TroxzyAutoFarm then
@@ -1675,4 +1716,10 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v20.4-PAUSE – TAS same as v16.2 + PAUSE via UI.")
+-- ==================== START AUTO QUEUE ====================
+if AUTO_QUEUE_ENABLED then
+    task.spawn(AutoQueueLoop)
+    notify("Auto Queue TAS AKTIF (hanya PLAY mode)!", "Queue")
+end
+
+print("Troxzy VIP v20.4-PAUSE-QUEUE-FIX – TAS + Pause + Auto Queue (PLAY only).")
