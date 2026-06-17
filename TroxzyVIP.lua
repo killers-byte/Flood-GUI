@@ -1,10 +1,11 @@
 -- ============================================
--- TROXZY VIP v19.9 – TAS FINAL FIX (NO GIMMICK)
--- 🔥 TAS Play Auto langsung jalan begitu map muncul
--- 🔥 TIDAK bergantung pada Check("InGame") di ExecuteTAS
+-- TROXZY VIP v20.0 – TAS & RECORD MODE FULLY FIXED
+-- 🔥 ExecuteTAS() sekarang hanya mengunduh & menjalankan script TAS
+-- 🔥 TIDAK ADA pengecekan map / file .json di ExecuteTAS (itu urusan TAS Player sendiri)
+-- 🔥 Record Mode kembali normal (langsung unduh creator.luau)
 -- 🔥 Pause berfungsi penuh
--- 🔥 Auto‑Start dimatikan saat di lobby
--- 📱 UI selalu tampil
+-- 🔥 TAS Play Auto tetap berjalan otomatis tiap map (via OnMapLoad)
+-- 📱 UI selalu tampil, auto‑update hanya ke versi lebih tinggi
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -46,9 +47,6 @@ local ToggleBtn = nil
 local MapDetect = nil
 local TimerHookActive = false
 local TimerHookStart = 0
-
--- Cache nama file TAS
-local TASFileCache = {}
 
 -- Cleanup
 for _, gui in pairs(Player.PlayerGui:GetChildren()) do
@@ -108,7 +106,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.9"
+local SCRIPT_VERSION = "20.0"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -253,53 +251,6 @@ local function preventReports()
     end)
 end
 
--- ==================== TAS FILE MATCHING ====================
-local function buildTASFileCache()
-    TASFileCache = {}
-    if not isfolder or not listfiles then return end
-    if not isfolder("TAS FILES") then return end
-    local files = listfiles("TAS FILES")
-    for _, fullPath in ipairs(files) do
-        local name = fullPath:match("([^/\\]+)%.json$")
-        if name then
-            TASFileCache[name:lower()] = name
-        end
-    end
-end
-
-local function isTASFileAvailable(mapName)
-    local clean = mapName:gsub("^%s+", ""):gsub("%s+$", ""):lower()
-    if TASFileCache[clean] then
-        return true
-    end
-    if not isfile then return true end -- fallback
-    local paths = {
-        "TAS FILES/" .. mapName .. ".json",
-        "TAS FILES/" .. clean .. ".json",
-        "TAS FILES/" .. clean:gsub(" ", "-") .. ".json",
-        "TAS FILES/" .. clean:gsub("[^%w%s]", "") .. ".json",
-    }
-    for _, p in ipairs(paths) do
-        if isfile(p) then
-            TASFileCache[clean] = mapName
-            return true
-        end
-    end
-    if isfolder and listfiles then
-        local files = listfiles("TAS FILES")
-        for _, f in ipairs(files) do
-            local fname = f:match("([^/\\]+)%.json$")
-            if fname and (fname:lower():find(clean, 1, true) or clean:find(fname:lower(), 1, true)) then
-                TASFileCache[clean] = fname
-                return true
-            end
-        end
-    end
-    return false
-end
-
-buildTASFileCache()
-
 -- Deteksi admin
 local lastAdminAlert = 0
 local function handleAdminDetection()
@@ -423,32 +374,15 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS (TANPA SYARAT POSISI) ====================
+-- ==================== EXECUTE TAS (SIMPLE & BERSIH) ====================
 local function ExecuteTAS()
-    -- Hanya cegat TAS jika dijeda atau jika executing
-    if not CONFIG.TAS_AUTO_START then
-        notify("TAS Auto-Start is OFF.", "TAS")
-        return
-    end
+    -- Hanya cek pause & executing, tidak ada pengecekan lain
     if _G.TAS_PAUSED then
         notify("TAS sedang dijeda.", "TAS Pause")
         return
     end
     if _G.TAS_EXECUTING then
         notify("TAS masih berjalan...", "TAS")
-        return
-    end
-
-    -- Dapatkan nama map saat ini
-    local map = Multiplayer:FindFirstChildWhichIsA("Model")
-    local mapName = "Unknown"
-    if map then
-        local settings = map:FindFirstChild("Settings")
-        mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-    end
-
-    if not isTASFileAvailable(mapName) then
-        notify("TAS file not found for: " .. mapName, "TAS")
         return
     end
 
@@ -706,7 +640,7 @@ local function OnMapLoad(map)
     handleAdminDetection()
     handleAntiReport()
 
-    -- TAS Play Auto: langsung jalankan TAS
+    -- TAS Play Auto: langsung jalankan TAS tanpa syarat
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         _G.TroxzyAutoFarm = true
         DisconnectMapDetection()
@@ -1301,7 +1235,6 @@ local function AddToggle(tabKey, name, stateKey)
                 notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
             else
                 notify("TAS dilanjutkan.", "TAS Pause")
-                -- Jika TAS Play Auto aktif, langsung lanjutkan di map sekarang
                 if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START and not _G.TAS_EXECUTING then
                     task.spawn(ExecuteTAS)
                 end
@@ -1614,7 +1547,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v19.9 – TAS fixed & reliable.", "Welcome")
+notify("Troxzy VIP v20.0 – TAS & Record fixed.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1739,4 +1672,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.9 – TAS Play Auto finally works without gimmick.")
+print("Troxzy VIP v20.0 – TAS & Record Mode fully fixed.")
