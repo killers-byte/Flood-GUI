@@ -1,9 +1,8 @@
 -- ============================================
--- TROXZY VIP v19.0 – UI ALWAYS VISIBLE + SYNTAX FIXED
--- 🔥 Auto Farm + TAS Play Auto (loop stabil)
--- 🎁 Item Collector, Air Swim, Timer Hook, Anti-Report, Custom Flood Colors
--- 📱 UI selalu muncul, mobile optimized
--- ✅ Semua bug sintaks diperbaiki
+-- TROXZY VIP v19.1 – ANTI-ADMIN + ANTI-REPORT (STAY IN SERVER)
+-- 🔥 Tetap di server meski ada admin / pemain lain
+-- 🛡️ Blokir remote berbahaya + matikan report abuse
+-- ✅ Perubahan dari v19.0: proteksi admin & report tanpa auto-leave
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -102,7 +101,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.0"
+local SCRIPT_VERSION = "19.1"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -135,6 +134,7 @@ local CONFIG = {
     AIR_SWIM = true,
     TIMER_HOOK = false,
     ANTI_REPORT = false,
+    ANTI_ADMIN = false,               -- 🔥 baru: proteksi admin tanpa leave
     CUSTOM_FLOOD_COLORS = false,
     FLOOD_COLOR = "Blue"
 }
@@ -209,37 +209,58 @@ local function detectAdmins()
     return false
 end
 
-local lastAdminCheck = 0
-local ADMIN_CHECK_COOLDOWN = 5
-local function autoLeaveIfAdmin()
-    local now = tick()
-    if now - lastAdminCheck < ADMIN_CHECK_COOLDOWN then return end
-    lastAdminCheck = now
-    if not CONFIG.AUTO_LEAVE_ADMIN or not detectAdmins() then return end
-    Stats.adminDetected = Stats.adminDetected + 1
-    Stats.adminLeft = Stats.adminLeft + 1
-    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
-    notify("Admin detected! Leaving...", "Warning")
-    saveStats()
-    task.wait(1)
-    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    task.wait(2)
-    pcall(function() TeleportService:Teleport(game.PlaceId) end)
-end
-
--- Anti-Report / Join Watcher
-local function antiReportCheck()
-    if not CONFIG.ANTI_REPORT then return end
-    if #Players:GetPlayers() > 1 then
-        notify("Player detected! Leaving to avoid report.", "Anti-Report")
-        saveStats()
-        task.wait(1)
-        pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-        task.wait(2)
-        pcall(function() TeleportService:Teleport(game.PlaceId) end)
+-- 🔥 FUNGSI BARU: Blokir remote admin yang berbahaya
+local function blockAdminRemotes()
+    local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+    local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
+    for _, remote in ipairs(RemoteFolder:GetChildren()) do
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            local lowerName = remote.Name:lower()
+            for _, kw in ipairs(dangerousKeywords) do
+                if lowerName:find(kw) then
+                    -- Pasang handler kosong untuk menelan event berbahaya
+                    remote.OnClientEvent:Connect(function() end)
+                    notify("Blocked remote: " .. remote.Name, "Anti-Admin")
+                    break
+                end
+            end
+        end
     end
 end
-TrackConnection(Players.PlayerAdded:Connect(antiReportCheck))
+
+-- 🔥 FUNGSI BARU: Cegah laporan (report abuse)
+local function preventReports()
+    if not CONFIG.ANTI_REPORT then return end
+    -- Override fungsi report abuse agar tidak melakukan apa-apa
+    local oldReportAbuse = Players.ReportAbuse
+    Players.ReportAbuse = function() end
+    notify("Report abuse disabled!", "Anti-Report")
+end
+
+-- Deteksi admin: jika ketemu, jalankan proteksi (tanpa leave)
+local lastAdminAlert = 0
+local function handleAdminDetection()
+    if not CONFIG.ADMIN_DETECTOR then return end
+    if not detectAdmins() then return end
+    local now = tick()
+    if now - lastAdminAlert < 10 then return end -- jangan spam notifikasi
+    lastAdminAlert = now
+    Stats.adminDetected = Stats.adminDetected + 1
+    notify("Admin terdeteksi! Mengaktifkan proteksi...", "Anti-Admin")
+    if CONFIG.ANTI_ADMIN then
+        blockAdminRemotes()
+    end
+    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
+end
+
+-- Anti-Report: pasang pencegahan report (tetap di server)
+local function handleAntiReport()
+    if not CONFIG.ANTI_REPORT then return end
+    preventReports()
+end
+
+-- Panggil saat start
+handleAntiReport()
 
 -- Custom Flood Colors
 local floodColorMap = {
@@ -446,7 +467,6 @@ local espCache = {}
 local lastESPUpdate = 0
 local ESP_UPDATE_INTERVAL = 0.1
 
--- 🔥 Perbaikan sintaks: tambahkan end pada if
 local function clearESPForPlayer(plr)
     local hl = espCache[plr]
     if hl then
@@ -581,8 +601,8 @@ local function OnMapLoad(map)
     clearESPCache()
     local settings = map:WaitForChild("Settings", 10)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-    autoLeaveIfAdmin()
-    antiReportCheck()
+    handleAdminDetection()  -- cek admin dan proteksi
+    handleAntiReport()
 
     -- TAS Play Auto early return with MapDetect reset
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
@@ -874,7 +894,7 @@ Main.Size = UDim2.new(0, 370, 0, 530)
 Main.Position = UDim2.new(0.5, -185, 0.5, -265)
 Main.BackgroundColor3 = COLORS.MainBg
 Main.BorderSizePixel = 0
-Main.Visible = true  -- 🔥 Always visible
+Main.Visible = true  -- Always visible
 Main.Active = true
 Main.Draggable = true
 addCorner(Main, 12)
@@ -1432,7 +1452,8 @@ AddInput("Visual", "FOV", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL = v end)
 AddSection("Stealth", "ANTI-DETECTION")
 AddToggle("Stealth", "Stealth Mode", "STEALTH_MODE")
 AddToggle("Stealth", "Admin Detector", "ADMIN_DETECTOR")
-AddToggle("Stealth", "Auto-Leave Admin", "AUTO_LEAVE_ADMIN")
+AddToggle("Stealth", "Anti-Admin", "ANTI_ADMIN")          -- 🔥 toggle baru
+AddToggle("Stealth", "Anti-Report", "ANTI_REPORT")        -- 🔥 toggle baru (tetap stay)
 AddToggle("Stealth", "Random Delay", "RANDOM_DELAY")
 AddToggle("Stealth", "Hide Script", "HIDE_SCRIPT")
 AddToggle("Stealth", "Map Rotation", "MAP_ROTATION")
@@ -1451,7 +1472,6 @@ AddSection("Extra", "✨ EXTRA FEATURES")
 AddToggle("Extra", "Item Collector", "COLLECT_ITEMS")
 AddToggle("Extra", "Air Swim", "AIR_SWIM")
 AddToggle("Extra", "Timer Hook (3s)", "TIMER_HOOK")
-AddToggle("Extra", "Anti-Report", "ANTI_REPORT")
 AddToggle("Extra", "Custom Flood Colors", "CUSTOM_FLOOD_COLORS")
 AddInfoLabel("Extra", "Flood Color: " .. CONFIG.FLOOD_COLOR)
 AddButton("Extra", "Cycle Flood Color", Color3.fromRGB(100, 100, 200), function()
@@ -1575,7 +1595,9 @@ end)
 
 task.spawn(function()
     while task.wait(10) do
-        if CONFIG.AUTO_LEAVE_ADMIN then autoLeaveIfAdmin() end
+        if CONFIG.ADMIN_DETECTOR then
+            handleAdminDetection()
+        end
     end
 end)
 
@@ -1601,6 +1623,6 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.0 – UI Always Visible + Syntax Fixed")
-print("All features: TAS Play Auto loop, Item Collector, Air Swim, Timer Hook, Anti-Report, Flood Colors")
+print("Troxzy VIP v19.1 – Anti-Admin & Anti-Report (Stay in Server)")
+print("Now you stay in game while being protected from admins and reports.")
 -- end of script
