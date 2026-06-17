@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v20.3 – PAUSE TAS SESUAI VERSI LAMA
--- 🔥 Pause hanya berfungsi saat TAS Play Auto AKTIF
--- 🔥 Unpause langsung reset flag + lanjutkan TAS di map
--- 🔥 Record & Play Mode mandiri tanpa syarat
+-- TROXZY VIP v20.4 – TAS SEPERTI v16.2 + FITUR MODERN
+-- 🔥 Fitur TAS sama persis dengan versi lama (v16.2)
+-- 🔥 Hanya TAS Auto-Start + Record & Play Mode
+-- 🔥 Tidak ada TAS Play Auto, tidak ada Pause TAS
+-- 🔥 Anti-Admin, Anti-Report, Extra Features tetap ada
 -- 📱 UI selalu tampil
 -- ============================================
 
@@ -32,10 +33,7 @@ if not Camera then return end
 
 local IS_MOBILE = UIS.TouchEnabled
 
--- Global state
-_G.TAS_PLAY_AUTO_ACTIVE = false
-_G.TAS_PAUSED = false
-_G.TAS_EXECUTING = false
+-- Global state (hanya untuk Auto Farm)
 _G.TroxzyAutoFarm = false
 
 local CurrentlyFarming = false
@@ -104,7 +102,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.3"
+local SCRIPT_VERSION = "20.4"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -134,7 +132,7 @@ end
 -- Config
 local CONFIG = {
     TARGET_MAP = "Sandswept Ruins", TARGET_DIFFICULTY = "Crazy",
-    TAS_MODE = "Record", TAS_AUTO_START = false, TAS_PLAY_AUTO = false,
+    TAS_MODE = "Record", TAS_AUTO_START = false,  -- Hanya ini untuk TAS
     NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false,
     ESP = false, FULLBRIGHT = false, FOV = false,
     SPEED_VAL = 20, FOV_VAL = 90,
@@ -372,51 +370,32 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS ====================
+-- ==================== EXECUTE TAS (SEPERTI v16.2) ====================
 local function ExecuteTAS()
-    -- Hanya cek pause
-    if _G.TAS_PAUSED then
-        notify("TAS sedang dijeda.", "TAS Pause")
-        return
-    end
-    if _G.TAS_EXECUTING then
-        notify("TAS masih berjalan...", "TAS")
+    -- Hanya bisa dijalankan jika TAS Auto-Start ON
+    if not CONFIG.TAS_AUTO_START then
+        notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS")
         return
     end
 
-    _G.TAS_EXECUTING = true
     _G.TroxzyAutoFarm = false
     CurrentlyFarming = false
+    DisconnectMapDetection()
 
     local url = CONFIG.TAS_MODE == "Record"
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
         or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
 
     local ok, res = pcall(function() return game:HttpGet(url) end)
-    if not ok then
-        notify("Failed to download TAS", "Error")
-        _G.TAS_EXECUTING = false
-        return
-    end
+    if not ok then notify("Failed to download TAS", "Error"); return end
 
     local f, e = loadstring(res)
-    if not f then
-        notify("Failed to compile TAS: " .. tostring(e), "Error")
-        _G.TAS_EXECUTING = false
-        return
-    end
+    if not f then notify("Failed to compile TAS: " .. tostring(e), "Error"); return end
 
-    task.spawn(function()
-        pcall(f)
-        _G.TAS_EXECUTING = false
-        notify("TAS completed!", "TAS")
-        if _G.TAS_PLAY_AUTO_ACTIVE then
-            _G.TroxzyAutoFarm = true
-            DisconnectMapDetection()
-        end
-    end)
-
-    notify("TAS Loaded!", "Success")
+    -- Jalankan TAS (blocking seperti v16.2, tapi di thread terpisah jika dipanggil dari Vote System)
+    local execOk, execErr = pcall(f)
+    if not execOk then notify("TAS Error: " .. tostring(execErr), "Error")
+    else notify("TAS Loaded!", "Success") end
 end
 
 -- ==================== GAME DETECTION ====================
@@ -638,16 +617,8 @@ local function OnMapLoad(map)
     handleAdminDetection()
     handleAntiReport()
 
-    -- TAS Play Auto: langsung jalankan TAS
-    if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-        _G.TroxzyAutoFarm = true
-        DisconnectMapDetection()
-        CONFIG.TAS_MODE = "Play"
-        task.spawn(ExecuteTAS)
-        return
-    end
+    -- Tidak ada TAS Play Auto, langsung farming normal
 
-    -- Farming normal
     if isMapBlacklisted(mapName) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
         notify("Blacklisted: " .. mapName, "Skip")
@@ -804,18 +775,14 @@ local function OnMapLoad(map)
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
     notify("Complete!", "System")
     clearESPCache()
-
-    if _G.TAS_PLAY_AUTO_ACTIVE then
-        DisconnectMapDetection()
-    end
 end
 
 -- ==================== MAP DETECTION ====================
 local function ConnectMapDetection()
-    if MapDetect then return end
+    DisconnectMapDetection()
     MapDetect = Multiplayer.ChildAdded:Connect(function(newMap)
         newMap:GetPropertyChangedSignal("Name"):Wait()
-        if (_G.TroxzyAutoFarm or _G.TAS_PLAY_AUTO_ACTIVE) and not panicActive then
+        if _G.TroxzyAutoFarm and not panicActive then
             OnMapLoad(newMap)
             notify("Map Detected!", "Info")
         end
@@ -853,6 +820,7 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     if ft then
         notify("Target Found!", "Success")
         _G.TroxzyAutoFarm, CurrentlyFarming = false, false
+        DisconnectMapDetection()
         if _G.TroxzyConnections then
             for _, c in pairs(_G.TroxzyConnections) do
                 if c ~= MapDetect then pcall(function() c:Disconnect() end) end
@@ -867,11 +835,9 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         end
         task.wait(1)
         AddedWaiting:FireServer()
-        if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-            CONFIG.TAS_MODE = "Play"
+        -- Seperti v16.2: jalankan TAS hanya jika TAS_AUTO_START ON
+        if CONFIG.TAS_AUTO_START then
             task.spawn(ExecuteTAS)
-        elseif CONFIG.TAS_AUTO_START then
-            notify("TAS Auto-Start is ON but Play Auto is OFF. Skipping TAS.", "Info")
         else
             notify("TAS Auto-Start is OFF.", "Info")
         end
@@ -1228,44 +1194,8 @@ local function AddToggle(tabKey, name, stateKey)
             Dashboard.Visible = state
         elseif stateKey == "PANIC_MODE" then
             if state then activatePanicMode() else deactivatePanicMode() end
-        elseif stateKey == "TAS_PAUSE" then
-            -- Hanya bisa pause jika TAS Play Auto aktif
-            if not _G.TAS_PLAY_AUTO_ACTIVE then
-                notify("Pause hanya berfungsi saat TAS Play Auto aktif.", "TAS Pause")
-                return
-            end
-            _G.TAS_PAUSED = state
-            if state then
-                notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
-            else
-                notify("TAS dilanjutkan.", "TAS Pause")
-                -- Reset executing flag dan langsung lanjutkan
-                _G.TAS_EXECUTING = false
-                if Check("InGame") and not CurrentlyFarming then
-                    task.spawn(ExecuteTAS)
-                end
-            end
         else
             CONFIG[stateKey] = state
-        end
-
-        -- TAS Play Auto toggle
-        if stateKey == "TAS_PLAY_AUTO" and state then
-            if CONFIG.TAS_AUTO_START then
-                _G.TAS_PLAY_AUTO_ACTIVE = true
-                CONFIG.TAS_MODE = "Play"
-                notify("TAS Play Auto Activated! Running...", "TAS")
-                task.spawn(ExecuteTAS)
-            else
-                notify("Enable TAS Auto-Start first!", "TAS")
-                CONFIG.TAS_PLAY_AUTO = false
-                state = false
-            end
-        elseif stateKey == "TAS_PLAY_AUTO" and not state then
-            _G.TAS_PLAY_AUTO_ACTIVE = false
-            -- Matikan pause juga
-            _G.TAS_PAUSED = false
-            notify("TAS Play Auto deactivated.", "TAS")
         end
 
         local pos = state and UDim2.new(0, 18, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
@@ -1472,17 +1402,23 @@ AddInfoLabel("Farm", "[Target] " .. CONFIG.TARGET_MAP)
 
 AddSection("TAS", "TAS LOADER")
 AddToggle("TAS", "TAS Auto-Start", "TAS_AUTO_START")
-AddToggle("TAS", "TAS Play Auto", "TAS_PLAY_AUTO")
-AddToggle("TAS", "Pause TAS", "TAS_PAUSE")
 AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
-    notify("TAS Record akan dimulai.", "TAS")
+    if not CONFIG.TAS_AUTO_START then
+        notify("Enable TAS Auto-Start first", "TAS")
+        return
+    end
+    notify("TAS Record akan dimulai. Pastikan Auto Farm OFF.", "TAS")
     CONFIG.TAS_MODE = "Record"
-    ExecuteTAS()
+    task.spawn(ExecuteTAS)
 end)
 AddButton("TAS", "Play Mode", COLORS.ButtonPlay, function()
+    if not CONFIG.TAS_AUTO_START then
+        notify("Enable TAS Auto-Start first", "TAS")
+        return
+    end
     notify("TAS Play akan dimulai.", "TAS")
     CONFIG.TAS_MODE = "Play"
-    ExecuteTAS()
+    task.spawn(ExecuteTAS)
 end)
 
 AddSection("Move", "MOVEMENT")
@@ -1556,7 +1492,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.3 – Pause sesuai versi lama.", "Welcome")
+notify("Troxzy VIP v20.4 – TAS seperti versi lama.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1618,30 +1554,15 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP ====================
+-- Watchdog loop (seperti v16.2)
 task.spawn(function()
     while task.wait(0.5) do
-        if _G.TAS_PLAY_AUTO_ACTIVE then
-            if Check("InLift") and not Check("InGame") then
-                DisconnectMapDetection()
-                _G.TAS_EXECUTING = false
-            end
-
-            if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
-                task.spawn(ExecuteTAS)
-            end
-
-            if not MapDetect then
-                ConnectMapDetection()
-            end
-        else
-            if not _G.TroxzyAutoFarm then
-                DisconnectMapDetection()
-                break
-            end
-            if not MapDetect then
-                ConnectMapDetection()
-            end
+        if not _G.TroxzyAutoFarm then
+            DisconnectMapDetection()
+            break
+        end
+        if not MapDetect then
+            ConnectMapDetection()
         end
     end
 end)
@@ -1655,10 +1576,9 @@ task.spawn(function()
     end
 end)
 
--- Auto Lift (hanya jika tidak TAS Play Auto)
+-- Auto Lift
 task.spawn(function()
     while task.wait(1) do
-        if _G.TAS_PLAY_AUTO_ACTIVE then break end
         if not _G.TroxzyAutoFarm then break end
         if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
             if not Check("InLift") and not Check("InGame") then
@@ -1678,4 +1598,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v20.3 – Pause works exactly like original.")
+print("Troxzy VIP v20.4 – TAS same as v16.2 + modern features.")
