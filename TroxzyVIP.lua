@@ -1,9 +1,9 @@
 -- ============================================
--- TROXZY VIP v19.2 – TAS FILE CHECK + ANTI-ADMIN/ANTI-REPORT (STAY)
--- 🔥 Cek ketersediaan file .json sebelum jalankan TAS
--- 🛡️ Anti-Admin: blokir remote berbahaya tanpa leave
--- 🛡️ Anti-Report: cegah laporan abuse, tetap stay di server
--- 📱 UI selalu muncul, mobile optimized
+-- TROXZY VIP v19.3 – TAS PAUSE + AUTO-QUEUE DI LIFT
+-- 🔥 Pause TAS tanpa matikan auto‑queue
+-- 🔥 TAS otomatis berjalan lagi setelah map berganti (auto‑queue stabil)
+-- 🛡️ Anti-Admin & Anti-Report (stay in server)
+-- 📱 UI selalu tampil
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -34,6 +34,8 @@ local IS_MOBILE = UIS.TouchEnabled
 
 -- Global state
 _G.TAS_PLAY_AUTO_ACTIVE = false
+_G.TAS_PAUSED = false
+_G.TAS_EXECUTING = false
 _G.TroxzyAutoFarm = false
 
 local CurrentlyFarming = false
@@ -102,7 +104,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.2"
+local SCRIPT_VERSION = "19.3"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -210,7 +212,7 @@ local function detectAdmins()
     return false
 end
 
--- 🔥 Blokir remote admin berbahaya
+-- Blokir remote admin berbahaya
 local function blockAdminRemotes()
     local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
     local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
@@ -228,7 +230,7 @@ local function blockAdminRemotes()
     end
 end
 
--- 🔥 Cegah laporan
+-- Cegah laporan
 local function preventReports()
     if not CONFIG.ANTI_REPORT then return end
     pcall(function()
@@ -238,9 +240,9 @@ local function preventReports()
     end)
 end
 
--- 🔥 Pengecekan ketersediaan file TAS
+-- Pengecekan ketersediaan file TAS
 local function isTASFileAvailable(mapName)
-    if not isfile then return true end -- fallback untuk executor tanpa isfile
+    if not isfile then return true end
     local path = "TAS FILES/" .. mapName .. ".json"
     return isfile(path)
 end
@@ -376,17 +378,44 @@ local function ExecuteTAS()
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS")
         return
     end
+    if _G.TAS_PAUSED then
+        notify("TAS sedang dijeda.", "TAS Pause")
+        return
+    end
+    if _G.TAS_EXECUTING then
+        return
+    end
+
     _G.TroxzyAutoFarm = false
     CurrentlyFarming = false
+    _G.TAS_EXECUTING = true
+
     local url = CONFIG.TAS_MODE == "Record"
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
         or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
     local ok, res = pcall(function() return game:HttpGet(url) end)
-    if not ok then notify("Failed to download TAS", "Error"); return end
+    if not ok then
+        notify("Failed to download TAS", "Error")
+        _G.TAS_EXECUTING = false
+        return
+    end
     local f, e = loadstring(res)
-    if not f then notify("Failed to compile TAS: " .. tostring(e), "Error"); return end
+    if not f then
+        notify("Failed to compile TAS: " .. tostring(e), "Error")
+        _G.TAS_EXECUTING = false
+        return
+    end
     local execOk, execErr = pcall(f)
-    if not execOk then notify("TAS Error: " .. tostring(execErr), "Error") else notify("TAS Loaded!", "Success") end
+    if not execOk then
+        notify("TAS Error: " .. tostring(execErr), "Error")
+    else
+        notify("TAS Loaded!", "Success")
+    end
+
+    -- Reset executing flag setelah 10 detik (fallback jika TAS macet)
+    task.delay(10, function()
+        _G.TAS_EXECUTING = false
+    end)
 end
 
 -- ==================== GAME DETECTION ====================
@@ -615,14 +644,15 @@ local function OnMapLoad(map)
     -- TAS Play Auto: cek apakah file TAS tersedia
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         if isTASFileAvailable(mapName) then
-            _G.TroxzyAutoFarm = true
-            DisconnectMapDetection()
-            CONFIG.TAS_MODE = "Play"
-            task.spawn(ExecuteTAS)
-            return
+            if not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
+                _G.TroxzyAutoFarm = true
+                DisconnectMapDetection()
+                CONFIG.TAS_MODE = "Play"
+                task.spawn(ExecuteTAS)
+                return
+            end
         else
             notify("TAS file not found for: " .. mapName .. ". Farming instead.", "TAS")
-            -- lanjut farming biasa
         end
     end
 
@@ -1223,6 +1253,13 @@ local function AddToggle(tabKey, name, stateKey)
             Dashboard.Visible = state
         elseif stateKey == "PANIC_MODE" then
             if state then activatePanicMode() else deactivatePanicMode() end
+        elseif stateKey == "TAS_PAUSE" then
+            _G.TAS_PAUSED = state
+            if state then
+                notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
+            else
+                notify("TAS dilanjutkan.", "TAS Pause")
+            end
         else
             CONFIG[stateKey] = state
         end
@@ -1449,6 +1486,7 @@ AddInfoLabel("Farm", "[Target] " .. CONFIG.TARGET_MAP)
 AddSection("TAS", "TAS LOADER")
 AddToggle("TAS", "TAS Auto-Start", "TAS_AUTO_START")
 AddToggle("TAS", "TAS Play Auto", "TAS_PLAY_AUTO")
+AddToggle("TAS", "Pause TAS", "TAS_PAUSE")       -- 🔥 Toggle Pause
 AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
     if not CONFIG.TAS_AUTO_START then
         notify("Enable TAS Auto-Start first", "TAS")
@@ -1531,7 +1569,7 @@ CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 -- Notification
-notify("Troxzy VIP v19.2 loaded! ☰ to toggle menu.", "Welcome")
+notify("Troxzy VIP v19.3 loaded! ☰ to toggle menu.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1566,7 +1604,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
 
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
 
-        -- Anti-stuck renang (selalu, tapi Air Swim hanya jika toggled)
+        -- Anti-stuck renang
         if hum:GetState() == Enum.HumanoidStateType.Swimming then
             hum:ChangeState(Enum.HumanoidStateType.Landed)
             hum.PlatformStand = false
@@ -1594,13 +1632,29 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP ====================
+-- ==================== WATCHDOG LOOP (AUTO‑QUEUE) ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
+            -- Jika di lift, pastikan MapDetect siap untuk map baru
             if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
                 DisconnectMapDetection()
             end
+            -- Jika di game, dan TAS tidak pause/tidak executing, jalankan TAS lagi
+            if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
+                local map = Multiplayer:FindFirstChildWhichIsA("Model")
+                if map then
+                    local settings = map:FindFirstChild("Settings")
+                    local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
+                    if isTASFileAvailable(mapName) then
+                        CONFIG.TAS_MODE = "Play"
+                        task.spawn(ExecuteTAS)
+                    else
+                        notify("TAS file not found for: " .. mapName, "TAS")
+                    end
+                end
+            end
+            -- Pastikan MapDetect selalu hidup
             if not MapDetect then
                 ConnectMapDetection()
             end
@@ -1625,9 +1679,10 @@ task.spawn(function()
     end
 end)
 
--- Auto Lift
+-- Auto Lift (hanya jika tidak TAS Play Auto)
 task.spawn(function()
     while task.wait(1) do
+        if _G.TAS_PLAY_AUTO_ACTIVE then break end
         if not _G.TroxzyAutoFarm then break end
         if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
             if not Check("InLift") and not Check("InGame") then
@@ -1647,5 +1702,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.2 – TAS File Check + Anti-Admin/Report (Stay)")
-print("Now verifies TAS files before playing. Protected without leaving.")
+print("Troxzy VIP v19.3 – TAS Pause + Auto-Queue di Lift")
+print("Pause button added. TAS resumes automatically on next map.")
