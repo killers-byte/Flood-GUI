@@ -1,6 +1,7 @@
 -- ============================================
--- TROXZY VIP v20.4-DELTA-FIX-DASHBOARD (FIXED)
--- 🔥 Pause TAS menggunakan wait() bawaan
+-- TROXZY VIP v20.4-DELTA-FIX-DASHBOARD (DEBUG)
+-- 🔥 Pause TAS pakai task.wait()/wait()
+-- 🔥 Full error handling + console log
 -- ============================================
 
 local function safeWait(t)
@@ -72,7 +73,7 @@ local function TrackConnection(conn)
     return conn
 end
 
--- Utility (tanpa UIStroke)
+-- Utility
 local function addCorner(obj, r)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, r or 8)
@@ -106,7 +107,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "20.4-DELTA-FIX-DASHBOARD"
+local SCRIPT_VERSION = "20.4-DELTA-FIX-DASHBOARD-DEBUG"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function compareVersions(v1, v2)
@@ -365,32 +366,46 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== INJECT PAUSE ====================
+-- ==================== INJECT PAUSE (FIX) ====================
 local function injectPauseCode(script)
     local modified = script
     local success = false
-    -- Ganti safeWait dengan wait() bawaan
+
+    -- Cari pola Heartbeat:Connect
     modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
         success = true
-        return match .. "function()\n    while _G.TAS_PAUSED do wait() end\n    "
+        return match .. "function()\n    while _G.TAS_PAUSED do task.wait() end\n    "
     end)
+
+    -- Fallback ke while true
     if not success then
         modified = script:gsub("(while%s*true%s*do)", function(match)
             success = true
-            return match .. "\n    while _G.TAS_PAUSED do wait() end\n    "
+            return match .. "\n    while _G.TAS_PAUSED do task.wait() end\n    "
         end)
     end
+
+    -- Tambahkan variabel global
     modified = "_G.TAS_PAUSED = false\n" .. modified
+
+    -- Ganti task.wait dengan wait jika task tidak ada (fallback)
+    if not task then
+        modified = modified:gsub("task%.wait%(%)", "wait()")
+    end
+
     return modified, success
 end
 
 -- ==================== EXECUTE TAS ====================
 local function ExecuteTAS()
+    print("TAS: ExecuteTAS called")
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS")
+        print("TAS: Auto-Start OFF")
         return
     end
     if TAS_RUNNING then
+        print("TAS: Already running, stopping previous")
         if TAS_COROUTINE then
             pcall(coroutine.close, TAS_COROUTINE)
             TAS_COROUTINE = nil
@@ -400,6 +415,7 @@ local function ExecuteTAS()
     end
     if CONFIG.TAS_PAUSED then
         notify("TAS is paused. Resume to start.", "TAS")
+        print("TAS: Paused, cannot start")
         return
     end
     _G.TroxzyAutoFarm = false
@@ -410,27 +426,41 @@ local function ExecuteTAS()
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
         or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
 
+    print("TAS: Downloading from " .. url)
     local ok, res = pcall(function() return game:HttpGet(url) end)
-    if not ok then notify("Failed to download TAS", "Error"); return end
+    if not ok then notify("Failed to download TAS", "Error"); print("TAS: Download failed"); return end
+    print("TAS: Downloaded, length " .. #res)
 
     local modifiedScript, injectSuccess = injectPauseCode(res)
     if not injectSuccess then
         notify("Pause injection failed! TAS may not pause.", "Warning")
+        print("TAS: Inject failed, using original")
+        modifiedScript = res
+    else
+        print("TAS: Inject success")
     end
 
     local f, e = loadstring(modifiedScript)
-    if not f then notify("Failed to compile TAS: " .. tostring(e), "Error"); return end
+    if not f then
+        notify("Failed to compile TAS: " .. tostring(e), "Error")
+        print("TAS: Compile error: " .. tostring(e))
+        return
+    end
+    print("TAS: Compiled successfully")
 
     TAS_COROUTINE = coroutine.create(function()
         TAS_RUNNING = true
-        _G.TAS_PAUSED = false
+        _G.TAS_PAUSED = false  -- pastikan global ada
+        print("TAS: Coroutine started")
         local execOk, execErr = pcall(f)
         TAS_RUNNING = false
         TAS_COROUTINE = nil
         if not execOk then
             notify("TAS Error: " .. tostring(execErr), "Error")
+            print("TAS: Execution error: " .. tostring(execErr))
         else
             notify("TAS Loaded!", "Success")
+            print("TAS: Execution finished normally")
         end
         if TAS_STATUS_LABEL then
             TAS_STATUS_LABEL.Text = "Status: " .. (CONFIG.TAS_PAUSED and "⏸ PAUSED" or "▶ READY")
@@ -440,6 +470,7 @@ local function ExecuteTAS()
     if TAS_STATUS_LABEL then
         TAS_STATUS_LABEL.Text = "Status: ▶ RUNNING"
     end
+    print("TAS: Coroutine resumed")
 end
 
 -- ==================== TOGGLE PAUSE ====================
@@ -449,9 +480,11 @@ local function toggleTASPause()
     if CONFIG.TAS_PAUSED then
         notify("TAS Paused", "TAS")
         if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ⏸ PAUSED" end
+        print("TAS: Paused")
     else
         notify("TAS Resumed", "TAS")
         if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ RESUMING..." end
+        print("TAS: Resumed")
     end
     if TAS_PAUSE_BUTTON then
         TAS_PAUSE_BUTTON.Text = CONFIG.TAS_PAUSED and "Resume TAS" or "Pause TAS"
@@ -1347,7 +1380,7 @@ local function applyTheme(theme)
     if StatsLabel then StatsLabel.TextColor3 = t.StatsText end
 end
 
--- ==================== DASHBOARD (LIVE) ====================
+-- ==================== DASHBOARD ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0,190,0,80)
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
@@ -1415,7 +1448,6 @@ local function createDashboardContent()
 end
 createDashboardContent()
 
--- ==================== UPDATE DASHBOARD LOOP ====================
 local function updateDashboard()
     if not Dashboard or not Dashboard.Visible then return end
     local mapLabel = Dashboard:FindFirstChild("MapLabel")
@@ -1543,7 +1575,7 @@ CloseBtn.Parent = Main
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-notify("Troxzy VIP v20.4 – Dashboard Fix", "Welcome")
+notify("Troxzy VIP v20.4 – Debug version loaded", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1587,7 +1619,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     pcall(updateVisuals)
 end))
 
--- UPDATE DASHBOARD SETIAP DETIK
 spawn(function()
     while safeWait(1) do
         pcall(updateDashboard)
@@ -1641,10 +1672,10 @@ end
 loadStats()
 setupAutoReconnect()
 
--- Start Auto Queue
 if AUTO_QUEUE_ENABLED then
     spawn(AutoQueueLoop)
     notify("Auto Queue TAS AKTIF (hanya PLAY mode)!", "Queue")
 end
 
-print("Troxzy VIP v20.4-DELTA-FIX-DASHBOARD (FIXED) loaded.")
+print("Troxzy VIP v20.4-DELTA-FIX-DASHBOARD-DEBUG loaded.")
+print("Jika TAS error, cek output console untuk detail.")
