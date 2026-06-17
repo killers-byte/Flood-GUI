@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v17.8 [TAS PRIORITY OVER FARM]
--- 🔥 Saat TAS Play Auto aktif, OnMapLoad langsung jalankan TAS, bypass farming
+-- TROXZY VIP v18.0 [TAS PLAY AUTO LOOP FIXED]
+-- 🔥 TAS Play Auto now loops endlessly like auto-queue
 -- 📱 Mobile-first optimized
 -- ============================================
 
@@ -91,7 +91,7 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "17.8"
+local SCRIPT_VERSION = "18.0"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
 local function checkForUpdates()
@@ -246,7 +246,7 @@ local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"
 local MapDetect = nil
 local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
--- ExecuteTAS
+-- ExecuteTAS (TIDAK lagi mematikan Map Detection)
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS"); return
@@ -442,8 +442,13 @@ local function OnMapLoad(map)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
     autoLeaveIfAdmin()
 
-    -- 🔥 Jika TAS Play Auto aktif, langsung jalankan TAS dan jangan lanjut ke farming
+    -- 🔥 Early return untuk TAS Play Auto — reset MapDetect agar Watchdog loop bisa reconnect
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
+        _G.TroxzyAutoFarm = true  -- Biar Watchdog loop tetap hidup
+        if MapDetect then
+            MapDetect:Disconnect()
+            MapDetect = nil        -- Reset, biar Watchdog buat koneksi baru untuk map berikutnya
+        end
         CONFIG.TAS_MODE = "Play"
         task.spawn(ExecuteTAS)
         return
@@ -519,7 +524,7 @@ local function OnMapLoad(map)
     notify("Complete!", "System")
     clearESPCache()
 
-    -- Set AutoFarm true agar Watchdog loop bisa reconnect untuk map berikutnya
+    -- Set AutoFarm true agar Watchdog loop bisa reconnect untuk map berikutnya (farming biasa)
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
         _G.TroxzyAutoFarm = true
         CONFIG.TAS_MODE = "Play"
@@ -530,12 +535,12 @@ local function OnMapLoad(map)
     end
 end
 
--- Map Detection
+-- ==================== FIX: ConnectMapDetection mendukung TAS Play Auto ====================
 local function ConnectMapDetection()
     if MapDetect then return end
     MapDetect = Multiplayer.ChildAdded:Connect(function(newMap)
         newMap:GetPropertyChangedSignal("Name"):Wait()
-        if _G.TroxzyAutoFarm and not panicActive then
+        if (_G.TroxzyAutoFarm or _G.TAS_PLAY_AUTO_ACTIVE) and not panicActive then
             OnMapLoad(newMap)
             notify("Map Detected!", "Info")
         end
@@ -969,10 +974,18 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- Watchdog loop cerdas
+-- ==================== WATCHDOG LOOP YANG CERDAS ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
+            -- Jika TAS Play Auto aktif dan karakter sedang di lift (setelah TAS selesai),
+            -- reset MapDetect agar bisa mendeteksi map berikutnya
+            if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
+                if MapDetect then
+                    MapDetect:Disconnect()
+                    MapDetect = nil
+                end
+            end
             if not MapDetect then
                 ConnectMapDetection()
             end
@@ -997,5 +1010,5 @@ end)
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 loadStats(); setupAutoReconnect()
-print("Troxzy VIP v17.8 - TAS Priority Over Farm")
-print("OnMapLoad langsung bypass farming saat TAS Play Auto aktif")
+print("Troxzy VIP v18.0 - TAS Play Auto Loop Fixed")
+print("ConnectMapDetection now supports TAS, MapDetect reset on lift")
