@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v19.6 – SMART AUTO-UPDATER
--- 🔥 Hanya update jika versi lebih tinggi
--- 🔥 Auto-update dimatikan secara default (aktifkan manual)
--- 📱 Mobile-first optimized
+-- TROXZY VIP v19.7 – TAS PLAY AUTO SEMPURNA + PAUSE BERFUNGSI
+-- 🔥 Auto‑queue stabil: TAS jalan terus tiap map
+-- 🔥 Pause berfungsi: menjeda auto‑start TAS
+-- 🔥 Eksekusi TAS terpusat, flag direset sempurna
+-- 📱 Mobile‑ready, UI selalu tampil
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -45,7 +46,7 @@ local MapDetect = nil
 local TimerHookActive = false
 local TimerHookStart = 0
 
--- Cache nama file TAS yang tersedia
+-- Cache nama file TAS
 local TASFileCache = {}
 
 -- Cleanup
@@ -106,10 +107,9 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.6"
+local SCRIPT_VERSION = "19.7"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
 
--- Fungsi pembanding versi numerik
 local function compareVersions(v1, v2)
     local major1, minor1 = v1:match("^(%d+)%.(%d+)$")
     local major2, minor2 = v2:match("^(%d+)%.(%d+)$")
@@ -145,7 +145,7 @@ local CONFIG = {
     STEALTH_MODE = true, ADMIN_DETECTOR = true, AUTO_LEAVE_ADMIN = true,
     RANDOM_DELAY = true, HIDE_SCRIPT = true, MAP_ROTATION = false,
     NIGHT_MODE = false, DASHBOARD = false, SMART_ALERTS = true,
-    AUTO_UPDATE = false, PANIC_MODE = false,  -- AUTO_UPDATE mati secara default
+    AUTO_UPDATE = false, PANIC_MODE = false,
     -- EXTRA FEATURES
     COLLECT_ITEMS = true,
     AIR_SWIM = true,
@@ -226,7 +226,6 @@ local function detectAdmins()
     return false
 end
 
--- Blokir remote admin berbahaya
 local function blockAdminRemotes()
     local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
     local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
@@ -244,7 +243,6 @@ local function blockAdminRemotes()
     end
 end
 
--- Cegah laporan
 local function preventReports()
     if not CONFIG.ANTI_REPORT then return end
     pcall(function()
@@ -254,7 +252,7 @@ local function preventReports()
     end)
 end
 
--- ==================== TAS FILE MATCHING SUPER ROBUST ====================
+-- ==================== TAS FILE MATCHING ====================
 local function buildTASFileCache()
     TASFileCache = {}
     if not isfolder or not listfiles then return end
@@ -269,16 +267,11 @@ local function buildTASFileCache()
 end
 
 local function isTASFileAvailable(mapName)
-    -- Cek cache dulu
     local clean = mapName:gsub("^%s+", ""):gsub("%s+$", ""):lower()
     if TASFileCache[clean] then
         return true
     end
-
-    -- Jika cache kosong (executor tidak support listfiles), fallback ke isfile
-    if not isfile then return true end
-
-    -- Coba berbagai variasi nama
+    if not isfile then return true end -- fallback
     local paths = {
         "TAS FILES/" .. mapName .. ".json",
         "TAS FILES/" .. clean .. ".json",
@@ -291,8 +284,6 @@ local function isTASFileAvailable(mapName)
             return true
         end
     end
-
-    -- Coba cek apakah ada file yang mengandung nama map (parsial)
     if isfolder and listfiles then
         local files = listfiles("TAS FILES")
         for _, f in ipairs(files) do
@@ -303,14 +294,12 @@ local function isTASFileAvailable(mapName)
             end
         end
     end
-
     return false
 end
 
--- Panggil build cache saat start
 buildTASFileCache()
 
--- Deteksi admin, jalankan proteksi (tetap stay)
+-- Deteksi admin
 local lastAdminAlert = 0
 local function handleAdminDetection()
     if not CONFIG.ADMIN_DETECTOR then return end
@@ -326,13 +315,11 @@ local function handleAdminDetection()
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
 end
 
--- Anti-Report: pasang pencegahan
 local function handleAntiReport()
     if not CONFIG.ANTI_REPORT then return end
     preventReports()
 end
 
--- Panggil saat start
 handleAntiReport()
 
 -- Custom Flood Colors
@@ -435,10 +422,11 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== EXECUTE TAS ====================
+-- ==================== EXECUTE TAS (TERPUSAT) ====================
 local function ExecuteTAS()
+    -- Cek prasyarat
     if not CONFIG.TAS_AUTO_START then
-        notify("TAS Auto-Start is OFF. Enable it in TAS tab.", "TAS")
+        notify("TAS Auto-Start is OFF.", "TAS")
         return
     end
     if _G.TAS_PAUSED then
@@ -450,19 +438,36 @@ local function ExecuteTAS()
         return
     end
 
+    -- Dapatkan nama map saat ini
+    local map = Multiplayer:FindFirstChildWhichIsA("Model")
+    local mapName = "Unknown"
+    if map then
+        local settings = map:FindFirstChild("Settings")
+        mapName = settings and settings:GetAttribute("MapName") or "Unknown"
+    end
+
+    -- Periksa ketersediaan file TAS
+    if not isTASFileAvailable(mapName) then
+        notify("TAS file not found for: " .. mapName, "TAS")
+        return
+    end
+
+    -- Tandai sedang mengeksekusi
+    _G.TAS_EXECUTING = true
     _G.TroxzyAutoFarm = false
     CurrentlyFarming = false
-    _G.TAS_EXECUTING = true
 
     local url = CONFIG.TAS_MODE == "Record"
         and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
         or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
+
     local ok, res = pcall(function() return game:HttpGet(url) end)
     if not ok then
         notify("Failed to download TAS", "Error")
         _G.TAS_EXECUTING = false
         return
     end
+
     local f, e = loadstring(res)
     if not f then
         notify("Failed to compile TAS: " .. tostring(e), "Error")
@@ -470,16 +475,18 @@ local function ExecuteTAS()
         return
     end
 
-    -- Jalankan TAS dalam thread terpisah, setelah selesai reset flag
+    -- Jalankan TAS di thread terpisah
     task.spawn(function()
         pcall(f)
+        -- Reset flag setelah selesai
         _G.TAS_EXECUTING = false
         notify("TAS completed!", "TAS")
         if _G.TAS_PLAY_AUTO_ACTIVE then
             _G.TroxzyAutoFarm = true
-            DisconnectMapDetection()
+            DisconnectMapDetection() -- Bersihkan koneksi lama
         end
     end)
+
     notify("TAS Loaded!", "Success")
 end
 
@@ -571,15 +578,11 @@ local ESP_UPDATE_INTERVAL = 0.1
 
 local function clearESPForPlayer(plr)
     local hl = espCache[plr]
-    if hl then
-        pcall(function() hl:Destroy() end)
-    end
+    if hl then pcall(function() hl:Destroy() end) end
     espCache[plr] = nil
 end
 local function clearAllESP()
-    for plr, hl in pairs(espCache) do
-        pcall(function() hl:Destroy() end)
-    end
+    for plr, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end
     espCache = {}
 end
 local function createHighlight(plr)
@@ -698,7 +701,7 @@ local function updateVisuals()
     periodicFloodColorUpdate()
 end
 
--- ==================== AUTO FARM ====================
+-- ==================== AUTO FARM (hanya untuk farming) ====================
 local function OnMapLoad(map)
     clearESPCache()
     local settings = map:WaitForChild("Settings", 10)
@@ -706,21 +709,16 @@ local function OnMapLoad(map)
     handleAdminDetection()
     handleAntiReport()
 
-    -- TAS Play Auto: cek apakah file TAS tersedia
+    -- Jika TAS Play Auto aktif, langsung jalankan TAS dan hentikan farming
     if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-        if isTASFileAvailable(mapName) then
-            if not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
-                _G.TroxzyAutoFarm = true
-                DisconnectMapDetection()
-                CONFIG.TAS_MODE = "Play"
-                task.spawn(ExecuteTAS)
-                return
-            end
-        else
-            notify("TAS file not found for: " .. mapName .. ". Farming instead.", "TAS")
-        end
+        _G.TroxzyAutoFarm = true
+        DisconnectMapDetection()
+        CONFIG.TAS_MODE = "Play"
+        task.spawn(ExecuteTAS)
+        return
     end
 
+    -- Farming normal
     if isMapBlacklisted(mapName) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
         notify("Blacklisted: " .. mapName, "Skip")
@@ -760,7 +758,6 @@ local function OnMapLoad(map)
         return
     end
 
-    -- ITEM COLLECTOR
     if CONFIG.COLLECT_ITEMS then
         local lostPage = map:FindFirstChild("_LostPage", true)
         local rescue = map:FindFirstChild("_Rescue", true)
@@ -778,7 +775,6 @@ local function OnMapLoad(map)
         end
     end
 
-    -- TIMER HOOK
     if CONFIG.TIMER_HOOK then
         TimerHookActive = true
         TimerHookStart = tick()
@@ -810,7 +806,6 @@ local function OnMapLoad(map)
     while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
         if not CurrentlyFarming then break end
 
-        -- Timer Hook
         if TimerHookActive and CONFIG.TIMER_HOOK and (tick() - TimerHookStart > 3) then
             local exitRegion = map:FindFirstChild("ExitRegion", true)
             if exitRegion then
@@ -881,7 +876,6 @@ local function OnMapLoad(map)
     notify("Complete!", "System")
     clearESPCache()
 
-    -- Reset MapDetect jika TAS Play Auto aktif
     if _G.TAS_PLAY_AUTO_ACTIVE then
         DisconnectMapDetection()
     end
@@ -945,13 +939,8 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         task.wait(1)
         AddedWaiting:FireServer()
         if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START then
-            local mapName = ft.name or CONFIG.TARGET_MAP
-            if isTASFileAvailable(mapName) then
-                CONFIG.TAS_MODE = "Play"
-                task.spawn(ExecuteTAS)
-            else
-                notify("TAS file not found for: " .. mapName, "TAS")
-            end
+            CONFIG.TAS_MODE = "Play"
+            task.spawn(ExecuteTAS)
         elseif CONFIG.TAS_AUTO_START then
             notify("TAS Auto-Start is ON but Play Auto is OFF. Skipping TAS.", "Info")
         else
@@ -960,7 +949,7 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
     end
 end))
 
--- ==================== UI PROFESIONAL (ALWAYS VISIBLE) ====================
+-- ==================== UI PROFESIONAL ====================
 local COLORS = {
     MainBg = Color3.fromRGB(20, 20, 26),
     HeaderBg = Color3.fromRGB(22, 22, 28),
@@ -994,7 +983,6 @@ local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
 ScreenGui.Name = "TROXZY_VIP"
 ScreenGui.ResetOnSpawn = false
 
--- Toggle Button (☰)
 ToggleBtn = Instance.new("TextButton", ScreenGui)
 ToggleBtn.Size = UDim2.new(0, 60, 0, 60)
 ToggleBtn.Position = IS_MOBILE and UDim2.new(0.88, 0, 0.05, 0) or UDim2.new(0.015, 0, 0.015, 0)
@@ -1006,13 +994,12 @@ ToggleBtn.TextColor3 = COLORS.ToggleBtnText
 addCorner(ToggleBtn, 14)
 addStroke(ToggleBtn, 2, Color3.fromRGB(255, 255, 255))
 
--- Main Panel
 Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 370, 0, 530)
 Main.Position = UDim2.new(0.5, -185, 0.5, -265)
 Main.BackgroundColor3 = COLORS.MainBg
 Main.BorderSizePixel = 0
-Main.Visible = true  -- Always visible
+Main.Visible = true
 Main.Active = true
 Main.Draggable = true
 addCorner(Main, 12)
@@ -1030,7 +1017,6 @@ hc.Position = UDim2.new(0, 0, 0.5, 0)
 hc.BackgroundColor3 = COLORS.HeaderBg
 hc.BorderSizePixel = 0
 
--- Avatar
 local AvatarFrame = Instance.new("Frame", Header)
 AvatarFrame.Size = UDim2.new(0, 38, 0, 38)
 AvatarFrame.Position = UDim2.new(0, 10, 0.5, -19)
@@ -1049,7 +1035,6 @@ spawn(function()
     end)
 end)
 
--- Player Name
 local PlayerName = Instance.new("TextLabel", Header)
 PlayerName.Size = UDim2.new(0, 130, 0, 18)
 PlayerName.Position = UDim2.new(0, 56, 0.5, -14)
@@ -1061,7 +1046,6 @@ PlayerName.BackgroundTransparency = 1
 PlayerName.TextXAlignment = Enum.TextXAlignment.Left
 PlayerName.TextTruncate = Enum.TextTruncate.AtEnd
 
--- Username
 local Username = Instance.new("TextLabel", Header)
 Username.Size = UDim2.new(0, 130, 0, 12)
 Username.Position = UDim2.new(0, 56, 0.5, 6)
@@ -1073,7 +1057,6 @@ Username.BackgroundTransparency = 1
 Username.TextXAlignment = Enum.TextXAlignment.Left
 Username.TextTruncate = Enum.TextTruncate.AtEnd
 
--- Title
 local TitleLabel = Instance.new("TextLabel", Header)
 TitleLabel.Size = UDim2.new(0, 120, 0, 20)
 TitleLabel.Position = UDim2.new(1, -128, 0.5, -13)
@@ -1084,7 +1067,6 @@ TitleLabel.Font = Enum.Font.GothamBlack
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Right
 
--- User ID
 local UserID = Instance.new("TextLabel", Header)
 UserID.Size = UDim2.new(0, 120, 0, 12)
 UserID.Position = UDim2.new(1, -128, 0.5, 7)
@@ -1095,14 +1077,12 @@ UserID.Font = Enum.Font.Gotham
 UserID.BackgroundTransparency = 1
 UserID.TextXAlignment = Enum.TextXAlignment.Right
 
--- Divider
 local Divider = Instance.new("Frame", Main)
 Divider.Size = UDim2.new(1, 0, 0, 1)
 Divider.Position = UDim2.new(0, 0, 0, 50)
 Divider.BackgroundColor3 = COLORS.DividerColor
 Divider.BorderSizePixel = 0
 
--- Stats Bar
 local StatsBar = Instance.new("Frame", Main)
 StatsBar.Size = UDim2.new(1, -16, 0, 24)
 StatsBar.Position = UDim2.new(0, 8, 0, 55)
@@ -1324,6 +1304,10 @@ local function AddToggle(tabKey, name, stateKey)
                 notify("TAS dijeda. Tekan lagi untuk melanjutkan.", "TAS Pause")
             else
                 notify("TAS dilanjutkan.", "TAS Pause")
+                -- Jika TAS Play Auto aktif dan tidak sedang executing, langsung jalankan
+                if _G.TAS_PLAY_AUTO_ACTIVE and CONFIG.TAS_AUTO_START and not _G.TAS_EXECUTING then
+                    task.spawn(ExecuteTAS)
+                end
             end
         else
             CONFIG[stateKey] = state
@@ -1633,8 +1617,7 @@ addCorner(CloseBtn, 6)
 CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
--- Notification
-notify("Troxzy VIP v19.6 loaded! Auto‑update aman.", "Welcome")
+notify("Troxzy VIP v19.7 loaded! TAS Play Auto sempurna.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1669,7 +1652,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
 
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
 
-        -- Anti-stuck renang
         if hum:GetState() == Enum.HumanoidStateType.Swimming then
             hum:ChangeState(Enum.HumanoidStateType.Landed)
             hum.PlatformStand = false
@@ -1697,29 +1679,22 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP (AUTO‑QUEUE) ====================
+-- ==================== WATCHDOG LOOP (AUTO-QUEUE) ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
+            -- Di lift, reset deteksi dan flag
+            if Check("InLift") and not Check("InGame") then
                 DisconnectMapDetection()
                 _G.TAS_EXECUTING = false
             end
 
+            -- Di game, jika TAS tidak aktif dan tidak paused, jalankan
             if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
-                local map = Multiplayer:FindFirstChildWhichIsA("Model")
-                if map then
-                    local settings = map:FindFirstChild("Settings")
-                    local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-                    if isTASFileAvailable(mapName) then
-                        CONFIG.TAS_MODE = "Play"
-                        task.spawn(ExecuteTAS)
-                    else
-                        notify("TAS file not found for: " .. mapName, "TAS")
-                    end
-                end
+                task.spawn(ExecuteTAS)
             end
 
+            -- Pastikan MapDetect selalu hidup
             if not MapDetect then
                 ConnectMapDetection()
             end
@@ -1767,5 +1742,4 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.6 – Smart Auto-Updater")
-print("Hanya update ke versi lebih tinggi. AUTO_UPDATE default false.")
+print("Troxzy VIP v19.7 – TAS Play Auto & Pause perfected")
