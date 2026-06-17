@@ -1,10 +1,8 @@
 -- ============================================
--- TROXZY VIP v19.5 – TAS AUTO‑QUEUE ROCK SOLID
--- 🔥 Deteksi map & file .json jauh lebih tangguh
--- 🔥 Flag _G.TAS_EXECUTING direset paksa di lobby
--- 🔥 Gunakan listfiles untuk pencocokan file (fallback)
--- 🔥 Anti‑Admin & Anti‑Report (stay in server)
--- 📱 UI selalu tampil
+-- TROXZY VIP v19.6 – SMART AUTO-UPDATER
+-- 🔥 Hanya update jika versi lebih tinggi
+-- 🔥 Auto-update dimatikan secara default (aktifkan manual)
+-- 📱 Mobile-first optimized
 -- ============================================
 
 repeat wait() until game:IsLoaded()
@@ -47,7 +45,7 @@ local MapDetect = nil
 local TimerHookActive = false
 local TimerHookStart = 0
 
--- Cache nama file TAS yang tersedia (diisi saat start)
+-- Cache nama file TAS yang tersedia
 local TASFileCache = {}
 
 -- Cleanup
@@ -108,20 +106,32 @@ local function playSound(id)
 end
 
 -- Version
-local SCRIPT_VERSION = "19.5"
+local SCRIPT_VERSION = "19.6"
 local UPDATE_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
+
+-- Fungsi pembanding versi numerik
+local function compareVersions(v1, v2)
+    local major1, minor1 = v1:match("^(%d+)%.(%d+)$")
+    local major2, minor2 = v2:match("^(%d+)%.(%d+)$")
+    if not major1 or not major2 then return false end
+    local num1 = tonumber(major1) * 100 + tonumber(minor1)
+    local num2 = tonumber(major2) * 100 + tonumber(minor2)
+    return num1 < num2
+end
 
 local function checkForUpdates()
     notify("Checking for updates...", "Updater")
     local success, latestScript = pcall(function() return game:HttpGet(UPDATE_URL) end)
     if not success then notify("Update check failed", "Updater"); return end
     local versionMatch = string.match(latestScript, 'SCRIPT_VERSION = "([%d.]+)"')
-    if versionMatch and versionMatch ~= SCRIPT_VERSION then
+    if versionMatch and compareVersions(SCRIPT_VERSION, versionMatch) then
         notify("New version v" .. versionMatch .. " found! Updating...", "Updater")
         task.wait(1)
         local func, err = loadstring(latestScript)
         if func then pcall(func) else notify("Update failed", "Error") end
-    else notify("Latest version (v" .. SCRIPT_VERSION .. ")", "Updater") end
+    else
+        notify("Already on latest version (v" .. SCRIPT_VERSION .. ")", "Updater")
+    end
 end
 
 -- Config
@@ -135,7 +145,7 @@ local CONFIG = {
     STEALTH_MODE = true, ADMIN_DETECTOR = true, AUTO_LEAVE_ADMIN = true,
     RANDOM_DELAY = true, HIDE_SCRIPT = true, MAP_ROTATION = false,
     NIGHT_MODE = false, DASHBOARD = false, SMART_ALERTS = true,
-    AUTO_UPDATE = false, PANIC_MODE = false,
+    AUTO_UPDATE = false, PANIC_MODE = false,  -- AUTO_UPDATE mati secara default
     -- EXTRA FEATURES
     COLLECT_ITEMS = true,
     AIR_SWIM = true,
@@ -266,18 +276,18 @@ local function isTASFileAvailable(mapName)
     end
 
     -- Jika cache kosong (executor tidak support listfiles), fallback ke isfile
-    if not isfile then return true end -- executor tanpa isfile, anggap selalu tersedia
+    if not isfile then return true end
 
     -- Coba berbagai variasi nama
     local paths = {
         "TAS FILES/" .. mapName .. ".json",
         "TAS FILES/" .. clean .. ".json",
         "TAS FILES/" .. clean:gsub(" ", "-") .. ".json",
-        "TAS FILES/" .. clean:gsub("[^%w%s]", "") .. ".json", -- hilangkan karakter non-alfanumerik
+        "TAS FILES/" .. clean:gsub("[^%w%s]", "") .. ".json",
     }
     for _, p in ipairs(paths) do
         if isfile(p) then
-            TASFileCache[clean] = mapName -- cache
+            TASFileCache[clean] = mapName
             return true
         end
     end
@@ -463,13 +473,11 @@ local function ExecuteTAS()
     -- Jalankan TAS dalam thread terpisah, setelah selesai reset flag
     task.spawn(function()
         pcall(f)
-        -- TAS selesai, reset executing flag
         _G.TAS_EXECUTING = false
         notify("TAS completed!", "TAS")
-        -- Kembalikan AutoFarm true agar Watchdog loop tetap hidup
         if _G.TAS_PLAY_AUTO_ACTIVE then
             _G.TroxzyAutoFarm = true
-            DisconnectMapDetection() -- putuskan MapDetect, nanti Watchdog akan reconnect
+            DisconnectMapDetection()
         end
     end)
     notify("TAS Loaded!", "Success")
@@ -1626,7 +1634,7 @@ CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
 ToggleBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
 -- Notification
-notify("Troxzy VIP v19.5 loaded! ☰ to toggle menu.", "Welcome")
+notify("Troxzy VIP v19.6 loaded! Auto‑update aman.", "Welcome")
 
 -- Panic Keybind
 TrackConnection(UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -1689,17 +1697,15 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- ==================== WATCHDOG LOOP (AUTO‑QUEUE DENGAN RESET FLAG PAKSA) ====================
+-- ==================== WATCHDOG LOOP (AUTO‑QUEUE) ====================
 task.spawn(function()
     while task.wait(0.5) do
         if _G.TAS_PLAY_AUTO_ACTIVE then
-            -- Reset paksa flag executing saat di lobby
             if Check("InLift") and not Check("InGame") and not CurrentlyFarming then
                 DisconnectMapDetection()
                 _G.TAS_EXECUTING = false
             end
 
-            -- Jika di game dan TAS tidak aktif, coba jalankan (fallback)
             if Check("InGame") and not CurrentlyFarming and not _G.TAS_PAUSED and not _G.TAS_EXECUTING then
                 local map = Multiplayer:FindFirstChildWhichIsA("Model")
                 if map then
@@ -1714,7 +1720,6 @@ task.spawn(function()
                 end
             end
 
-            -- Pastikan MapDetect selalu hidup
             if not MapDetect then
                 ConnectMapDetection()
             end
@@ -1762,5 +1767,5 @@ end
 loadStats()
 setupAutoReconnect()
 
-print("Troxzy VIP v19.5 – TAS Auto-Queue Super Robust")
-print("File matching improved, executing flag reset forced in lobby.")
+print("Troxzy VIP v19.6 – Smart Auto-Updater")
+print("Hanya update ke versi lebih tinggi. AUTO_UPDATE default false.")
