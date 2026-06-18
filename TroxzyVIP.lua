@@ -1,7 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (SPECTATOR DETECTOR)
--- 🔥 Menampilkan siapa yang mengawasi Anda
--- 🔥 Semua fitur sebelumnya tetap ada
+-- 🔥 FIXED: Panic Mode Error & WalkSpeed Conflict
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -464,7 +463,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
                     local dir = (liftTarget - hrp.Position)
                     if dir.Magnitude > 2 then
                         hum:MoveTo(liftTarget)
-                        hum.WalkSpeed = 20
+                        -- HAPUS: hum.WalkSpeed = 20 agar tidak konflik dengan fitur Speed
                     else
                         pcall(function() AddedWaiting:FireServer() end)
                         moveToLift = false
@@ -605,9 +604,26 @@ TrackConnection(Players.PlayerRemoving:Connect(function(plr)
     end
 end))
 
+-- ==================== PRE-DEKLARASI UI FUNCTIONS & PANIC MODE ====================
 local panicActive = false; _G.ToggleStates = {}
-local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
-local function deactivatePanicMode() panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); applyNoclip(false); maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+local minimizeUI, maximizeUI -- Pre-deklarasi agar bisa dipanggil oleh Panic Mode
+
+local function activatePanicMode() 
+    panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; 
+    DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); 
+    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); 
+    minimizeUI(true); 
+    clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); 
+    if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end 
+end
+
+local function deactivatePanicMode() 
+    panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; 
+    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); 
+    applyNoclip(false); 
+    maximizeUI(); 
+    if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end 
+end
 
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
@@ -919,7 +935,7 @@ local function AddInput(tabKey, label, defaultVal, callback)
 end
 
 -- ==================== SMOOTH MINIMIZE/MAXIMIZE FUNCTIONS ====================
-local function minimizeUI(instant)
+minimizeUI = function(instant)
     if not Main.Visible then return end
     if instant then
         Main.Visible = false
@@ -941,7 +957,7 @@ local function minimizeUI(instant)
     end)
 end
 
-local function maximizeUI()
+maximizeUI = function()
     if Main.Visible then return end
     isMinimized = false
     Main.Visible = true
@@ -956,7 +972,7 @@ end
 
 -- ==================== DASHBOARD DENGAN ADMIN & SPECTATOR LIST ====================
 local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0,210,0,160) -- Diperpanjang untuk spectator
+Dashboard.Size = UDim2.new(0,210,0,160)
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
 Dashboard.AnchorPoint = Vector2.new(1,0)
 Dashboard.BackgroundColor3 = DARK_THEME.MainBg
@@ -1030,7 +1046,7 @@ local function updateDashboard()
             table.insert(specTexts, spec.DisplayName .. " (@" .. spec.Name .. ")")
         end
         spectatorInfoLabel.Text = "Spectators: " .. table.concat(specTexts, ", ")
-        spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) -- Oranye mencolok
+        spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0)
     else
         spectatorInfoLabel.Text = "Spectators: None"
         spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180)
@@ -1128,7 +1144,13 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         local ch = Player.Character; if not ch then return end
         local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
-        if not CurrentlyFarming then hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or 16 end
+        
+        -- WalkSpeed Logic (Fixed conflict)
+        if not CurrentlyFarming then 
+            local baseSpeed = moveToLift and 20 or 16
+            hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed 
+        end
+        
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
