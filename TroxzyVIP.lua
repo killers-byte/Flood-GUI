@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v20.5 ULTIMATE (60FPS + AUTO QUEUE AKURAT)
+-- TROXZY VIP v20.6 ULTIMATE (ESP FIX + ADMIN DETECTOR PRO)
+-- 🔥 Semua karakter terlihat
+-- 🔥 Admin terdeteksi real-time dengan info lengkap
 -- 🔥 Auto Queue event-driven tanpa delay
 -- 🔥 60 FPS smooth movement & visual
--- 🔥 Auto walk to lift menggunakan heartbeat
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -55,6 +56,10 @@ local AutoQueueListener = nil
 -- 60 FPS Movement
 local liftTarget = nil
 local moveToLift = false
+
+-- Admin Detector Pro
+local DetectedAdmins = {}
+local lastAdminCount = 0
 
 -- Cleanup UI Lama
 pcall(function()
@@ -237,9 +242,18 @@ local function isAdmin(p)
     return false
 end
 
+local function getAdminPlayers()
+    local admins = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and isAdmin(p) then
+            table.insert(admins, p)
+        end
+    end
+    return admins
+end
+
 local function detectAdmins()
-    for _, p in pairs(Players:GetPlayers()) do if p ~= Player and isAdmin(p) then return true end end
-    return false
+    return #getAdminPlayers() > 0
 end
 
 local function blockAdminRemotes()
@@ -259,14 +273,18 @@ end
 local lastAdminAlert = 0
 local function handleAdminDetection()
     if not CONFIG.ADMIN_DETECTOR then return end
-    if not detectAdmins() then return end
-    local now = os.clock()
-    if now - lastAdminAlert < 10 then return end
-    lastAdminAlert = now
-    Stats.adminDetected = Stats.adminDetected + 1
-    notify("Admin detected! Protection active.", "Anti-Admin")
-    if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
-    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
+    local admins = getAdminPlayers()
+    local count = #admins
+    if count > lastAdminCount then
+        local now = os.clock()
+        if now - lastAdminAlert < 10 then return end
+        lastAdminAlert = now
+        Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount)
+        notify("Admin(s) detected! Protection active.", "Anti-Admin")
+        if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
+        if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
+    end
+    lastAdminCount = count
 end
 
 if CONFIG.ANTI_REPORT then pcall(function() Players.ReportAbuse = function() end end) end
@@ -415,7 +433,6 @@ local function findLiftPosition()
     return Vector3.new(25, 10, 85)
 end
 
--- Heartbeat loop 60 FPS untuk gerakan ke lift
 TrackConnection(RunService.Heartbeat:Connect(function()
     if moveToLift and AUTO_QUEUE_ENABLED and not panicActive and not TAS_RUNNING then
         local char = Player.Character
@@ -429,7 +446,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
                         hum:MoveTo(liftTarget)
                         hum.WalkSpeed = 20
                     else
-                        -- Sampai dekat, pastikan masuk lift
                         pcall(function() AddedWaiting:FireServer() end)
                         moveToLift = false
                     end
@@ -442,20 +458,18 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     end
 end))
 
--- ==================== EVENT-DRIVEN AUTO QUEUE (AKURAT) ====================
+-- ==================== EVENT-DRIVEN AUTO QUEUE ====================
 local function StartAutoQueue()
     if AutoQueueListener then
         AutoQueueListener:Disconnect()
         AutoQueueListener = nil
     end
 
-    -- Bersihkan kondisi
     moveToLift = false
     mapCompleted = false
 
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
         if not AUTO_QUEUE_ENABLED or panicActive then return end
-        -- Tunggu map benar-benar siap
         repeat task.wait() until Check("InGame")
         mapCompleted = false
         if not TAS_RUNNING then
@@ -483,7 +497,6 @@ local function StopAutoQueue()
     notify("Auto Queue dihentikan.", "Queue")
 end
 
--- Monitor status untuk trigger auto walk
 task.spawn(function()
     while task.wait(0.5) do
         if AUTO_QUEUE_ENABLED and not panicActive then
@@ -498,7 +511,6 @@ task.spawn(function()
     end
 end)
 
--- Reset mapCompleted saat karakter baru (respawn) jika di lobby
 TrackConnection(Player.CharacterAdded:Connect(function()
     if not Player.Character then Player.CharacterAdded:Wait() end
     refreshNoclip()
@@ -515,9 +527,63 @@ local function applyNoclip(state) if state == ncActive then return end; ncActive
 
 refreshNoclip()
 
-local espCache, lastESPUpdate = {}, 0
-local function updateESP() if os.clock() - lastESPUpdate < 0.1 then return end; lastESPUpdate = os.clock(); if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and p.Character and p.Character:FindFirstChild("Head") then if not espCache[p] then local hl = Instance.new("Highlight"); hl.FillColor = Color3.fromRGB(160, 180, 200); hl.OutlineColor = Color3.fromRGB(255, 255, 255); hl.Parent = p.Character; espCache[p] = hl end else if espCache[p] then pcall(function() espCache[p]:Destroy() end); espCache[p] = nil end end end end
+-- ==================== ESP FIXED ====================
+local espCache = {}
+local lastESPUpdate = 0
+local function updateESP()
+    if os.clock() - lastESPUpdate < 0.1 then return end
+    lastESPUpdate = os.clock()
+
+    if not CONFIG.ESP then
+        for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end
+        espCache = {}
+        return
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            if plr.Character and not espCache[plr] then
+                local hl = Instance.new("Highlight")
+                hl.FillColor = Color3.fromRGB(160, 180, 200)
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.Parent = plr.Character
+                espCache[plr] = hl
+            elseif not plr.Character and espCache[plr] then
+                pcall(function() espCache[plr]:Destroy() end)
+                espCache[plr] = nil
+            end
+        end
+    end
+
+    for plr, hl in pairs(espCache) do
+        if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then
+            pcall(function() hl:Destroy() end)
+            espCache[plr] = nil
+        end
+    end
+end
+
 local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
+
+TrackConnection(Players.PlayerAdded:Connect(function(plr)
+    if CONFIG.ESP and plr ~= Player then
+        local chr = plr.Character or plr.CharacterAdded:Wait()
+        if chr and not espCache[plr] then
+            local hl = Instance.new("Highlight")
+            hl.FillColor = Color3.fromRGB(160, 180, 200)
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.Parent = chr
+            espCache[plr] = hl
+        end
+    end
+end))
+
+TrackConnection(Players.PlayerRemoving:Connect(function(plr)
+    if espCache[plr] then
+        pcall(function() espCache[plr]:Destroy() end)
+        espCache[plr] = nil
+    end
+end))
 
 local panicActive = false; _G.ToggleStates = {}
 local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if Main then Tween(Main, {Size = UDim2.new(0,0,0,0)}, 0.3); task.wait(0.3); Main.Visible = false end; clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
@@ -832,9 +898,15 @@ local function AddInput(tabKey, label, defaultVal, callback)
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) else inp.Text = tostring(defaultVal) end end)
 end
 
--- ==================== DASHBOARD ====================
+-- ==================== DASHBOARD DENGAN ADMIN LIST ====================
 local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0,210,0,95); Dashboard.Position = UDim2.new(0.985,0,0.015,0); Dashboard.AnchorPoint = Vector2.new(1,0); Dashboard.BackgroundColor3 = DARK_THEME.MainBg; Dashboard.Visible = CONFIG.DASHBOARD; addCorner(Dashboard,8); addStroke(Dashboard, DARK_THEME.Accent, 1, 0.5); Dashboard.Parent = ScreenGui
+Dashboard.Size = UDim2.new(0,210,0,130)  -- Diperpanjang untuk menampung admin list
+Dashboard.Position = UDim2.new(0.985,0,0.015,0)
+Dashboard.AnchorPoint = Vector2.new(1,0)
+Dashboard.BackgroundColor3 = DARK_THEME.MainBg
+Dashboard.Visible = CONFIG.DASHBOARD
+addCorner(Dashboard,8); addStroke(Dashboard, DARK_THEME.Accent, 1, 0.5)
+Dashboard.Parent = ScreenGui
 _G.DashboardUI = Dashboard
 
 local dTitle = Instance.new("TextLabel"); dTitle.Size = UDim2.new(1,0,0,24); dTitle.Text = " OVERVIEW"; dTitle.TextColor3 = DARK_THEME.Accent; dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 11; dTitle.BackgroundTransparency = 1; dTitle.TextXAlignment = Enum.TextXAlignment.Left; dTitle.Parent = Dashboard
@@ -842,6 +914,19 @@ local mapLabel = Instance.new("TextLabel"); mapLabel.Size = UDim2.new(1,-10,0,16
 local timeLabel = Instance.new("TextLabel"); timeLabel.Size = UDim2.new(1,-10,0,16); timeLabel.Position = UDim2.new(0,10,0,42); timeLabel.Text = "Time: 0m"; timeLabel.TextColor3 = DARK_THEME.TextMedium; timeLabel.Font = Enum.Font.Gotham; timeLabel.TextSize = 10; timeLabel.BackgroundTransparency = 1; timeLabel.TextXAlignment = Enum.TextXAlignment.Left; timeLabel.Parent = Dashboard
 local speedLabel = Instance.new("TextLabel"); speedLabel.Size = UDim2.new(1,-10,0,16); speedLabel.Position = UDim2.new(0,10,0,58); speedLabel.Text = "Rate: 0 maps/hr"; speedLabel.TextColor3 = DARK_THEME.TextMedium; speedLabel.Font = Enum.Font.Gotham; speedLabel.TextSize = 10; speedLabel.BackgroundTransparency = 1; speedLabel.TextXAlignment = Enum.TextXAlignment.Left; speedLabel.Parent = Dashboard
 local statusLabel = Instance.new("TextLabel"); statusLabel.Size = UDim2.new(1,-10,0,16); statusLabel.Position = UDim2.new(0,10,0,74); statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120); statusLabel.Font = Enum.Font.GothamBold; statusLabel.TextSize = 10; statusLabel.BackgroundTransparency = 1; statusLabel.TextXAlignment = Enum.TextXAlignment.Left; statusLabel.Parent = Dashboard
+
+-- Label baru untuk admin list
+local adminInfoLabel = Instance.new("TextLabel")
+adminInfoLabel.Size = UDim2.new(1,-10,0,30)  -- Tinggi cukup untuk dua baris
+adminInfoLabel.Position = UDim2.new(0,10,0,92)
+adminInfoLabel.Text = "Admins: None"
+adminInfoLabel.TextColor3 = Color3.fromRGB(255,200,100)
+adminInfoLabel.Font = Enum.Font.GothamMedium
+adminInfoLabel.TextSize = 9
+adminInfoLabel.BackgroundTransparency = 1
+adminInfoLabel.TextWrapped = true
+adminInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+adminInfoLabel.Parent = Dashboard
 
 local function updateDashboard()
     if not Dashboard.Visible then return end
@@ -855,6 +940,20 @@ local function updateDashboard()
     elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "Status: Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
     elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
+
+    -- Update admin list
+    local admins = getAdminPlayers()
+    if #admins > 0 then
+        local adminTexts = {}
+        for _, adm in ipairs(admins) do
+            table.insert(adminTexts, string.format("%s (@%s) [%d]", adm.DisplayName, adm.Name, adm.UserId))
+        end
+        adminInfoLabel.Text = "Admins: " .. table.concat(adminTexts, ", ")
+        adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)  -- Merah mencolok
+    else
+        adminInfoLabel.Text = "Admins: None"
+        adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100)
+    end
 end
 
 -- ==================== MENU BUILDING ====================
@@ -877,7 +976,7 @@ AddToggle("Move", "Infinite Jump", "INF_JUMP")
 
 AddSection("Visual", "RENDERING")
 AddToggle("Visual", "God Mode", "GOD_MODE")
-AddToggle("Visual", "Player ESP", "ESP")
+AddToggle("Visual", "Player ESP (All)", "ESP")
 AddToggle("Visual", "Fullbright", "FULLBRIGHT")
 AddToggle("Visual", "FOV Override", "FOV")
 AddInput("Visual", "Field of View", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL=v end)
@@ -948,12 +1047,13 @@ TrackConnection(RunService.Heartbeat:Connect(function()
 end))
 
 TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
-task.spawn(function() while task.wait(1) do pcall(updateDashboard) end end)
+task.spawn(function() while task.wait(1) do pcall(updateDashboard); pcall(handleAdminDetection) end end)  -- Update dashboard & admin setiap detik
 TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player.Character then local h = Player.Character:FindFirstChild("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end))
-task.spawn(function() while task.wait(10) do handleAdminDetection() end end)
+
+-- Admin detection interval lama dihapus, karena sudah dilakukan di loop 1 detik
 
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP 60FPS + Auto Queue Akurat Ready!", "Success")
-print("Troxzy VIP - Ultimate 60FPS Edition Loaded.")
+notify("Troxzy VIP v20.6 - Admin Detector Pro Ready!", "Success")
+print("Troxzy VIP - Ultimate Edition Loaded.")
