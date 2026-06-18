@@ -1,14 +1,14 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE (FIXED)
--- 🔥 Bug kritis diperbaiki
--- 🔥 UI tema malam berfungsi penuh
--- 🔥 TAS pause tanpa rusak
+-- TROXZY VIP v20.4 STABLE ULTIMATE (TAS FIXED)
+-- 🔥 TAS menggunakan injeksi pause (seperti v16.2)
+-- 🔥 Auto Farm, TAS, Pause, Queue, Dashboard
+-- 🔥 Theme dark/light, kompatibel semua executor
+-- 🛠️ FIXED & OPTIMIZED VERSION
 -- ============================================
 
-repeat task.wait() until game:IsLoaded()
+if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 
--- Debug
 print("TROXZY: Script started")
 
 -- Services
@@ -22,6 +22,7 @@ local UIS = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
 
 local Player = Players.LocalPlayer
 if not Player then
@@ -67,9 +68,14 @@ local TAS_STATUS_LABEL = nil
 local AUTO_QUEUE_ENABLED = true
 local QUEUE_INTERVAL = 5
 
--- Cleanup
+-- Cleanup UI Lama
+pcall(function()
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
+    end
+end)
 for _, gui in pairs(Player.PlayerGui:GetChildren()) do
-    if gui.Name:find("TROXZY") then gui:Destroy() end
+    if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
 end
 
 if _G.TroxzyConnections then
@@ -117,7 +123,7 @@ local function playSound(id)
     end)
 end
 
--- Theme system (mendukung penuh dark/light)
+-- Theme system
 local ThemeObjects = {}
 local function RegisterThemeObject(obj, property, darkValue, lightValue)
     table.insert(ThemeObjects, { obj = obj, property = property, dark = darkValue, light = lightValue })
@@ -185,13 +191,11 @@ local function applyTheme(theme)
             entry.obj[entry.property] = (theme == "Dark") and entry.dark or entry.light
         end
     end
-    -- Update toggle dots & backgrounds khusus yang punya state (handle manual)
     if _G.ToggleStates then
         for key, toggle in pairs(_G.ToggleStates) do
             local state = toggle.state
             toggle.dot.BackgroundColor3 = state and t.ToggleDotActive or t.ToggleDot
             toggle.sb.BackgroundColor3 = state and t.ToggleBgActive or t.ToggleBg
-            toggle.btn.BackgroundColor3 = t.TabInactive
         end
     end
 end
@@ -426,9 +430,9 @@ end
 -- Reconnect
 local function attemptReconnect()
     saveStats()
-    wait(3)
+    task.wait(3)
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    wait(2)
+    task.wait(2)
     pcall(function() TeleportService:Teleport(game.PlaceId) end)
 end
 local function setupAutoReconnect()
@@ -441,9 +445,9 @@ local function setupAutoReconnect()
 end
 local function forceReconnect()
     saveStats()
-    wait(1)
+    task.wait(1)
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    wait(2)
+    task.wait(2)
     pcall(function() TeleportService:Teleport(game.PlaceId) end)
 end
 
@@ -456,7 +460,25 @@ local function DisconnectMapDetection()
     end
 end
 
--- ==================== TAS (Dengan Pause Fix) ====================
+-- ==================== TAS (Injeksi Pause) ====================
+local function injectPauseCode(script)
+    local modified = script
+    local success = false
+    -- Cari Heartbeat:Connect dan inject while loop dengan task.wait()
+    modified = script:gsub("(RunService%.Heartbeat:Connect%s*%()", function(match)
+        success = true
+        return match .. "function()\n    while _G.TAS_PAUSED do task.wait() end\n    "
+    end)
+    if not success then
+        modified = script:gsub("(while%s*true%s*do)", function(match)
+            success = true
+            return match .. "\n    while _G.TAS_PAUSED do task.wait() end\n    "
+        end)
+    end
+    modified = "_G.TAS_PAUSED = false\n" .. modified
+    return modified, success
+end
+
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then
         notify("TAS Auto-Start is OFF. Enable it first.", "TAS")
@@ -468,7 +490,7 @@ local function ExecuteTAS()
             TAS_COROUTINE = nil
         end
         TAS_RUNNING = false
-        wait(0.2)
+        task.wait(0.2)
     end
     if CONFIG.TAS_PAUSED then
         notify("TAS is paused. Resume first.", "TAS")
@@ -489,19 +511,16 @@ local function ExecuteTAS()
         return
     end
 
-    local func, compileErr = loadstring(scriptContent)
+    local modifiedScript, injectSuccess = injectPauseCode(scriptContent)
+    if not injectSuccess then
+        notify("Pause injection failed (pause may not work)", "Warning")
+        modifiedScript = scriptContent
+    end
+
+    local func, compileErr = loadstring(modifiedScript)
     if not func then
         notify("Compile error: " .. tostring(compileErr), "Error")
         return
-    end
-
-    -- Monkey-patch Heartbeat.Connect untuk pause TAS tanpa injeksi regex
-    local originalConnect = RunService.Heartbeat.Connect
-    RunService.Heartbeat.Connect = function(self, callback)
-        return originalConnect(self, function(...)
-            while _G.TAS_PAUSED do task.wait() end
-            callback(...)
-        end)
     end
 
     TAS_COROUTINE = coroutine.create(function()
@@ -510,8 +529,6 @@ local function ExecuteTAS()
         local execOk, execErr = pcall(func)
         TAS_RUNNING = false
         TAS_COROUTINE = nil
-        -- Kembalikan heartbeat connect asli
-        RunService.Heartbeat.Connect = originalConnect
         if not execOk then
             notify("TAS runtime error: " .. tostring(execErr), "Error")
         else
@@ -546,21 +563,21 @@ end
 -- ==================== AUTO QUEUE ====================
 local function WaitForTASComplete()
     while TAS_RUNNING do task.wait(0.5) end
-    wait(QUEUE_INTERVAL)
+    task.wait(QUEUE_INTERVAL)
 end
 
 local function AutoQueueLoop()
     while AUTO_QUEUE_ENABLED do
         if CONFIG.TAS_MODE ~= "Play" then
             notify("Auto Queue only in PLAY mode!", "Queue")
-            wait(10)
+            task.wait(10)
         else
             repeat task.wait(1) until not Check("InGame") and not Check("InLift")
             if not _G.TroxzyAutoFarm then
                 _G.TroxzyAutoFarm = true
                 ConnectMapDetection()
             end
-            wait(2)
+            task.wait(2)
             WaitForTASComplete()
             notify("Auto Queue: Ready for next map!", "Queue")
         end
@@ -587,7 +604,7 @@ end))
 
 -- Helpers
 local function GetChar() return Player.Character end
-local function Check(flag)
+function Check(flag)
     local char = GetChar()
     if not char then return false end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -642,7 +659,7 @@ local function applyNoclip(state)
     end
 end
 TrackConnection(Player.CharacterAdded:Connect(function()
-    repeat task.wait() until Player.Character
+    if not Player.Character then Player.CharacterAdded:Wait() end
     refreshNoclipCache()
     noclipActive = false
 end))
@@ -683,7 +700,7 @@ end
 
 -- Panic Mode
 local panicActive = false
-_G.ToggleStates = {} -- akan diisi fungsi sinkronisasi toggle
+_G.ToggleStates = {}
 
 local function activatePanicMode()
     panicActive = true
@@ -750,7 +767,7 @@ local function OnMapLoad(map)
             local hum = char:FindFirstChild("Humanoid")
             if hrp and hum then
                 hrp.CFrame = CFrame.new(1000,1000,1000)
-                wait(0.25)
+                task.wait(0.25)
                 hum.Health = 0
             end
         end
@@ -773,7 +790,7 @@ local function OnMapLoad(map)
         notify("Difficulty High! Reset...", "Error")
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
         hrp.CFrame = CFrame.new(1000,1000,1000)
-        wait(0.25)
+        task.wait(0.25)
         hum.Health = 0
         CurrentlyFarming = false
         Stats.currentMap = ""
@@ -819,13 +836,10 @@ local function OnMapLoad(map)
         end
     end
 
-    -- God mode fix: cegah infinite loop
     local godConnection
     if CONFIG.GOD_MODE then
         godConnection = hum:GetPropertyChangedSignal("Health"):Connect(function()
-            if hum.Health < 1000 then
-                hum.Health = 1000
-            end
+            if hum.Health < 1000 then hum.Health = 1000 end
         end)
     end
     TrackConnection(godConnection or {})
@@ -853,7 +867,7 @@ local function OnMapLoad(map)
         end
 
         if shouldTakeBreak() then
-            wait(getRandomFarmDelay())
+            task.wait(getRandomFarmDelay())
         end
 
         local exitRegion = map:FindFirstChild("ExitRegion", true)
@@ -872,9 +886,9 @@ local function OnMapLoad(map)
                     currentHRP.Anchored = false
                     currentHRP.CFrame = CFrame.new(bh.Position - stealthOffset())
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                    wait(stealthDelay())
+                    task.wait(stealthDelay())
                     hum:ChangeState(Enum.HumanoidStateType.Running)
-                    wait(stealthDelay())
+                    task.wait(stealthDelay())
                 end
             end
             if failedScan then RunService.Heartbeat:Wait() end
@@ -904,7 +918,7 @@ local function OnMapLoad(map)
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
     notify("Complete!", "System")
     clearESPCache()
-    Stats.currentMap = ""  -- Reset map setelah selesai
+    Stats.currentMap = ""
 end
 
 -- ==================== MAP DETECTION ====================
@@ -923,7 +937,7 @@ end
 -- ==================== VOTE SYSTEM ====================
 local function GetSessionKey()
     local s, k = pcall(function() return ReqPasskey:InvokeServer() end)
-    return s and k and -k or nil
+    return (s and type(k) == "number") and -k or nil
 end
 local function CalculateCost(md, mv)
     local c, id = 0, 0
@@ -951,7 +965,6 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         notify("Target Found!", "Success")
         _G.TroxzyAutoFarm, CurrentlyFarming = false, false
         DisconnectMapDetection()
-        -- PERBAIKAN: Tidak lagi memutus semua koneksi lain
         local key = GetSessionKey()
         if key then
             UpdMapVote:FireServer(key, ft.ID, CalculateCost(ft, pVotes[tostring(Player.UserId)]))
@@ -959,7 +972,7 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
         else
             notify("Vote Failed", "Error")
         end
-        wait(1)
+        task.wait(1)
         AddedWaiting:FireServer()
         if CONFIG.TAS_AUTO_START then
             task.spawn(ExecuteTAS)
@@ -970,12 +983,13 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(d)
 end))
 
 -- ==================== UI ====================
-local COLORS = DARK_THEME -- referensi warna untuk build, akan ditimpa sistem tema
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "TROXZY_VIP"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = Player.PlayerGui
+
+-- Menyembunyikan GUI ke CoreGui agar aman dari scan
+local success = pcall(function() ScreenGui.Parent = CoreGui end)
+if not success then ScreenGui.Parent = Player.PlayerGui end
 
 ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0,60,0,60)
@@ -991,20 +1005,19 @@ ToggleBtn.Parent = ScreenGui
 Main = Instance.new("Frame")
 Main.Size = UDim2.new(0,370,0,530)
 Main.Position = UDim2.new(0.5,-185,0.5,-265)
-Main.BackgroundColor3 = COLORS.MainBg
+Main.BackgroundColor3 = DARK_THEME.MainBg
 Main.BorderSizePixel = 0
 Main.Visible = true
 Main.Active = true
 Main.Draggable = true
 addCorner(Main, 12)
 Main.Parent = ScreenGui
-
 RegisterThemeObject(Main, "BackgroundColor3", DARK_THEME.MainBg, LIGHT_THEME.MainBg)
 
 -- Header
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1,0,0,50)
-Header.BackgroundColor3 = COLORS.HeaderBg
+Header.BackgroundColor3 = DARK_THEME.HeaderBg
 Header.BorderSizePixel = 0
 addCorner(Header, 12)
 Header.Parent = Main
@@ -1012,7 +1025,7 @@ RegisterThemeObject(Header, "BackgroundColor3", DARK_THEME.HeaderBg, LIGHT_THEME
 local hc = Instance.new("Frame")
 hc.Size = UDim2.new(1,0,0.5,0)
 hc.Position = UDim2.new(0,0,0.5,0)
-hc.BackgroundColor3 = COLORS.HeaderBg
+hc.BackgroundColor3 = DARK_THEME.HeaderBg
 hc.BorderSizePixel = 0
 hc.Parent = Header
 RegisterThemeObject(hc, "BackgroundColor3", DARK_THEME.HeaderBg, LIGHT_THEME.HeaderBg)
@@ -1041,7 +1054,7 @@ local PlayerName = Instance.new("TextLabel")
 PlayerName.Size = UDim2.new(0,130,0,18)
 PlayerName.Position = UDim2.new(0,56,0.5,-14)
 PlayerName.Text = Player.DisplayName
-PlayerName.TextColor3 = COLORS.TextBright
+PlayerName.TextColor3 = DARK_THEME.TextBright
 PlayerName.TextSize = 13
 PlayerName.Font = Enum.Font.GothamBold
 PlayerName.BackgroundTransparency = 1
@@ -1054,7 +1067,7 @@ local Username = Instance.new("TextLabel")
 Username.Size = UDim2.new(0,130,0,12)
 Username.Position = UDim2.new(0,56,0.5,6)
 Username.Text = "@" .. Player.Name
-Username.TextColor3 = COLORS.TextDim
+Username.TextColor3 = DARK_THEME.TextDim
 Username.TextSize = 9
 Username.Font = Enum.Font.Gotham
 Username.BackgroundTransparency = 1
@@ -1067,7 +1080,7 @@ local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(0,120,0,20)
 TitleLabel.Position = UDim2.new(1,-128,0.5,-13)
 TitleLabel.Text = "Troxzy VIP"
-TitleLabel.TextColor3 = COLORS.SectionText
+TitleLabel.TextColor3 = DARK_THEME.SectionText
 TitleLabel.TextSize = 14
 TitleLabel.Font = Enum.Font.GothamBlack
 TitleLabel.BackgroundTransparency = 1
@@ -1079,7 +1092,7 @@ local UserID = Instance.new("TextLabel")
 UserID.Size = UDim2.new(0,120,0,12)
 UserID.Position = UDim2.new(1,-128,0.5,7)
 UserID.Text = "ID: " .. Player.UserId
-UserID.TextColor3 = COLORS.TextDim
+UserID.TextColor3 = DARK_THEME.TextDim
 UserID.TextSize = 8
 UserID.Font = Enum.Font.Gotham
 UserID.BackgroundTransparency = 1
@@ -1097,7 +1110,7 @@ Divider.Parent = Main
 local StatsBar = Instance.new("Frame")
 StatsBar.Size = UDim2.new(1,-16,0,24)
 StatsBar.Position = UDim2.new(0,8,0,55)
-StatsBar.BackgroundColor3 = COLORS.StatsBg
+StatsBar.BackgroundColor3 = DARK_THEME.StatsBg
 StatsBar.BorderSizePixel = 0
 addCorner(StatsBar, 4)
 StatsBar.Parent = Main
@@ -1108,7 +1121,7 @@ StatsLabel.Size = UDim2.new(1,-6,1,0)
 StatsLabel.Position = UDim2.new(0,3,0,0)
 StatsLabel.BackgroundTransparency = 1
 StatsLabel.Text = getStatsText()
-StatsLabel.TextColor3 = COLORS.StatsText
+StatsLabel.TextColor3 = DARK_THEME.StatsText
 StatsLabel.Font = Enum.Font.GothamMedium
 StatsLabel.TextSize = 9
 StatsLabel.TextTruncate = Enum.TextTruncate.AtEnd
@@ -1149,15 +1162,14 @@ local tabBtns, tabContents = {}, {}
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton")
     tabBtn.Size = UDim2.new(0.13,0,0,28)
-    tabBtn.BackgroundColor3 = (tab.key=="Farm") and COLORS.TabActive or COLORS.TabInactive
+    tabBtn.BackgroundColor3 = (tab.key=="Farm") and DARK_THEME.TabActive or DARK_THEME.TabInactive
     tabBtn.Text = tab.name
     tabBtn.TextSize = 8
     tabBtn.Font = Enum.Font.GothamBold
-    tabBtn.TextColor3 = (tab.key=="Farm") and COLORS.TextMedium or COLORS.TextDim
+    tabBtn.TextColor3 = (tab.key=="Farm") and DARK_THEME.TextMedium or DARK_THEME.TextDim
     addCorner(tabBtn, 5)
     tabBtn.Parent = TabBar
     table.insert(tabBtns, tabBtn)
-
     RegisterThemeObject(tabBtn, "BackgroundColor3", DARK_THEME.TabInactive, LIGHT_THEME.TabInactive)
     RegisterThemeObject(tabBtn, "TextColor3", DARK_THEME.TextDim, LIGHT_THEME.TextDim)
 
@@ -1180,7 +1192,6 @@ for i, tab in ipairs(tabItems) do
     local scrollLayout = Instance.new("UIListLayout")
     scrollLayout.Padding = UDim.new(0,3)
     scrollLayout.Parent = scrollFrame
-    -- Auto update canvas size ketika konten berubah (perbaikan scroll)
     scrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         scrollFrame.CanvasSize = UDim2.new(0,0,0,scrollLayout.AbsoluteContentSize.Y + 10)
     end)
@@ -1190,19 +1201,19 @@ for i, tab in ipairs(tabItems) do
     tabBtn.MouseButton1Click:Connect(function()
         for j, btn in ipairs(tabBtns) do
             if j==i then
-                btn.BackgroundColor3 = COLORS.TabActive
-                btn.TextColor3 = COLORS.TextMedium
+                btn.BackgroundColor3 = DARK_THEME.TabActive
+                btn.TextColor3 = DARK_THEME.TextMedium
                 tabContents[j].scroll.Parent.Visible = true
             else
-                btn.BackgroundColor3 = COLORS.TabInactive
-                btn.TextColor3 = COLORS.TextDim
+                btn.BackgroundColor3 = DARK_THEME.TabInactive
+                btn.TextColor3 = DARK_THEME.TextDim
                 tabContents[j].scroll.Parent.Visible = false
             end
         end
     end)
 end
 
--- Fungsi pembantu UI dengan dukungan tema penuh
+-- Helper UI functions (dengan tema)
 local function AddSection(tabKey, title)
     local tabIdx
     for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end
@@ -1210,7 +1221,7 @@ local function AddSection(tabKey, title)
     local s = Instance.new("TextLabel")
     s.Size = UDim2.new(1,0,0,16)
     s.Text = title
-    s.TextColor3 = COLORS.SectionText
+    s.TextColor3 = DARK_THEME.SectionText
     s.Font = Enum.Font.GothamBold
     s.TextSize = 10
     s.BackgroundTransparency = 1
@@ -1233,9 +1244,8 @@ local function AddButton(tabKey, name, color, callback)
     addCorner(b,6)
     b.Parent = tabContents[tabIdx].scroll
     b.MouseButton1Click:Connect(function() pcall(callback) end)
-    -- Daftarkan ke tema
-    RegisterThemeObject(b, "BackgroundColor3", color, color) -- tombol warnanya tetap
-    RegisterThemeObject(b, "TextColor3", Color3.fromRGB(255,255,255), Color3.new(1,1,1))
+    RegisterThemeObject(b, "BackgroundColor3", color, color)
+    RegisterThemeObject(b, "TextColor3", Color3.fromRGB(255,255,255), Color3.fromRGB(255,255,255))
     return b
 end
 
@@ -1245,9 +1255,9 @@ local function AddInfoLabel(tabKey, text)
     if not tabIdx then return end
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1,0,0,30)
-    l.BackgroundColor3 = COLORS.InfoBg
+    l.BackgroundColor3 = DARK_THEME.InfoBg
     l.Text = text
-    l.TextColor3 = COLORS.InfoText
+    l.TextColor3 = DARK_THEME.InfoText
     l.Font = Enum.Font.GothamMedium
     l.TextSize = 10
     l.BorderSizePixel = 0
@@ -1265,7 +1275,7 @@ local function AddToggle(tabKey, name, stateKey)
 
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1,0,0,34)
-    f.BackgroundColor3 = COLORS.TabInactive
+    f.BackgroundColor3 = DARK_THEME.TabInactive
     f.BorderSizePixel = 0
     addCorner(f,6)
     f.Parent = tabContents[tabIdx].scroll
@@ -1275,7 +1285,7 @@ local function AddToggle(tabKey, name, stateKey)
     lbl.Size = UDim2.new(0.48,0,1,0)
     lbl.Position = UDim2.new(0,10,0,0)
     lbl.Text = name
-    lbl.TextColor3 = COLORS.TextMedium
+    lbl.TextColor3 = DARK_THEME.TextMedium
     lbl.Font = Enum.Font.GothamMedium
     lbl.TextSize = 10
     lbl.BackgroundTransparency = 1
@@ -1286,7 +1296,7 @@ local function AddToggle(tabKey, name, stateKey)
     local sb = Instance.new("Frame")
     sb.Size = UDim2.new(0,36,0,18)
     sb.Position = UDim2.new(1,-48,0.5,-9)
-    sb.BackgroundColor3 = COLORS.ToggleBg
+    sb.BackgroundColor3 = DARK_THEME.ToggleBg
     sb.BorderSizePixel = 0
     addCorner(sb,9)
     sb.Parent = f
@@ -1295,7 +1305,7 @@ local function AddToggle(tabKey, name, stateKey)
     local dot = Instance.new("Frame")
     dot.Size = UDim2.new(0,12,0,12)
     dot.Position = UDim2.new(0,3,0.5,-6)
-    dot.BackgroundColor3 = COLORS.ToggleDot
+    dot.BackgroundColor3 = DARK_THEME.ToggleDot
     dot.BorderSizePixel = 0
     addCorner(dot,6)
     dot.Parent = sb
@@ -1317,7 +1327,6 @@ local function AddToggle(tabKey, name, stateKey)
         sb.BackgroundColor3 = st and t.ToggleBgActive or t.ToggleBg
     end
 
-    -- Simpan referensi untuk sinkronisasi eksternal (panic)
     if stateKey then
         _G.ToggleStates[stateKey] = {
             state = false,
@@ -1331,7 +1340,6 @@ local function AddToggle(tabKey, name, stateKey)
     btn.MouseButton1Click:Connect(function()
         state = not state
         setToggleUI(state)
-        -- Handle logika state
         if stateKey == "AutoFarm" then
             _G.TroxzyAutoFarm = state
             if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
@@ -1361,7 +1369,7 @@ local function AddInput(tabKey, label, defaultVal, callback)
 
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1,0,0,40)
-    f.BackgroundColor3 = COLORS.TabInactive
+    f.BackgroundColor3 = DARK_THEME.TabInactive
     f.BorderSizePixel = 0
     addCorner(f,6)
     f.Parent = tabContents[tabIdx].scroll
@@ -1371,7 +1379,7 @@ local function AddInput(tabKey, label, defaultVal, callback)
     lbl.Size = UDim2.new(1,0,0,16)
     lbl.Position = UDim2.new(0,0,0,2)
     lbl.Text = label
-    lbl.TextColor3 = COLORS.TextDim
+    lbl.TextColor3 = DARK_THEME.TextDim
     lbl.Font = Enum.Font.Gotham
     lbl.TextSize = 10
     lbl.BackgroundTransparency = 1
@@ -1382,8 +1390,8 @@ local function AddInput(tabKey, label, defaultVal, callback)
     local inp = Instance.new("TextBox")
     inp.Size = UDim2.new(0,65,0,20)
     inp.Position = UDim2.new(0.5,-32,0,17)
-    inp.BackgroundColor3 = COLORS.InputBg
-    inp.TextColor3 = COLORS.TextBright
+    inp.BackgroundColor3 = DARK_THEME.InputBg
+    inp.TextColor3 = DARK_THEME.TextBright
     inp.PlaceholderText = tostring(defaultVal)
     inp.Text = tostring(defaultVal)
     inp.Font = Enum.Font.Gotham
@@ -1404,7 +1412,7 @@ local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0,190,0,80)
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
 Dashboard.AnchorPoint = Vector2.new(1,0)
-Dashboard.BackgroundColor3 = COLORS.MainBg
+Dashboard.BackgroundColor3 = DARK_THEME.MainBg
 Dashboard.BorderSizePixel = 0
 Dashboard.Visible = CONFIG.DASHBOARD
 addCorner(Dashboard,8)
@@ -1416,7 +1424,7 @@ local function createDashboardContent()
     title.Size = UDim2.new(1,0,0,18)
     title.Position = UDim2.new(0,0,0,4)
     title.Text = "Live Dashboard"
-    title.TextColor3 = COLORS.SectionText
+    title.TextColor3 = DARK_THEME.SectionText
     title.Font = Enum.Font.GothamBold
     title.TextSize = 10
     title.BackgroundTransparency = 1
@@ -1427,7 +1435,7 @@ local function createDashboardContent()
     mapLabel.Size = UDim2.new(1,0,0,14)
     mapLabel.Position = UDim2.new(0,0,0,22)
     mapLabel.Text = "Map: Waiting..."
-    mapLabel.TextColor3 = COLORS.TextDim
+    mapLabel.TextColor3 = DARK_THEME.TextDim
     mapLabel.Font = Enum.Font.Gotham
     mapLabel.TextSize = 9
     mapLabel.BackgroundTransparency = 1
@@ -1439,7 +1447,7 @@ local function createDashboardContent()
     timeLabel.Size = UDim2.new(1,0,0,14)
     timeLabel.Position = UDim2.new(0,0,0,36)
     timeLabel.Text = "Time: 0m"
-    timeLabel.TextColor3 = COLORS.TextDim
+    timeLabel.TextColor3 = DARK_THEME.TextDim
     timeLabel.Font = Enum.Font.Gotham
     timeLabel.TextSize = 9
     timeLabel.BackgroundTransparency = 1
@@ -1451,7 +1459,7 @@ local function createDashboardContent()
     speedLabel.Size = UDim2.new(1,0,0,14)
     speedLabel.Position = UDim2.new(0,0,0,50)
     speedLabel.Text = "Maps/hr: 0"
-    speedLabel.TextColor3 = COLORS.TextDim
+    speedLabel.TextColor3 = DARK_THEME.TextDim
     speedLabel.Font = Enum.Font.Gotham
     speedLabel.TextSize = 9
     speedLabel.BackgroundTransparency = 1
@@ -1514,18 +1522,18 @@ AddInfoLabel("Farm", "[Target] " .. CONFIG.TARGET_MAP)
 
 AddSection("TAS", "TAS LOADER")
 AddToggle("TAS", "TAS Auto-Start", "TAS_AUTO_START")
-AddToggle("TAS", "Auto Queue", "AUTO_QUEUE") -- toggle auto queue
-AddButton("TAS", "Record Mode", COLORS.ButtonRecord, function()
+AddToggle("TAS", "Auto Queue", "AUTO_QUEUE")
+AddButton("TAS", "Record Mode", DARK_THEME.ButtonRecord, function()
     if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first","TAS"); return end
     CONFIG.TAS_MODE = "Record"
     task.spawn(ExecuteTAS)
 end)
-AddButton("TAS", "Play Mode", COLORS.ButtonPlay, function()
+AddButton("TAS", "Play Mode", DARK_THEME.ButtonPlay, function()
     if not CONFIG.TAS_AUTO_START then notify("Enable TAS Auto-Start first","TAS"); return end
     CONFIG.TAS_MODE = "Play"
     task.spawn(ExecuteTAS)
 end)
-TAS_PAUSE_BUTTON = AddButton("TAS", "Pause TAS", COLORS.ButtonPause, toggleTASPause)
+TAS_PAUSE_BUTTON = AddButton("TAS", "Pause TAS", DARK_THEME.ButtonPause, toggleTASPause)
 TAS_STATUS_LABEL = AddInfoLabel("TAS", "Status: ▶ READY")
 
 AddSection("Move", "MOVEMENT")
@@ -1549,17 +1557,17 @@ AddToggle("Stealth", "Anti-Report", "ANTI_REPORT")
 AddToggle("Stealth", "Random Delay", "RANDOM_DELAY")
 AddToggle("Stealth", "Hide Script", "HIDE_SCRIPT")
 AddToggle("Stealth", "Map Rotation", "MAP_ROTATION")
-AddButton("Stealth", "Force Leave", COLORS.ButtonForceLeave, forceReconnect)
+AddButton("Stealth", "Force Leave", DARK_THEME.ButtonForceLeave, forceReconnect)
 
 AddSection("Premium", "PREMIUM FEATURES")
 AddToggle("Premium", "Live Dashboard", "DASHBOARD")
 AddToggle("Premium", "Smart Alerts", "SMART_ALERTS")
 AddToggle("Premium", "Night Mode", "NIGHT_MODE")
 AddToggle("Premium", "Auto-Updater", "AUTO_UPDATE")
-AddButton("Premium", "Check Updates", COLORS.ButtonUpdate, function()
+AddButton("Premium", "Check Updates", DARK_THEME.ButtonUpdate, function()
     notify("Checking updates...", "Updater")
 end)
-AddButton("Premium", "Panic Mode [P]", COLORS.ButtonPanic, function()
+AddButton("Premium", "Panic Mode [P]", DARK_THEME.ButtonPanic, function()
     if not panicActive then activatePanicMode() else deactivatePanicMode() end
 end)
 
@@ -1579,10 +1587,10 @@ AddButton("Extra", "Cycle Flood Color", Color3.fromRGB(100,100,200), function()
     notify("Flood color: " .. CONFIG.FLOOD_COLOR, "Colors")
 end)
 
--- Version Label dan Close button (perbaikan posisi)
+-- Version dan Close
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Size = UDim2.new(0,80,0,14)
-VersionLabel.Position = UDim2.new(0,10,1,-33) -- kiri bawah
+VersionLabel.Position = UDim2.new(0,10,1,-33)
 VersionLabel.Text = "v20.4 Stable"
 VersionLabel.TextColor3 = Color3.fromRGB(100,120,140)
 VersionLabel.TextSize = 9
@@ -1594,8 +1602,8 @@ RegisterThemeObject(VersionLabel, "TextColor3", Color3.fromRGB(100,120,140), Col
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0,80,0,28)
-CloseBtn.Position = UDim2.new(1,-90,1,-33) -- kanan bawah
-CloseBtn.BackgroundColor3 = COLORS.CloseBg
+CloseBtn.Position = UDim2.new(1,-90,1,-33)
+CloseBtn.BackgroundColor3 = DARK_THEME.CloseBg
 CloseBtn.Text = "Close Panel"
 CloseBtn.TextSize = 11
 CloseBtn.Font = Enum.Font.GothamBold
@@ -1628,7 +1636,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         local hum = char:FindFirstChild("Humanoid")
         if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then
-            refreshNoclipCache()  -- Perbarui cache aksesoris baru
+            refreshNoclipCache()
             applyNoclip(true)
         elseif not CurrentlyFarming then
             applyNoclip(false)
@@ -1644,7 +1652,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then
             hum:ChangeState(Enum.HumanoidStateType.Landed)
             hum.PlatformStand = false
-            wait(0.05)
+            task.wait(0.05)
             hum:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end)
@@ -1668,7 +1676,7 @@ TrackConnection(UIS.JumpRequest:Connect(function()
     end
 end))
 
--- Watchdog (perbaikan: jangan disconnect sembarangan)
+-- Watchdog
 task.spawn(function()
     while task.wait(0.5) do
         if not _G.TroxzyAutoFarm then
@@ -1707,4 +1715,4 @@ if AUTO_QUEUE_ENABLED then
     notify("Auto Queue TAS AKTIF (hanya PLAY mode)!", "Queue")
 end
 
-print("Troxzy VIP v20.4 Stable Ultimate loaded successfully!")
+print("Troxzy VIP v20.4 Stable Ultimate (TAS Fixed) loaded successfully!")
