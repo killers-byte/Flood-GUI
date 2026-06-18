@@ -1,7 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: Panic Mode Error & WalkSpeed Conflict
--- 🔥 NEW: Professional Auto-Sizing Dashboard
+-- 🔥 FIXED: Auto Farm Walk to Lift
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -454,7 +453,7 @@ local function findLiftPosition()
 end
 
 TrackConnection(RunService.Heartbeat:Connect(function()
-    if moveToLift and AUTO_QUEUE_ENABLED and not panicActive and not TAS_RUNNING then
+    if moveToLift and (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive and not TAS_RUNNING then
         local char = Player.Character
         local hum = char and char:FindFirstChild("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -464,7 +463,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
                     local dir = (liftTarget - hrp.Position)
                     if dir.Magnitude > 2 then
                         hum:MoveTo(liftTarget)
-                        -- HAPUS: hum.WalkSpeed = 20 agar tidak konflik dengan fitur Speed
                     else
                         pcall(function() AddedWaiting:FireServer() end)
                         moveToLift = false
@@ -519,14 +517,16 @@ end
 
 task.spawn(function()
     while task.wait(0.5) do
-        if AUTO_QUEUE_ENABLED and not panicActive then
+        if (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive then
             local char = Player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not TAS_RUNNING then
+            if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not TAS_RUNNING and not CurrentlyFarming then
                 moveToLift = true
                 liftTarget = findLiftPosition()
             else
                 moveToLift = false
             end
+        else
+            moveToLift = false
         end
     end
 end)
@@ -607,7 +607,7 @@ end))
 
 -- ==================== PRE-DEKLARASI UI FUNCTIONS & PANIC MODE ====================
 local panicActive = false; _G.ToggleStates = {}
-local minimizeUI, maximizeUI -- Pre-deklarasi agar bisa dipanggil oleh Panic Mode
+local minimizeUI, maximizeUI
 
 local function activatePanicMode() 
     panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; 
@@ -1188,5 +1188,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP v20.7 - Spectator Detector Ready!", "Success")
+notify("Troxzy VIP v20.7 - PRO Edition Ready!", "Success")
 print("Troxzy VIP - PRO Edition Loaded.")
