@@ -1,8 +1,6 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE
--- 🔥 PROFESSIONAL UI + SEAMLESS AUTO QUEUE
--- 🔥 Auto Play Mode, Respawn Fix, Walk to Lift
--- 🔄 AUTO-UPDATER CONNECTED (GitHub)
+-- TROXZY VIP v20.4 STABLE ULTIMATE (FIXED)
+-- 🔥 AUTO QUEUE SEAMLESS – TIDAK LAGI LOOP GANDA
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -37,6 +35,7 @@ _G.TroxzyAutoFarm = false
 
 -- Variabel Utama
 local CurrentlyFarming = false
+local mapCompleted = false       -- Flag untuk mencegah TAS berulang dalam satu map
 local Escaped = false
 local Main, ToggleBtn, MapDetect = nil, nil, nil
 local TimerHookActive = false
@@ -52,24 +51,24 @@ local AUTO_QUEUE_ENABLED = false
 
 -- Cleanup UI Lama
 pcall(function()
-    for _, gui in pairs(CoreGui:GetChildren()) do 
-        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end 
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
     end
-    for _, gui in pairs(Player.PlayerGui:GetChildren()) do 
-        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end 
+    for _, gui in pairs(Player.PlayerGui:GetChildren()) do
+        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
     end
 end)
 
 if _G.TroxzyConnections then
-    for _, conn in pairs(_G.TroxzyConnections) do 
-        pcall(function() conn:Disconnect() end) 
+    for _, conn in pairs(_G.TroxzyConnections) do
+        pcall(function() conn:Disconnect() end)
     end
 end
 _G.TroxzyConnections = {}
 
-local function TrackConnection(conn) 
+local function TrackConnection(conn)
     table.insert(_G.TroxzyConnections, conn)
-    return conn 
+    return conn
 end
 
 -- ==================== UTILITY & THEME ====================
@@ -95,12 +94,12 @@ local function Tween(obj, props, time)
 end
 
 local function notify(msg, title)
-    pcall(function() 
+    pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = title or "Troxzy VIP", 
-            Text = msg, 
+            Title = title or "Troxzy VIP",
+            Text = msg,
             Duration = 2
-        }) 
+        })
     end)
 end
 
@@ -177,81 +176,81 @@ local Stats = {
     blacklistedSkipped = 0, adminDetected = 0, adminLeft = 0, currentMap = ""
 }
 
-local function loadStats() 
-    pcall(function() 
-        if isfile("Troxzy_Stats.json") then 
+local function loadStats()
+    pcall(function()
+        if isfile("Troxzy_Stats.json") then
             local d = HttpService:JSONDecode(readfile("Troxzy_Stats.json"))
-            for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end 
-        end 
+            for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end
+        end
     end)
-    Stats.sessionStart = os.clock() 
+    Stats.sessionStart = os.clock()
 end
 
-local function saveStats() 
-    pcall(function() 
+local function saveStats()
+    pcall(function()
         Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart)
         writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats))
-        Stats.sessionStart = os.clock() 
-    end) 
+        Stats.sessionStart = os.clock()
+    end)
 end
 
-local function updateStats(d) 
+local function updateStats(d)
     Stats.mapsCompleted = Stats.mapsCompleted + 1
-    if d and Stats.difficultyStats[d] then 
-        Stats.difficultyStats[d] = Stats.difficultyStats[d] + 1 
-    end 
+    if d and Stats.difficultyStats[d] then
+        Stats.difficultyStats[d] = Stats.difficultyStats[d] + 1
+    end
 end
 
-local function getStatsText() 
-    return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft) 
+local function getStatsText()
+    return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft)
 end
 
 -- ==================== CORE FUNCTIONS ====================
 local MapBlacklist = { "Blue Moon", "Poisonous Chasm", "Rustic Jungle", "Luminance" }
-local function isMapBlacklisted(n) 
+local function isMapBlacklisted(n)
     if not CONFIG.BLACKLIST_ENABLED then return false end
     for _, bl in ipairs(MapBlacklist) do if n:lower():find(bl:lower()) then return true end end
-    return false 
+    return false
 end
 
 local MapRotation = { "Sandswept Ruins", "Axiom", "Castle Tides", "Lost Woods", "Nimble Valley", "Mayan Remnants", "Sulphureous Sea", "Lava Tower", "Dark Sci-Forest", "Sedimentary Temple", "Abandoned Facility", "Sinking Ship", "Familiar Ruins" }
 local rotationIndex = 1
-local function rotateMap() 
+local function rotateMap()
     if not CONFIG.MAP_ROTATION then return end
     CONFIG.TARGET_MAP = MapRotation[rotationIndex]
     rotationIndex = rotationIndex + 1
-    if rotationIndex > #MapRotation then rotationIndex = 1 end 
+    if rotationIndex > #MapRotation then rotationIndex = 1 end
 end
 
 local adminKeywords = { ["admin"] = true, ["mod"] = true, ["owner"] = true, ["dev"] = true, ["helper"] = true, ["staff"] = true }
-local function isAdmin(p) 
+local function isAdmin(p)
     if not CONFIG.ADMIN_DETECTOR then return false end
     local name = p.Name:lower(); local display = p.DisplayName:lower()
     for kw, _ in pairs(adminKeywords) do if name:find(kw) or display:find(kw) then return true end end
-    return false 
+    return false
 end
 
-local function detectAdmins() 
+local function detectAdmins()
     for _, p in pairs(Players:GetPlayers()) do if p ~= Player and isAdmin(p) then return true end end
-    return false 
+    return false
 end
 
-local function blockAdminRemotes() 
+local function blockAdminRemotes()
     local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote")
     if not RemoteFolder then return end
     local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
-    for _, remote in ipairs(RemoteFolder:GetChildren()) do 
-        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then 
+    for _, remote in ipairs(RemoteFolder:GetChildren()) do
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
             local lowerName = remote.Name:lower()
-            for _, kw in ipairs(dangerousKeywords) do 
-                if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end 
-            end 
-        end 
-    end 
+            for _, kw in ipairs(dangerousKeywords) do
+                if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end
+            end
+        end
+    end
 end
 
 local lastAdminAlert = 0
-local function handleAdminDetection() 
+local function handleAdminDetection()
     if not CONFIG.ADMIN_DETECTOR then return end
     if not detectAdmins() then return end
     local now = os.clock()
@@ -260,79 +259,79 @@ local function handleAdminDetection()
     Stats.adminDetected = Stats.adminDetected + 1
     notify("Admin detected! Protection active.", "Anti-Admin")
     if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
-    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end 
+    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
 end
 
 if CONFIG.ANTI_REPORT then pcall(function() Players.ReportAbuse = function() end end) end
 
 local floodColorMap = { Blue = Color3.fromRGB(0, 150, 255), Green = Color3.fromRGB(0, 255, 100), Red = Color3.fromRGB(255, 50, 50), Pink = Color3.fromRGB(255, 100, 200), Purple = Color3.fromRGB(150, 50, 255) }
-local function applyFloodColors() 
+local function applyFloodColors()
     if not CONFIG.CUSTOM_FLOOD_COLORS then return end
     local targetColor = floodColorMap[CONFIG.FLOOD_COLOR] or Color3.fromRGB(0, 150, 255)
-    for _, v in pairs(Workspace:GetDescendants()) do 
-        if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then 
-            pcall(function() v.Color = targetColor end) 
-        end 
-    end 
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then
+            pcall(function() v.Color = targetColor end)
+        end
+    end
 end
 
 local lastFloodColorUpdate = 0
-local function periodicFloodColorUpdate() 
+local function periodicFloodColorUpdate()
     if not CONFIG.CUSTOM_FLOOD_COLORS then return end
     local now = os.clock()
     if now - lastFloodColorUpdate < 0.5 then return end
     lastFloodColorUpdate = now
-    applyFloodColors() 
+    applyFloodColors()
 end
 
 local function stealthDelay() return CONFIG.STEALTH_MODE and math.random(10, 50) / 100 or 0.05 end
 local function stealthOffset() return CONFIG.STEALTH_MODE and Vector3.new(math.random(-50,50)/100, math.random(-30,30)/100, math.random(-50,50)/100) or Vector3.new(math.random(), math.random(), math.random()) end
 
 local buttonCount = 0
-local function shouldTakeBreak() 
+local function shouldTakeBreak()
     if not CONFIG.RANDOM_DELAY then return false end
     buttonCount = buttonCount + 1
     if buttonCount >= math.random(3,8) then buttonCount = 0; return true end
-    return false 
+    return false
 end
 
-local function isPlayerNearby() 
+local function isPlayerNearby()
     if not CONFIG.HIDE_SCRIPT then return false end
     local char = Player.Character; if not char then return false end
     local root = char:FindFirstChild("HumanoidRootPart"); if not root then return false end
-    for _, p in pairs(Players:GetPlayers()) do 
-        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then 
-            if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end 
-        end 
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end
+        end
     end
-    return false 
+    return false
 end
 
-local function attemptReconnect() 
+local function attemptReconnect()
     saveStats(); task.wait(3)
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) 
+    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end)
 end
 
-local function setupAutoReconnect() 
+local function setupAutoReconnect()
     if not CONFIG.AUTO_RECONNECT then return end
     TrackConnection(Player:GetPropertyChangedSignal("Parent"):Connect(function() if not Player.Parent then attemptReconnect() end end))
     TrackConnection(TeleportService.TeleportInitFailed:Connect(attemptReconnect))
-    TrackConnection(Player.OnTeleport:Connect(saveStats)) 
+    TrackConnection(Player.OnTeleport:Connect(saveStats))
 end
 
-local function forceReconnect() 
+local function forceReconnect()
     saveStats(); task.wait(1)
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) 
+    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end)
 end
 
 local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"] = 4, ["Crazy"] = 5, ["Crazy+"] = 6 }
-local function DisconnectMapDetection() 
-    if MapDetect then MapDetect:Disconnect(); MapDetect = nil end 
+local function DisconnectMapDetection()
+    if MapDetect then MapDetect:Disconnect(); MapDetect = nil end
 end
 
--- ==================== TAS ENGINE (NO PAUSE) ====================
+-- ==================== TAS ENGINE (FIXED LOOP) ====================
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then notify("TAS Auto-Start is OFF. Enable it first.", "TAS"); return end
     if TAS_RUNNING then
@@ -359,11 +358,15 @@ local function ExecuteTAS()
         local execOk, execErr = pcall(func)
         TAS_RUNNING = false
         TAS_COROUTINE = nil
-        
+
+        if AUTO_QUEUE_ENABLED then
+            mapCompleted = true  -- Tandai map selesai, cegah eksekusi ulang
+        end
+
         if not execOk then notify("TAS runtime error: " .. tostring(execErr), "Error") else notify("TAS finished!", "Success") end
         if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ READY" end
     end)
-    
+
     coroutine.resume(TAS_COROUTINE)
     if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ RUNNING" end
 end
@@ -392,33 +395,38 @@ local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CF
 local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== SEAMLESS MASTER LOOP ====================
+-- ==================== SEAMLESS MASTER LOOP (DIPERBAIKI) ====================
 task.spawn(function()
     while task.wait(1.5) do
         if AUTO_QUEUE_ENABLED and not panicActive then
             CONFIG.TAS_MODE = "Play"
             CONFIG.TAS_AUTO_START = true
-            
+
             local char = Player.Character
             local hum = char and char:FindFirstChild("Humanoid")
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            
+
             if char and hum and hrp and hum.Health > 0 then
                 if Check("InGame") then
-                    if not TAS_RUNNING then
+                    -- Hanya jalankan TAS jika belum berjalan dan map belum diselesaikan
+                    if not TAS_RUNNING and not mapCompleted then
                         _G.TroxzyAutoFarm = false
                         CurrentlyFarming = false
                         DisconnectMapDetection()
-                        
+
                         task.wait(2)
-                        
+
                         if Check("InGame") and not TAS_RUNNING then
                             task.spawn(ExecuteTAS)
                         end
                     end
-                elseif not Check("InLift") then
-                    pcall(function() AddedWaiting:FireServer() end)
-                    hum:MoveTo(hrp.Position + Vector3.new(math.random(-15,15), 0, math.random(-15,15)))
+                else
+                    -- Setelah keluar dari InGame, reset flag mapCompleted agar siap map berikutnya
+                    mapCompleted = false
+                    if not Check("InLift") then
+                        pcall(function() AddedWaiting:FireServer() end)
+                        hum:MoveTo(hrp.Position + Vector3.new(math.random(-15,15), 0, math.random(-15,15)))
+                    end
                 end
             end
         end
@@ -434,7 +442,10 @@ TrackConnection(Player.CharacterAdded:Connect(function()
     if not Player.Character then Player.CharacterAdded:Wait() end
     refreshNoclip()
     ncActive = false
-    
+
+    -- Reset mapCompleted ketika respawn (masuk map baru)
+    mapCompleted = false
+
     if TAS_RUNNING and AUTO_QUEUE_ENABLED then
         if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end
         TAS_RUNNING = false
@@ -459,7 +470,7 @@ local function OnMapLoad(map)
     clearESPCache()
     Stats.currentMap = map:WaitForChild("Settings", 10) and map.Settings:GetAttribute("MapName") or "Unknown"
     handleAdminDetection()
-    
+
     if isMapBlacklisted(Stats.currentMap) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1; saveStats()
         pcall(function() local c = Player.Character; c.HumanoidRootPart.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); c.Humanoid.Health = 0 end)
@@ -514,7 +525,7 @@ local function OnMapLoad(map)
         local er = map:FindFirstChild("ExitRegion", true)
         local currHRP = Player.Character:FindFirstChild("HumanoidRootPart")
         if not currHRP then break end
-        
+
         local failedScan = true
 
         if not er then
@@ -558,15 +569,15 @@ end
 TrackConnection(NewMapVote.OnClientEvent:Connect(function(data)
     local maps = data.mapData; local pVotes = data.pVotes or {}
     if not maps then return end
-    
+
     local targetMap
     for _, m in pairs(maps) do if m.name == CONFIG.TARGET_MAP and m.displayMap then targetMap = m; break end end
-    
+
     if targetMap then
         _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
         local success, k = pcall(function() return ReqPasskey:InvokeServer() end)
         local key = (success and type(k) == "number") and -k or nil
-        
+
         if key then
             local prevVotes = (pVotes[tostring(Player.UserId)] and pVotes[tostring(Player.UserId)].voteCount) or 0
             local cost = math.clamp(targetMap.extraVoteCost + (prevVotes - 1) * 10, 0, 50)
@@ -649,13 +660,11 @@ TabBar.Size = UDim2.new(1,-28,0,36); TabBar.Position = UDim2.new(0,14,0,108); Ta
 local TabList = Instance.new("UIListLayout")
 TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,4); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center; TabList.VerticalAlignment = Enum.VerticalAlignment.Center; TabList.Parent = TabBar
 
--- Penambahan Tab "Premium" untuk update
 local tabItems = { {name="TAS", key="TAS"}, {name="Farm", key="Farm"}, {name="Move", key="Move"}, {name="Visual", key="Visual"}, {name="Stealth", key="Stealth"}, {name="Premium", key="Premium"}, {name="Extra", key="Extra"} }
 local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton")
-    -- Ukuran disesuaikan agar 7 tab muat dengan rapi
     tabBtn.Size = UDim2.new(0.13,0,0,32); tabBtn.BackgroundColor3 = (tab.key=="TAS") and DARK_THEME.TabActive or DARK_THEME.TabInactive; tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold; tabBtn.TextColor3 = (tab.key=="TAS") and DARK_THEME.TextBright or DARK_THEME.TextDim; tabBtn.AutoButtonColor = false
     addCorner(tabBtn, 6); tabBtn.Parent = TabBar; table.insert(tabBtns, tabBtn)
 
@@ -710,9 +719,9 @@ local function AddToggle(tabKey, name, stateKey)
     local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,40); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll
     RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
-    
+
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(0.6,0,1,0); lbl.Position = UDim2.new(0,14,0,0); lbl.Text = name; lbl.TextColor3 = DARK_THEME.TextMedium; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = f
-    
+
     local sb = Instance.new("Frame"); sb.Size = UDim2.new(0,40,0,20); sb.Position = UDim2.new(1,-54,0.5,-10); sb.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(sb,10); addStroke(sb, DARK_THEME.Border, 1, 0.8); sb.Parent = f
     local dot = Instance.new("Frame"); dot.Size = UDim2.new(0,14,0,14); dot.Position = UDim2.new(0,3,0.5,-7); dot.BackgroundColor3 = DARK_THEME.ToggleDot; addCorner(dot,7); dot.Parent = sb
     local btn = Instance.new("TextButton"); btn.Size = UDim2.new(1,0,1,0); btn.BackgroundTransparency = 1; btn.Text = ""; btn.Parent = f
@@ -730,12 +739,13 @@ local function AddToggle(tabKey, name, stateKey)
 
     btn.MouseButton1Click:Connect(function()
         state = not state; setToggleUI(state)
-        
-        if stateKey == "AUTO_QUEUE" then 
+
+        if stateKey == "AUTO_QUEUE" then
             AUTO_QUEUE_ENABLED = state
             if state then
                 CONFIG.TAS_MODE = "Play"
                 CONFIG.TAS_AUTO_START = true
+                mapCompleted = false   -- Reset flag saat mengaktifkan
                 if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end
                 notify("Sistem Auto Queue & Play Mode Menyala!", "Seamless System")
             else
@@ -755,10 +765,10 @@ local function AddInput(tabKey, label, defaultVal, callback)
     local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
     local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,44); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll
     RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
-    
+
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(0.5,0,1,0); lbl.Position = UDim2.new(0,14,0,0); lbl.Text = label; lbl.TextColor3 = DARK_THEME.TextMedium; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = f
     local inp = Instance.new("TextBox"); inp.Size = UDim2.new(0,70,0,26); inp.Position = UDim2.new(1,-84,0.5,-13); inp.BackgroundColor3 = DARK_THEME.InputBg; inp.TextColor3 = DARK_THEME.TextBright; inp.PlaceholderText = tostring(defaultVal); inp.Text = tostring(defaultVal); inp.Font = Enum.Font.GothamBold; inp.TextSize = 11; addCorner(inp,6); addStroke(inp, DARK_THEME.Border, 1, 0.8); inp.Parent = f
-    
+
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) else inp.Text = tostring(defaultVal) end end)
 end
 
@@ -779,10 +789,10 @@ local function updateDashboard()
     timeLabel.Text = "Time: " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
     local hours = (os.clock() - Stats.sessionStart) / 3600
     speedLabel.Text = "Rate: " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
-    
-    if panicActive then statusLabel.Text = "Status: PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80) 
-    elseif TAS_RUNNING then statusLabel.Text = "Status: TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120) 
-    elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50) 
+
+    if panicActive then statusLabel.Text = "Status: PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
+    elseif TAS_RUNNING then statusLabel.Text = "Status: TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
+    elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
 end
 
@@ -822,7 +832,6 @@ AddToggle("Stealth", "Disable Reports", "ANTI_REPORT")
 AddButton("Stealth", "Panic Mode [P]", DARK_THEME.ButtonPanic, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
 AddButton("Stealth", "Force Reconnect", DARK_THEME.ButtonForceLeave, forceReconnect)
 
--- TAB PREMIUM (AUTO UPDATER TERKONEKSI GITHUB)
 AddSection("Premium", "SYSTEM & UPDATES")
 AddToggle("Premium", "Auto-Updater (On Boot)", "AUTO_UPDATE")
 AddButton("Premium", "Check for Updates", DARK_THEME.Accent, function()
@@ -830,14 +839,14 @@ AddButton("Premium", "Check for Updates", DARK_THEME.Accent, function()
     task.spawn(function()
         local updateUrl = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
         local success, newScript = pcall(function() return game:HttpGet(updateUrl) end)
-        
+
         if success and newScript and #newScript > 100 then
             notify("Update found! Reloading script...", "Updater")
             task.wait(1.5)
-            
+
             local func, compileErr = loadstring(newScript)
             if func then
-                func() -- Mengeksekusi script baru yang diunduh
+                func()
             else
                 notify("Compile Error: " .. tostring(compileErr), "Error")
             end
