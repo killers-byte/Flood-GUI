@@ -1,9 +1,8 @@
 -- ============================================
--- TROXZY VIP v20.6 ULTIMATE (ESP FIX + ADMIN DETECTOR PRO)
--- 🔥 Semua karakter terlihat
--- 🔥 Admin terdeteksi real-time dengan info lengkap
--- 🔥 Auto Queue event-driven tanpa delay
--- 🔥 60 FPS smooth movement & visual
+-- TROXZY VIP v20.6 ULTIMATE (SMOOTH MINIMIZE UI)
+-- 🔥 Animasi minimize/maximize halus
+-- 🔥 Dilengkapi transparansi dan scaling
+-- 🔥 Semua fitur sebelumnya tetap ada
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -60,6 +59,9 @@ local moveToLift = false
 -- Admin Detector Pro
 local DetectedAdmins = {}
 local lastAdminCount = 0
+
+-- UI State
+local isMinimized = false
 
 -- Cleanup UI Lama
 pcall(function()
@@ -586,8 +588,8 @@ TrackConnection(Players.PlayerRemoving:Connect(function(plr)
 end))
 
 local panicActive = false; _G.ToggleStates = {}
-local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if Main then Tween(Main, {Size = UDim2.new(0,0,0,0)}, 0.3); task.wait(0.3); Main.Visible = false end; clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
-local function deactivatePanicMode() panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); applyNoclip(false); if Main then Main.Visible = true; Tween(Main, {Size = UDim2.new(0,390,0,540)}, 0.4) end; if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
+local function deactivatePanicMode() panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); applyNoclip(false); maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
 
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
@@ -898,9 +900,45 @@ local function AddInput(tabKey, label, defaultVal, callback)
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) else inp.Text = tostring(defaultVal) end end)
 end
 
+-- ==================== SMOOTH MINIMIZE/MAXIMIZE FUNCTIONS ====================
+local function minimizeUI(instant)
+    if not Main.Visible then return end
+    if instant then
+        Main.Visible = false
+        Main.Size = UDim2.new(0,390,0,0)
+        Main.BackgroundTransparency = 0
+        isMinimized = true
+        return
+    end
+    isMinimized = true
+    local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0,390,0,0),
+        BackgroundTransparency = 1
+    })
+    t:Play()
+    t.Completed:Connect(function()
+        Main.Visible = false
+        Main.Size = UDim2.new(0,390,0,0)
+        Main.BackgroundTransparency = 0
+    end)
+end
+
+local function maximizeUI()
+    if Main.Visible then return end
+    isMinimized = false
+    Main.Visible = true
+    Main.Size = UDim2.new(0,390,0,0)
+    Main.BackgroundTransparency = 1
+    local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0,390,0,540),
+        BackgroundTransparency = 0
+    })
+    t:Play()
+end
+
 -- ==================== DASHBOARD DENGAN ADMIN LIST ====================
 local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0,210,0,130)  -- Diperpanjang untuk menampung admin list
+Dashboard.Size = UDim2.new(0,210,0,130)
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
 Dashboard.AnchorPoint = Vector2.new(1,0)
 Dashboard.BackgroundColor3 = DARK_THEME.MainBg
@@ -915,9 +953,8 @@ local timeLabel = Instance.new("TextLabel"); timeLabel.Size = UDim2.new(1,-10,0,
 local speedLabel = Instance.new("TextLabel"); speedLabel.Size = UDim2.new(1,-10,0,16); speedLabel.Position = UDim2.new(0,10,0,58); speedLabel.Text = "Rate: 0 maps/hr"; speedLabel.TextColor3 = DARK_THEME.TextMedium; speedLabel.Font = Enum.Font.Gotham; speedLabel.TextSize = 10; speedLabel.BackgroundTransparency = 1; speedLabel.TextXAlignment = Enum.TextXAlignment.Left; speedLabel.Parent = Dashboard
 local statusLabel = Instance.new("TextLabel"); statusLabel.Size = UDim2.new(1,-10,0,16); statusLabel.Position = UDim2.new(0,10,0,74); statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120); statusLabel.Font = Enum.Font.GothamBold; statusLabel.TextSize = 10; statusLabel.BackgroundTransparency = 1; statusLabel.TextXAlignment = Enum.TextXAlignment.Left; statusLabel.Parent = Dashboard
 
--- Label baru untuk admin list
 local adminInfoLabel = Instance.new("TextLabel")
-adminInfoLabel.Size = UDim2.new(1,-10,0,30)  -- Tinggi cukup untuk dua baris
+adminInfoLabel.Size = UDim2.new(1,-10,0,30)
 adminInfoLabel.Position = UDim2.new(0,10,0,92)
 adminInfoLabel.Text = "Admins: None"
 adminInfoLabel.TextColor3 = Color3.fromRGB(255,200,100)
@@ -941,7 +978,6 @@ local function updateDashboard()
     elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
 
-    -- Update admin list
     local admins = getAdminPlayers()
     if #admins > 0 then
         local adminTexts = {}
@@ -949,7 +985,7 @@ local function updateDashboard()
             table.insert(adminTexts, string.format("%s (@%s) [%d]", adm.DisplayName, adm.Name, adm.UserId))
         end
         adminInfoLabel.Text = "Admins: " .. table.concat(adminTexts, ", ")
-        adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)  -- Merah mencolok
+        adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)
     else
         adminInfoLabel.Text = "Admins: None"
         adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100)
@@ -1025,10 +1061,18 @@ AddToggle("Extra", "Custom Elements", "CUSTOM_FLOOD_COLORS")
 local FCLabel = AddInfoLabel("Extra", "Current: " .. CONFIG.FLOOD_COLOR)
 AddButton("Extra", "Cycle Color", DARK_THEME.Accent, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="Current: "..CONFIG.FLOOD_COLOR end)
 
+-- Tombol Minimize UI (smooth)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
-CloseBtn.MouseButton1Click:Connect(function() Tween(Main, {Size = UDim2.new(0,390,0,0)}, 0.3); task.wait(0.3); Main.Visible = false end)
-ToggleBtn.MouseButton1Click:Connect(function() if Main.Visible then Tween(Main, {Size = UDim2.new(0,390,0,0)}, 0.3); task.wait(0.3); Main.Visible = false else Main.Visible = true; Tween(Main, {Size = UDim2.new(0,390,0,540)}, 0.4) end end)
+CloseBtn.MouseButton1Click:Connect(function() minimizeUI(false) end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    if isMinimized then
+        maximizeUI()
+    else
+        minimizeUI(false)
+    end
+end)
 
 -- ==================== EVENT LOOPS ====================
 TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == Enum.KeyCode.P then if not panicActive then activatePanicMode() else deactivatePanicMode() end end end))
@@ -1047,13 +1091,11 @@ TrackConnection(RunService.Heartbeat:Connect(function()
 end))
 
 TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
-task.spawn(function() while task.wait(1) do pcall(updateDashboard); pcall(handleAdminDetection) end end)  -- Update dashboard & admin setiap detik
+task.spawn(function() while task.wait(1) do pcall(updateDashboard); pcall(handleAdminDetection) end end)
 TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player.Character then local h = Player.Character:FindFirstChild("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end))
-
--- Admin detection interval lama dihapus, karena sudah dilakukan di loop 1 detik
 
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP v20.6 - Admin Detector Pro Ready!", "Success")
+notify("Troxzy VIP v20.6 - Smooth Minimize Ready!", "Success")
 print("Troxzy VIP - Ultimate Edition Loaded.")
