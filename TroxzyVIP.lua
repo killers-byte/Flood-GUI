@@ -1,8 +1,8 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE (EVENT-DRIVEN AUTO QUEUE)
--- 🔥 TAS AKTIF TEPAT SAAT MAP LOAD
--- 🔥 TIDAK ADA DOUBLE EXECUTION
--- 🔥 AUTO QUEUE SEAMLESS DENGAN DETEKSI MAP BARU
+-- TROXZY VIP v20.4 STABLE ULTIMATE (FINAL AUTO QUEUE)
+-- 🔥 Auto Queue aktif di SETIAP pergantian map
+-- 🔥 TAS hanya dijalankan SEKALI per map
+-- 🔥 Tidak ada double execution, karakter tidak diam
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -362,7 +362,7 @@ local function ExecuteTAS()
         TAS_RUNNING = false
         TAS_COROUTINE = nil
 
-        -- Tandai map selesai, cegah eksekusi ulang
+        -- Tandai map selesai, cegah eksekusi ulang di map yang sama
         if AUTO_QUEUE_ENABLED then
             mapCompleted = true
         end
@@ -399,7 +399,7 @@ local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CF
 local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== EVENT-DRIVEN AUTO QUEUE ====================
+-- ==================== EVENT-DRIVEN AUTO QUEUE (FIXED: RESET mapCompleted di setiap map baru) ====================
 local function StartAutoQueue()
     if AutoQueueListener then
         AutoQueueListener:Disconnect()
@@ -407,24 +407,31 @@ local function StartAutoQueue()
     end
 
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
-        -- Pastikan ini map baru dan kita dalam mode Auto Queue
+        -- Hanya proses jika AutoQueue aktif dan tidak panic
         if not AUTO_QUEUE_ENABLED or panicActive then return end
 
-        -- Tunggu sebentar agar map benar-benar selesai loading
+        -- Tunggu sebentar agar map benar-benar siap
         task.wait(1)
 
-        -- Hanya jalankan TAS jika dalam InGame, TAS belum berjalan, dan map belum selesai
-        if Check("InGame") and not TAS_RUNNING and not mapCompleted then
-            -- Matikan sistem AutoFarm (jika menyala)
+        -- Pastikan kita benar-benar di dalam map
+        if not Check("InGame") then return end
+
+        -- Reset mapCompleted karena ini map baru
+        mapCompleted = false
+
+        -- Hanya jalankan TAS jika belum berjalan
+        if not TAS_RUNNING then
+            -- Matikan AutoFarm manual
             _G.TroxzyAutoFarm = false
             CurrentlyFarming = false
             DisconnectMapDetection()
 
+            -- Jalankan TAS
             task.spawn(ExecuteTAS)
         end
     end)
     TrackConnection(AutoQueueListener)
-    notify("Auto Queue event-driven aktif. Menunggu map baru...", "Queue")
+    notify("Auto Queue aktif untuk setiap map baru!", "Queue")
 end
 
 local function StopAutoQueue()
@@ -440,27 +447,22 @@ local function StopAutoQueue()
     notify("Auto Queue dihentikan.", "Queue")
 end
 
--- Reset mapCompleted ketika keluar dari InGame (lobby/lift)
+-- Reset mapCompleted saat karakter baru muncul (respawn) sebagai jaga-jaga
 TrackConnection(Player.CharacterAdded:Connect(function()
     if not Player.Character then Player.CharacterAdded:Wait() end
     refreshNoclip()
     ncActive = false
-
-    -- Jika sedang di lobby (tidak InGame), reset flag mapCompleted
+    -- Jika tidak berada di dalam game, reset mapCompleted
     if not Check("InGame") then
-        mapCompleted = false
-    else
-        -- Jika baru respawn di dalam map (jarang terjadi), tetap reset agar TAS bisa jalan
         mapCompleted = false
     end
 end))
 
--- Loop kecil untuk mendeteksi keluar dari InGame secara periodik (sebagai cadangan)
+-- Loop tambahan untuk reset mapCompleted saat di lobby (lebih responsif)
 task.spawn(function()
     while task.wait(2) do
         if AUTO_QUEUE_ENABLED and not panicActive then
             if not Check("InGame") and not Check("InLift") then
-                -- Reset mapCompleted saat benar-benar di lobby
                 mapCompleted = false
             end
         end
@@ -914,5 +916,5 @@ task.spawn(function() while task.wait(10) do handleAdminDetection() end end)
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP Seamless Edition with Event-Driven Queue is Ready!", "Success")
-print("Troxzy VIP - Event-Driven Auto Queue Loaded.")
+notify("Troxzy VIP - Auto Queue akan berjalan di setiap map baru!", "Success")
+print("Troxzy VIP - Multi-Map Auto Queue Loaded.")
