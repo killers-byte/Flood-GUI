@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: Auto Farm Walk to Lift
--- 🔥 REAL-TIME OVERVIEW DASHBOARD
+-- 🔥 REAL-TIME MAP NAME IN DASHBOARD
+-- 🔥 Dashboard updates every frame
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -256,7 +256,6 @@ local function getAdminPlayers()
     return admins
 end
 
--- Deteksi spectator yang lebih akurat: cek health & state
 local function getSpectators()
     local specs = {}
     if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
@@ -494,6 +493,15 @@ local function StartAutoQueue()
 
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
         if not AUTO_QUEUE_ENABLED or panicActive then return end
+
+        -- Segera perbarui Stats.currentMap begitu map muncul
+        pcall(function()
+            local settings = newMap:WaitForChild("Settings", 5)
+            if settings then
+                Stats.currentMap = settings:GetAttribute("MapName") or "Unknown"
+            end
+        end)
+
         repeat task.wait() until Check("InGame")
         mapCompleted = false
         if not TAS_RUNNING then
@@ -638,7 +646,15 @@ local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return e
 -- ==================== MANUAL AUTO FARM LOGIC ====================
 local function OnMapLoad(map)
     clearESPCache()
-    Stats.currentMap = map:WaitForChild("Settings", 10) and map.Settings:GetAttribute("MapName") or "Unknown"
+
+    -- Segera perbarui nama map
+    pcall(function()
+        local settings = map:WaitForChild("Settings", 5)
+        if settings then
+            Stats.currentMap = settings:GetAttribute("MapName") or "Unknown"
+        end
+    end)
+
     handleAdminDetection()
 
     if isMapBlacklisted(Stats.currentMap) then
@@ -1176,7 +1192,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
         
-        -- WalkSpeed Logic (Fixed conflict)
         if not CurrentlyFarming then 
             local baseSpeed = moveToLift and 20 or 16
             hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed 
@@ -1186,8 +1201,8 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
 
-    -- Real-time dashboard update setiap 0.5 detik (lebih cepat & responsif)
-    if os.clock() - lastDashboardUpdate >= 0.5 then
+    -- Update dashboard SETIAP HEARTBEAT (real-time)
+    if os.clock() - lastDashboardUpdate >= 0.1 then
         lastDashboardUpdate = os.clock()
         pcall(updateDashboard)
         pcall(handleAdminDetection)
