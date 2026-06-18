@@ -1,6 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 FIXED: Auto Farm Walk to Lift
+-- 🔥 REAL-TIME OVERVIEW DASHBOARD
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -60,6 +61,9 @@ local lastAdminCount = 0
 
 -- UI State
 local isMinimized = false
+
+-- Dashboard real-time
+local lastDashboardUpdate = 0
 
 -- Cleanup UI Lama
 pcall(function()
@@ -252,6 +256,7 @@ local function getAdminPlayers()
     return admins
 end
 
+-- Deteksi spectator yang lebih akurat: cek health & state
 local function getSpectators()
     local specs = {}
     if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
@@ -259,7 +264,8 @@ local function getSpectators()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("HumanoidRootPart") then
             local hum = p.Character.Humanoid
-            if hum.Health <= 0 then
+            local isDead = hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead
+            if isDead then
                 local theirRoot = p.Character.HumanoidRootPart
                 local dist = (myRoot.Position - theirRoot.Position).Magnitude
                 if dist < 50 then
@@ -971,7 +977,7 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD PROFESSIONAL LAYOUT ====================
+-- ==================== DASHBOARD PROFESSIONAL LAYOUT (REAL-TIME) ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0, 230, 0, 0)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
@@ -1179,10 +1185,16 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
+
+    -- Real-time dashboard update setiap 0.5 detik (lebih cepat & responsif)
+    if os.clock() - lastDashboardUpdate >= 0.5 then
+        lastDashboardUpdate = os.clock()
+        pcall(updateDashboard)
+        pcall(handleAdminDetection)
+    end
 end))
 
 TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
-task.spawn(function() while task.wait(1) do pcall(updateDashboard); pcall(handleAdminDetection) end end)
 TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player.Character then local h = Player.Character:FindFirstChild("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end))
 
 loadStats()
