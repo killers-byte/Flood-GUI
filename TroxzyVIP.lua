@@ -1,6 +1,7 @@
 -- ============================================
--- TROXZY VIP v20.7 ULTIMATE (SPECTATOR DETECTOR)
+-- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 FIXED: Panic Mode Error & WalkSpeed Conflict
+-- 🔥 NEW: Professional Auto-Sizing Dashboard
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -970,85 +971,109 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD DENGAN ADMIN & SPECTATOR LIST ====================
+-- ==================== DASHBOARD PROFESSIONAL LAYOUT ====================
 local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0,210,0,160)
-Dashboard.Position = UDim2.new(0.985,0,0.015,0)
-Dashboard.AnchorPoint = Vector2.new(1,0)
+Dashboard.Size = UDim2.new(0, 230, 0, 0)
+Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
+Dashboard.AnchorPoint = Vector2.new(1, 0)
 Dashboard.BackgroundColor3 = DARK_THEME.MainBg
+Dashboard.AutomaticSize = Enum.AutomaticSize.Y
 Dashboard.Visible = CONFIG.DASHBOARD
-addCorner(Dashboard,8); addStroke(Dashboard, DARK_THEME.Accent, 1, 0.5)
+addCorner(Dashboard, 8)
+addStroke(Dashboard, DARK_THEME.Accent, 1, 0.6)
 Dashboard.Parent = ScreenGui
 _G.DashboardUI = Dashboard
 
-local dTitle = Instance.new("TextLabel"); dTitle.Size = UDim2.new(1,0,0,24); dTitle.Text = " OVERVIEW"; dTitle.TextColor3 = DARK_THEME.Accent; dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 11; dTitle.BackgroundTransparency = 1; dTitle.TextXAlignment = Enum.TextXAlignment.Left; dTitle.Parent = Dashboard
-local mapLabel = Instance.new("TextLabel"); mapLabel.Size = UDim2.new(1,-10,0,16); mapLabel.Position = UDim2.new(0,10,0,26); mapLabel.Text = "Map: Waiting..."; mapLabel.TextColor3 = DARK_THEME.TextBright; mapLabel.Font = Enum.Font.GothamMedium; mapLabel.TextSize = 10; mapLabel.BackgroundTransparency = 1; mapLabel.TextXAlignment = Enum.TextXAlignment.Left; mapLabel.Parent = Dashboard
-local timeLabel = Instance.new("TextLabel"); timeLabel.Size = UDim2.new(1,-10,0,16); timeLabel.Position = UDim2.new(0,10,0,42); timeLabel.Text = "Time: 0m"; timeLabel.TextColor3 = DARK_THEME.TextMedium; timeLabel.Font = Enum.Font.Gotham; timeLabel.TextSize = 10; timeLabel.BackgroundTransparency = 1; timeLabel.TextXAlignment = Enum.TextXAlignment.Left; timeLabel.Parent = Dashboard
-local speedLabel = Instance.new("TextLabel"); speedLabel.Size = UDim2.new(1,-10,0,16); speedLabel.Position = UDim2.new(0,10,0,58); speedLabel.Text = "Rate: 0 maps/hr"; speedLabel.TextColor3 = DARK_THEME.TextMedium; speedLabel.Font = Enum.Font.Gotham; speedLabel.TextSize = 10; speedLabel.BackgroundTransparency = 1; speedLabel.TextXAlignment = Enum.TextXAlignment.Left; speedLabel.Parent = Dashboard
-local statusLabel = Instance.new("TextLabel"); statusLabel.Size = UDim2.new(1,-10,0,16); statusLabel.Position = UDim2.new(0,10,0,74); statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120); statusLabel.Font = Enum.Font.GothamBold; statusLabel.TextSize = 10; statusLabel.BackgroundTransparency = 1; statusLabel.TextXAlignment = Enum.TextXAlignment.Left; statusLabel.Parent = Dashboard
+local DPad = Instance.new("UIPadding")
+DPad.PaddingTop = UDim.new(0, 12); DPad.PaddingBottom = UDim.new(0, 12)
+DPad.PaddingLeft = UDim.new(0, 12); DPad.PaddingRight = UDim.new(0, 12)
+DPad.Parent = Dashboard
 
-local adminInfoLabel = Instance.new("TextLabel")
-adminInfoLabel.Size = UDim2.new(1,-10,0,30)
-adminInfoLabel.Position = UDim2.new(0,10,0,92)
-adminInfoLabel.Text = "Admins: None"
-adminInfoLabel.TextColor3 = Color3.fromRGB(255,200,100)
-adminInfoLabel.Font = Enum.Font.GothamMedium
-adminInfoLabel.TextSize = 9
-adminInfoLabel.BackgroundTransparency = 1
-adminInfoLabel.TextWrapped = true
-adminInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-adminInfoLabel.Parent = Dashboard
+local DLayout = Instance.new("UIListLayout")
+DLayout.SortOrder = Enum.SortOrder.LayoutOrder
+DLayout.Padding = UDim.new(0, 6)
+DLayout.Parent = Dashboard
 
-local spectatorInfoLabel = Instance.new("TextLabel")
-spectatorInfoLabel.Size = UDim2.new(1,-10,0,30)
-spectatorInfoLabel.Position = UDim2.new(0,10,0,122)
-spectatorInfoLabel.Text = "Spectators: None"
-spectatorInfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
-spectatorInfoLabel.Font = Enum.Font.GothamMedium
-spectatorInfoLabel.TextSize = 9
-spectatorInfoLabel.BackgroundTransparency = 1
-spectatorInfoLabel.TextWrapped = true
-spectatorInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-spectatorInfoLabel.Parent = Dashboard
+local function createDashLabel(text, order, color)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 16)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = color or DARK_THEME.TextBright
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextWrapped = true
+    lbl.AutomaticSize = Enum.AutomaticSize.Y
+    lbl.RichText = true
+    lbl.LayoutOrder = order
+    lbl.Parent = Dashboard
+    return lbl
+end
+
+local function createDashDivider(order)
+    local div = Instance.new("Frame")
+    div.Size = UDim2.new(1, 0, 0, 1)
+    div.BackgroundColor3 = DARK_THEME.Border
+    div.BackgroundTransparency = 0.85
+    div.BorderSizePixel = 0
+    div.LayoutOrder = order
+    div.Parent = Dashboard
+    return div
+end
+
+local dTitle = createDashLabel("<b>📊 SYSTEM OVERVIEW</b>", 1, DARK_THEME.Accent)
+dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 12
+
+createDashDivider(2)
+
+local mapLabel = createDashLabel("🗺️ <b>Map:</b> Waiting...", 3)
+local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, DARK_THEME.TextMedium)
+local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, DARK_THEME.TextMedium)
+local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
+
+createDashDivider(7)
+
+local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 8, Color3.fromRGB(100, 255, 100))
+local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 9, Color3.fromRGB(180, 180, 180))
 
 local function updateDashboard()
     if not Dashboard.Visible then return end
-    mapLabel.Text = "Map: " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
-    timeLabel.Text = "Time: " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
+    
+    mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
+    timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
     local hours = (os.clock() - Stats.sessionStart) / 3600
-    speedLabel.Text = "Rate: " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
+    speedLabel.Text = "⚡ <b>Rate:</b> " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
 
-    if panicActive then statusLabel.Text = "Status: PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
-    elseif TAS_RUNNING then statusLabel.Text = "Status: TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
-    elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "Status: Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
-    elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
-    else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
+    if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
+    elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
+    elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
+    elseif CONFIG.STEALTH_MODE then statusLabel.Text = "ℹ️ <b>Status:</b> Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
+    else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
 
-    -- Admin list
     local admins = getAdminPlayers()
     if #admins > 0 then
         local adminTexts = {}
         for _, adm in ipairs(admins) do
-            table.insert(adminTexts, string.format("%s (@%s) [%d]", adm.DisplayName, adm.Name, adm.UserId))
+            table.insert(adminTexts, string.format(" - %s (@%s)", adm.DisplayName, adm.Name))
         end
-        adminInfoLabel.Text = "Admins: " .. table.concat(adminTexts, ", ")
+        adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(adminTexts, "\n")
         adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)
     else
-        adminInfoLabel.Text = "Admins: None"
+        adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"
         adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100)
     end
 
-    -- Spectator list
     local spectators = getSpectators()
     if #spectators > 0 then
         local specTexts = {}
         for _, spec in ipairs(spectators) do
-            table.insert(specTexts, spec.DisplayName .. " (@" .. spec.Name .. ")")
+            table.insert(specTexts, " - " .. spec.DisplayName)
         end
-        spectatorInfoLabel.Text = "Spectators: " .. table.concat(specTexts, ", ")
+        spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(specTexts, "\n")
         spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0)
     else
-        spectatorInfoLabel.Text = "Spectators: None"
+        spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"
         spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180)
     end
 end
@@ -1164,4 +1189,4 @@ loadStats()
 setupAutoReconnect()
 
 notify("Troxzy VIP v20.7 - Spectator Detector Ready!", "Success")
-print("Troxzy VIP - Ultimate Edition Loaded.")
+print("Troxzy VIP - PRO Edition Loaded.")
