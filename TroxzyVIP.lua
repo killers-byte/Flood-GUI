@@ -1,6 +1,8 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE (FIXED)
--- 🔥 AUTO QUEUE SEAMLESS – TIDAK LAGI LOOP GANDA
+-- TROXZY VIP v20.4 STABLE ULTIMATE (EVENT-DRIVEN AUTO QUEUE)
+-- 🔥 TAS AKTIF TEPAT SAAT MAP LOAD
+-- 🔥 TIDAK ADA DOUBLE EXECUTION
+-- 🔥 AUTO QUEUE SEAMLESS DENGAN DETEKSI MAP BARU
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -35,7 +37,7 @@ _G.TroxzyAutoFarm = false
 
 -- Variabel Utama
 local CurrentlyFarming = false
-local mapCompleted = false       -- Flag untuk mencegah TAS berulang dalam satu map
+local mapCompleted = false       -- Mencegah TAS berulang di map yang sama
 local Escaped = false
 local Main, ToggleBtn, MapDetect = nil, nil, nil
 local TimerHookActive = false
@@ -48,6 +50,7 @@ local TAS_STATUS_LABEL = nil
 
 -- Auto Queue State
 local AUTO_QUEUE_ENABLED = false
+local AutoQueueListener = nil    -- Connection untuk mendeteksi map baru
 
 -- Cleanup UI Lama
 pcall(function()
@@ -331,7 +334,7 @@ local function DisconnectMapDetection()
     if MapDetect then MapDetect:Disconnect(); MapDetect = nil end
 end
 
--- ==================== TAS ENGINE (FIXED LOOP) ====================
+-- ==================== TAS ENGINE ====================
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then notify("TAS Auto-Start is OFF. Enable it first.", "TAS"); return end
     if TAS_RUNNING then
@@ -359,8 +362,9 @@ local function ExecuteTAS()
         TAS_RUNNING = false
         TAS_COROUTINE = nil
 
+        -- Tandai map selesai, cegah eksekusi ulang
         if AUTO_QUEUE_ENABLED then
-            mapCompleted = true  -- Tandai map selesai, cegah eksekusi ulang
+            mapCompleted = true
         end
 
         if not execOk then notify("TAS runtime error: " .. tostring(execErr), "Error") else notify("TAS finished!", "Success") end
@@ -395,39 +399,69 @@ local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CF
 local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== SEAMLESS MASTER LOOP (DIPERBAIKI) ====================
+-- ==================== EVENT-DRIVEN AUTO QUEUE ====================
+local function StartAutoQueue()
+    if AutoQueueListener then
+        AutoQueueListener:Disconnect()
+        AutoQueueListener = nil
+    end
+
+    AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
+        -- Pastikan ini map baru dan kita dalam mode Auto Queue
+        if not AUTO_QUEUE_ENABLED or panicActive then return end
+
+        -- Tunggu sebentar agar map benar-benar selesai loading
+        task.wait(1)
+
+        -- Hanya jalankan TAS jika dalam InGame, TAS belum berjalan, dan map belum selesai
+        if Check("InGame") and not TAS_RUNNING and not mapCompleted then
+            -- Matikan sistem AutoFarm (jika menyala)
+            _G.TroxzyAutoFarm = false
+            CurrentlyFarming = false
+            DisconnectMapDetection()
+
+            task.spawn(ExecuteTAS)
+        end
+    end)
+    TrackConnection(AutoQueueListener)
+    notify("Auto Queue event-driven aktif. Menunggu map baru...", "Queue")
+end
+
+local function StopAutoQueue()
+    if AutoQueueListener then
+        AutoQueueListener:Disconnect()
+        AutoQueueListener = nil
+    end
+    if TAS_RUNNING and TAS_COROUTINE then
+        pcall(coroutine.close, TAS_COROUTINE)
+        TAS_COROUTINE = nil
+        TAS_RUNNING = false
+    end
+    notify("Auto Queue dihentikan.", "Queue")
+end
+
+-- Reset mapCompleted ketika keluar dari InGame (lobby/lift)
+TrackConnection(Player.CharacterAdded:Connect(function()
+    if not Player.Character then Player.CharacterAdded:Wait() end
+    refreshNoclip()
+    ncActive = false
+
+    -- Jika sedang di lobby (tidak InGame), reset flag mapCompleted
+    if not Check("InGame") then
+        mapCompleted = false
+    else
+        -- Jika baru respawn di dalam map (jarang terjadi), tetap reset agar TAS bisa jalan
+        mapCompleted = false
+    end
+end))
+
+-- Loop kecil untuk mendeteksi keluar dari InGame secara periodik (sebagai cadangan)
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(2) do
         if AUTO_QUEUE_ENABLED and not panicActive then
-            CONFIG.TAS_MODE = "Play"
-            CONFIG.TAS_AUTO_START = true
-
-            local char = Player.Character
-            local hum = char and char:FindFirstChild("Humanoid")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
-            if char and hum and hrp and hum.Health > 0 then
-                if Check("InGame") then
-                    -- Hanya jalankan TAS jika belum berjalan dan map belum diselesaikan
-                    if not TAS_RUNNING and not mapCompleted then
-                        _G.TroxzyAutoFarm = false
-                        CurrentlyFarming = false
-                        DisconnectMapDetection()
-
-                        task.wait(2)
-
-                        if Check("InGame") and not TAS_RUNNING then
-                            task.spawn(ExecuteTAS)
-                        end
-                    end
-                else
-                    -- Setelah keluar dari InGame, reset flag mapCompleted agar siap map berikutnya
-                    mapCompleted = false
-                    if not Check("InLift") then
-                        pcall(function() AddedWaiting:FireServer() end)
-                        hum:MoveTo(hrp.Position + Vector3.new(math.random(-15,15), 0, math.random(-15,15)))
-                    end
-                end
+            if not Check("InGame") and not Check("InLift") then
+                -- Reset mapCompleted saat benar-benar di lobby
+                mapCompleted = false
             end
         end
     end
@@ -438,20 +472,6 @@ local ncCache, ncActive = {}, false
 local function refreshNoclip() ncCache = {}; local char = Player.Character; if char then for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then table.insert(ncCache, v) end end end end
 local function applyNoclip(state) if state == ncActive then return end; ncActive = state; for _, v in ipairs(ncCache) do if v and v.Parent then v.CanCollide = not state end end end
 
-TrackConnection(Player.CharacterAdded:Connect(function()
-    if not Player.Character then Player.CharacterAdded:Wait() end
-    refreshNoclip()
-    ncActive = false
-
-    -- Reset mapCompleted ketika respawn (masuk map baru)
-    mapCompleted = false
-
-    if TAS_RUNNING and AUTO_QUEUE_ENABLED then
-        if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end
-        TAS_RUNNING = false
-        if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ READY" end
-    end
-end))
 refreshNoclip()
 
 local espCache, lastESPUpdate = {}, 0
@@ -459,7 +479,7 @@ local function updateESP() if os.clock() - lastESPUpdate < 0.1 then return end; 
 local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
 
 local panicActive = false; _G.ToggleStates = {}
-local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if Main then Tween(Main, {Size = UDim2.new(0,0,0,0)}, 0.3); task.wait(0.3); Main.Visible = false end; clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
+local function activatePanicMode() panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if Main then Tween(Main, {Size = UDim2.new(0,0,0,0)}, 0.3); task.wait(0.3); Main.Visible = false end; clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
 local function deactivatePanicMode() panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); applyNoclip(false); if Main then Main.Visible = true; Tween(Main, {Size = UDim2.new(0,390,0,540)}, 0.4) end; if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
 
 local lastVisUpdate, lastFOV = 0, 70
@@ -745,12 +765,11 @@ local function AddToggle(tabKey, name, stateKey)
             if state then
                 CONFIG.TAS_MODE = "Play"
                 CONFIG.TAS_AUTO_START = true
-                mapCompleted = false   -- Reset flag saat mengaktifkan
+                mapCompleted = false   -- Reset flag
                 if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end
-                notify("Sistem Auto Queue & Play Mode Menyala!", "Seamless System")
+                StartAutoQueue()
             else
-                if TAS_RUNNING and TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil; TAS_RUNNING = false end
-                notify("Sistem Auto Queue Dihentikan", "Seamless System")
+                StopAutoQueue()
             end
         elseif stateKey == "AutoFarm" then _G.TroxzyAutoFarm = state; if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
         elseif stateKey == "NIGHT_MODE" then applyTheme(state and "Light" or "Dark")
@@ -792,6 +811,7 @@ local function updateDashboard()
 
     if panicActive then statusLabel.Text = "Status: PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "Status: TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
+    elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "Status: Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
     elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
 end
@@ -894,5 +914,5 @@ task.spawn(function() while task.wait(10) do handleAdminDetection() end end)
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP Seamless Edition is Ready!", "Success")
-print("Troxzy VIP - Master Script Loaded.")
+notify("Troxzy VIP Seamless Edition with Event-Driven Queue is Ready!", "Success")
+print("Troxzy VIP - Event-Driven Auto Queue Loaded.")
