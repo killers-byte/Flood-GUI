@@ -1,9 +1,8 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE (FINAL AUTO QUEUE + AUTO WALK TO LIFT)
--- 🔥 Auto Queue aktif di setiap map
--- 🔥 Karakter otomatis berjalan ke lift dari lobby
--- 🔥 TAS hanya dijalankan SEKALI per map
--- 🔥 Tidak ada double execution
+-- TROXZY VIP v20.4 STABLE ULTIMATE (AUTO WALK TO LIFT FIX)
+-- 🔥 Karakter otomatis bergerak ke lift saat di lobby
+-- 🔥 Deteksi lift nyata / fallback koordinat
+-- 🔥 Begitu sampai lift, langsung antri map berikutnya
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -399,7 +398,46 @@ local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CF
 local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== EVENT-DRIVEN AUTO QUEUE + AUTO WALK ====================
+-- ==================== AUTO WALK TO LIFT ====================
+local function findLiftPosition()
+    -- Cari bagian bernama Lift, Elevator, atau Lobby di Workspace
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = obj.Name:lower()
+            if name:find("lift") or name:find("elevator") or name:find("lobby") then
+                return obj.Position
+            end
+        end
+    end
+    -- Fallback: koordinat tengah lift (rata-rata Flood Escape 2)
+    return Vector3.new(25, 10, 85)
+end
+
+-- Loop untuk menggerakkan karakter ke lift saat di lobby
+task.spawn(function()
+    while task.wait(0.3) do
+        if AUTO_QUEUE_ENABLED and not panicActive and not TAS_RUNNING then
+            local char = Player.Character
+            local hum = char and char:FindFirstChild("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if char and hum and hrp and hum.Health > 0 then
+                if not Check("InGame") and not Check("InLift") then
+                    -- Belum di lift, bergerak ke lift
+                    local target = findLiftPosition()
+                    -- Sesuaikan Y dengan posisi karakter agar tidak jatuh
+                    target = Vector3.new(target.X, hrp.Position.Y, target.Z)
+                    hum:MoveTo(target)
+                    hum.WalkSpeed = 20  -- Berjalan lebih cepat
+                elseif Check("InLift") then
+                    -- Sampai di lift, antri
+                    pcall(function() AddedWaiting:FireServer() end)
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== EVENT-DRIVEN AUTO QUEUE ====================
 local function StartAutoQueue()
     if AutoQueueListener then
         AutoQueueListener:Disconnect()
@@ -410,7 +448,7 @@ local function StartAutoQueue()
         if not AUTO_QUEUE_ENABLED or panicActive then return end
         task.wait(1)
         if not Check("InGame") then return end
-        mapCompleted = false  -- Reset karena map baru
+        mapCompleted = false
         if not TAS_RUNNING then
             _G.TroxzyAutoFarm = false
             CurrentlyFarming = false
@@ -419,7 +457,7 @@ local function StartAutoQueue()
         end
     end)
     TrackConnection(AutoQueueListener)
-    notify("Auto Queue aktif + Auto Walk ke Lift!", "Queue")
+    notify("Auto Queue + Walk to Lift aktif!", "Queue")
 end
 
 local function StopAutoQueue()
@@ -434,31 +472,6 @@ local function StopAutoQueue()
     end
     notify("Auto Queue dihentikan.", "Queue")
 end
-
--- Loop utama untuk menggerakkan karakter ke lift saat di lobby
-task.spawn(function()
-    while task.wait(0.5) do
-        if AUTO_QUEUE_ENABLED and not panicActive and not TAS_RUNNING then
-            local char = Player.Character
-            local hum = char and char:FindFirstChild("Humanoid")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if char and hum and hrp and hum.Health > 0 then
-                if not Check("InGame") then
-                    if not Check("InLift") then
-                        -- Berjalan menuju lift (koordinat perkiraan, bisa disesuaikan)
-                        local liftTarget = Vector3.new(25, hrp.Position.Y, 85)
-                        hum:MoveTo(liftTarget)
-                    else
-                        -- Sudah di lift, antri
-                        pcall(function() AddedWaiting:FireServer() end)
-                    end
-                else
-                    -- Reset mapCompleted? Tidak perlu, karena map baru akan direset oleh listener
-                end
-            end
-        end
-    end
-end)
 
 -- Reset mapCompleted saat karakter baru (respawn) jika di lobby
 TrackConnection(Player.CharacterAdded:Connect(function()
@@ -917,5 +930,5 @@ task.spawn(function() while task.wait(10) do handleAdminDetection() end end)
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP - Auto Queue + Auto Walk to Lift Ready!", "Success")
+notify("Troxzy VIP - Full Auto Queue + Walk to Lift Ready!", "Success")
 print("Troxzy VIP - Ultimate Auto Queue Loaded.")
