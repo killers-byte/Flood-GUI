@@ -1,8 +1,9 @@
 -- ============================================
--- TROXZY VIP v20.4 STABLE ULTIMATE (FINAL AUTO QUEUE)
--- 🔥 Auto Queue aktif di SETIAP pergantian map
+-- TROXZY VIP v20.4 STABLE ULTIMATE (FINAL AUTO QUEUE + AUTO WALK TO LIFT)
+-- 🔥 Auto Queue aktif di setiap map
+-- 🔥 Karakter otomatis berjalan ke lift dari lobby
 -- 🔥 TAS hanya dijalankan SEKALI per map
--- 🔥 Tidak ada double execution, karakter tidak diam
+-- 🔥 Tidak ada double execution
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -37,7 +38,7 @@ _G.TroxzyAutoFarm = false
 
 -- Variabel Utama
 local CurrentlyFarming = false
-local mapCompleted = false       -- Mencegah TAS berulang di map yang sama
+local mapCompleted = false
 local Escaped = false
 local Main, ToggleBtn, MapDetect = nil, nil, nil
 local TimerHookActive = false
@@ -50,7 +51,7 @@ local TAS_STATUS_LABEL = nil
 
 -- Auto Queue State
 local AUTO_QUEUE_ENABLED = false
-local AutoQueueListener = nil    -- Connection untuk mendeteksi map baru
+local AutoQueueListener = nil
 
 -- Cleanup UI Lama
 pcall(function()
@@ -362,7 +363,6 @@ local function ExecuteTAS()
         TAS_RUNNING = false
         TAS_COROUTINE = nil
 
-        -- Tandai map selesai, cegah eksekusi ulang di map yang sama
         if AUTO_QUEUE_ENABLED then
             mapCompleted = true
         end
@@ -399,7 +399,7 @@ local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CF
 local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== EVENT-DRIVEN AUTO QUEUE (FIXED: RESET mapCompleted di setiap map baru) ====================
+-- ==================== EVENT-DRIVEN AUTO QUEUE + AUTO WALK ====================
 local function StartAutoQueue()
     if AutoQueueListener then
         AutoQueueListener:Disconnect()
@@ -407,31 +407,19 @@ local function StartAutoQueue()
     end
 
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
-        -- Hanya proses jika AutoQueue aktif dan tidak panic
         if not AUTO_QUEUE_ENABLED or panicActive then return end
-
-        -- Tunggu sebentar agar map benar-benar siap
         task.wait(1)
-
-        -- Pastikan kita benar-benar di dalam map
         if not Check("InGame") then return end
-
-        -- Reset mapCompleted karena ini map baru
-        mapCompleted = false
-
-        -- Hanya jalankan TAS jika belum berjalan
+        mapCompleted = false  -- Reset karena map baru
         if not TAS_RUNNING then
-            -- Matikan AutoFarm manual
             _G.TroxzyAutoFarm = false
             CurrentlyFarming = false
             DisconnectMapDetection()
-
-            -- Jalankan TAS
             task.spawn(ExecuteTAS)
         end
     end)
     TrackConnection(AutoQueueListener)
-    notify("Auto Queue aktif untuk setiap map baru!", "Queue")
+    notify("Auto Queue aktif + Auto Walk ke Lift!", "Queue")
 end
 
 local function StopAutoQueue()
@@ -447,27 +435,40 @@ local function StopAutoQueue()
     notify("Auto Queue dihentikan.", "Queue")
 end
 
--- Reset mapCompleted saat karakter baru muncul (respawn) sebagai jaga-jaga
-TrackConnection(Player.CharacterAdded:Connect(function()
-    if not Player.Character then Player.CharacterAdded:Wait() end
-    refreshNoclip()
-    ncActive = false
-    -- Jika tidak berada di dalam game, reset mapCompleted
-    if not Check("InGame") then
-        mapCompleted = false
-    end
-end))
-
--- Loop tambahan untuk reset mapCompleted saat di lobby (lebih responsif)
+-- Loop utama untuk menggerakkan karakter ke lift saat di lobby
 task.spawn(function()
-    while task.wait(2) do
-        if AUTO_QUEUE_ENABLED and not panicActive then
-            if not Check("InGame") and not Check("InLift") then
-                mapCompleted = false
+    while task.wait(0.5) do
+        if AUTO_QUEUE_ENABLED and not panicActive and not TAS_RUNNING then
+            local char = Player.Character
+            local hum = char and char:FindFirstChild("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if char and hum and hrp and hum.Health > 0 then
+                if not Check("InGame") then
+                    if not Check("InLift") then
+                        -- Berjalan menuju lift (koordinat perkiraan, bisa disesuaikan)
+                        local liftTarget = Vector3.new(25, hrp.Position.Y, 85)
+                        hum:MoveTo(liftTarget)
+                    else
+                        -- Sudah di lift, antri
+                        pcall(function() AddedWaiting:FireServer() end)
+                    end
+                else
+                    -- Reset mapCompleted? Tidak perlu, karena map baru akan direset oleh listener
+                end
             end
         end
     end
 end)
+
+-- Reset mapCompleted saat karakter baru (respawn) jika di lobby
+TrackConnection(Player.CharacterAdded:Connect(function()
+    if not Player.Character then Player.CharacterAdded:Wait() end
+    refreshNoclip()
+    ncActive = false
+    if not Check("InGame") then
+        mapCompleted = false
+    end
+end))
 
 -- ==================== NOCLIP, VISUALS, & DEATH FIX ====================
 local ncCache, ncActive = {}, false
@@ -767,7 +768,7 @@ local function AddToggle(tabKey, name, stateKey)
             if state then
                 CONFIG.TAS_MODE = "Play"
                 CONFIG.TAS_AUTO_START = true
-                mapCompleted = false   -- Reset flag
+                mapCompleted = false
                 if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end
                 StartAutoQueue()
             else
@@ -916,5 +917,5 @@ task.spawn(function() while task.wait(10) do handleAdminDetection() end end)
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP - Auto Queue akan berjalan di setiap map baru!", "Success")
-print("Troxzy VIP - Multi-Map Auto Queue Loaded.")
+notify("Troxzy VIP - Auto Queue + Auto Walk to Lift Ready!", "Success")
+print("Troxzy VIP - Ultimate Auto Queue Loaded.")
