@@ -1,7 +1,6 @@
 -- ============================================
--- TROXZY VIP v20.6 ULTIMATE (SMOOTH MINIMIZE UI)
--- 🔥 Animasi minimize/maximize halus
--- 🔥 Dilengkapi transparansi dan scaling
+-- TROXZY VIP v20.7 ULTIMATE (SPECTATOR DETECTOR)
+-- 🔥 Menampilkan siapa yang mengawasi Anda
 -- 🔥 Semua fitur sebelumnya tetap ada
 -- ============================================
 
@@ -252,6 +251,25 @@ local function getAdminPlayers()
         end
     end
     return admins
+end
+
+local function getSpectators()
+    local specs = {}
+    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
+    local myRoot = Player.Character.HumanoidRootPart
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = p.Character.Humanoid
+            if hum.Health <= 0 then
+                local theirRoot = p.Character.HumanoidRootPart
+                local dist = (myRoot.Position - theirRoot.Position).Magnitude
+                if dist < 50 then
+                    table.insert(specs, p)
+                end
+            end
+        end
+    end
+    return specs
 end
 
 local function detectAdmins()
@@ -936,9 +954,9 @@ local function maximizeUI()
     t:Play()
 end
 
--- ==================== DASHBOARD DENGAN ADMIN LIST ====================
+-- ==================== DASHBOARD DENGAN ADMIN & SPECTATOR LIST ====================
 local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0,210,0,130)
+Dashboard.Size = UDim2.new(0,210,0,160) -- Diperpanjang untuk spectator
 Dashboard.Position = UDim2.new(0.985,0,0.015,0)
 Dashboard.AnchorPoint = Vector2.new(1,0)
 Dashboard.BackgroundColor3 = DARK_THEME.MainBg
@@ -965,6 +983,18 @@ adminInfoLabel.TextWrapped = true
 adminInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 adminInfoLabel.Parent = Dashboard
 
+local spectatorInfoLabel = Instance.new("TextLabel")
+spectatorInfoLabel.Size = UDim2.new(1,-10,0,30)
+spectatorInfoLabel.Position = UDim2.new(0,10,0,122)
+spectatorInfoLabel.Text = "Spectators: None"
+spectatorInfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
+spectatorInfoLabel.Font = Enum.Font.GothamMedium
+spectatorInfoLabel.TextSize = 9
+spectatorInfoLabel.BackgroundTransparency = 1
+spectatorInfoLabel.TextWrapped = true
+spectatorInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+spectatorInfoLabel.Parent = Dashboard
+
 local function updateDashboard()
     if not Dashboard.Visible then return end
     mapLabel.Text = "Map: " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
@@ -978,6 +1008,7 @@ local function updateDashboard()
     elseif CONFIG.STEALTH_MODE then statusLabel.Text = "Status: Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "Status: Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
 
+    -- Admin list
     local admins = getAdminPlayers()
     if #admins > 0 then
         local adminTexts = {}
@@ -989,6 +1020,20 @@ local function updateDashboard()
     else
         adminInfoLabel.Text = "Admins: None"
         adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100)
+    end
+
+    -- Spectator list
+    local spectators = getSpectators()
+    if #spectators > 0 then
+        local specTexts = {}
+        for _, spec in ipairs(spectators) do
+            table.insert(specTexts, spec.DisplayName .. " (@" .. spec.Name .. ")")
+        end
+        spectatorInfoLabel.Text = "Spectators: " .. table.concat(specTexts, ", ")
+        spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) -- Oranye mencolok
+    else
+        spectatorInfoLabel.Text = "Spectators: None"
+        spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180)
     end
 end
 
@@ -1061,7 +1106,6 @@ AddToggle("Extra", "Custom Elements", "CUSTOM_FLOOD_COLORS")
 local FCLabel = AddInfoLabel("Extra", "Current: " .. CONFIG.FLOOD_COLOR)
 AddButton("Extra", "Cycle Color", DARK_THEME.Accent, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="Current: "..CONFIG.FLOOD_COLOR end)
 
--- Tombol Minimize UI (smooth)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
 CloseBtn.MouseButton1Click:Connect(function() minimizeUI(false) end)
@@ -1097,5 +1141,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 loadStats()
 setupAutoReconnect()
 
-notify("Troxzy VIP v20.6 - Smooth Minimize Ready!", "Success")
+notify("Troxzy VIP v20.7 - Spectator Detector Ready!", "Success")
 print("Troxzy VIP - Ultimate Edition Loaded.")
