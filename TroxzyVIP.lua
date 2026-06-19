@@ -1,7 +1,7 @@
 -- ============================================
--- TROXZY VIP v20.7.1 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: 100% PRECISION BUTTON TOUCH
--- 🔥 ADDED: FIRETOUCHINTEREST BYPASS
+-- TROXZY VIP v20.7.2 ULTIMATE (PRO EDITION)
+-- 🔥 FIXED: TOMATOTXT STYLE AUTO FARM ENGINE
+-- 🔥 100% CRAZY+ MAP COMPATIBILITY
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -234,13 +234,10 @@ local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return 
 local lastFloodColorUpdate = 0
 local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
 
--- ==================== PRECISION STEALTH OFFSET (FIXED) ====================
 local function stealthOffset() 
     if CONFIG.STEALTH_MODE then
-        -- Hanya acak posisi kaki sedikit ke X dan Z. Y/Ketinggian HARUS TETAP 0 agar tidak nyangkut.
         return Vector3.new(math.random(-20, 20) / 100, 0, math.random(-20, 20) / 100) 
     end
-    -- Jika Stealth Mode MATI, koordinat dijamin 100% presisi sempurna
     return Vector3.zero
 end
 
@@ -315,8 +312,6 @@ local function GetDifficulty()
     if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
     return 0, "Unknown"
 end
-
-local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
 local function findLiftPosition()
     for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
@@ -429,21 +424,18 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (PRECISION FIXED) ====================
-local function scanDynamicButtons(map)
+-- ==================== MANUAL AUTO FARM LOGIC (TOMATOTXT STYLE) ====================
+-- GLOBAL SCANNER ALL TOUCH INTERESTS MURNI (Bypass semua bentuk/lokasi object di map)
+local function getActiveButtons(map)
     local found = {}
-    for _, obj in pairs(map:GetDescendants()) do
-        if isRandStr(obj.Name) and obj.ClassName == "Model" then
-            local hb = obj:FindFirstChild("Hitbox")
-            if not hb then
-                for _, c in pairs(obj:GetChildren()) do
-                    if c:IsA("BasePart") and tostring(c.BrickColor) ~= "Medium stone grey" then
-                        hb = c; hb.Name = "Hitbox"; break
-                    end
-                end
-            end
-            if hb and (hb:FindFirstChild("TouchInterest") or obj:FindFirstChild("TouchInterest", true)) then
-                table.insert(found, obj)
+    for _, desc in pairs(map:GetDescendants()) do
+        -- Hanya cari elemen yang mendeteksi sentuhan
+        if desc:IsA("TouchInterest") and desc.Parent and desc.Parent:IsA("BasePart") then
+            local part = desc.Parent
+            local colorStr = tostring(part.BrickColor)
+            -- Validasi warna: Abaikan jika tombol sudah mati/abu-abu
+            if colorStr ~= "Medium stone grey" and colorStr ~= "Dark stone grey" then
+                table.insert(found, part)
             end
         end
     end
@@ -503,39 +495,36 @@ local function OnMapLoad(map)
             if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end
             currHRP.Anchored = true
             
-            if os.clock() - lastButtonScan > 0.5 then
-                dynamicBtns = scanDynamicButtons(map)
+            -- SCAN ULANG MAP TIAP 0.3 DETIK
+            if os.clock() - lastButtonScan > 0.3 then
+                dynamicBtns = getActiveButtons(map)
                 lastButtonScan = os.clock()
             end
 
-            for _, btnModel in pairs(dynamicBtns) do
+            for _, btnPart in pairs(dynamicBtns) do
                 if not _G.TroxzyAutoFarm then break end
-                local bh = btnModel:FindFirstChild("Hitbox")
-                local touchInt = bh and (bh:FindFirstChild("TouchInterest") or btnModel:FindFirstChild("TouchInterest", true))
                 
-                if bh and touchInt then
-                    failedScan = false
-                    currHRP.Anchored = false
-                    
-                    -- [SUPER PRECISION TELEPORT]: Menambahkan offset vertikal 1.2 agar karakter tepat "berdiri" di atas part tombol
-                    local offset = stealthOffset()
-                    currHRP.CFrame = bh.CFrame * CFrame.new(offset.X, 1.2, offset.Z)
-                    currHRP.Velocity = Vector3.zero -- Menghentikan momentum physic yang bisa membuat terpental
-                    
-                    -- [EXPLOIT BYPASS]: Jika executor mendukung, paksa fire touch events untuk jaminan 100% presisi tanpa gagal
-                    if firetouchinterest then
-                        pcall(function()
-                            firetouchinterest(currHRP, bh, 0) -- Fire Touch
-                            task.wait(0.01)
-                            firetouchinterest(currHRP, bh, 1) -- Fire Touch Ended
-                        end)
-                    end
-
-                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                    task.wait(stealthDelay())
-                    hum:ChangeState(Enum.HumanoidStateType.Running)
-                    task.wait(stealthDelay())
+                failedScan = false
+                currHRP.Anchored = false
+                
+                -- Teleport presisi: Posisi aman (Y+1.2) di atas part, + jitter horizontal acak untuk bypass anti-bot
+                local offset = stealthOffset()
+                currHRP.CFrame = btnPart.CFrame * CFrame.new(offset.X, 1.2, offset.Z)
+                currHRP.Velocity = Vector3.zero 
+                
+                -- Tomatotxt Exploit Method: Force touch signal directly to memory
+                if firetouchinterest then
+                    pcall(function()
+                        firetouchinterest(currHRP, btnPart, 0)
+                        task.wait(0.01)
+                        firetouchinterest(currHRP, btnPart, 1)
+                    end)
                 end
+
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                task.wait(stealthDelay())
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+                task.wait(stealthDelay())
             end
             
             if failedScan then RunService.Heartbeat:Wait() end
@@ -826,5 +815,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 
 loadStats()
 setupAutoReconnect()
-notify("Troxzy VIP v20.7.1 - Precision PRO Ready!", "Success")
-print("Troxzy VIP - Precision PRO Loaded.")
+notify("Troxzy VIP v20.7.2 - Tomatotxt Engine Ready!", "Success")
+print("Troxzy VIP - Tomatotxt Engine Loaded.")
