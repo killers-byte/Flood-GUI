@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 KEY SYSTEM CUSTOM GUI
--- 🔥 REALTIME DASHBOARD + KEY DURATION
+-- 🔥 KEY DURATION COUNTDOWN
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -31,6 +31,8 @@ local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8
 
 local keyValid = false
 local attempts = 0
+local keyDurationMinutes = 1440  -- Default 24 jam
+local keyExpireTime = 0
 
 local KeyScreen = Instance.new("ScreenGui")
 KeyScreen.Name = "TroxzyKey"
@@ -144,6 +146,8 @@ local function checkKey(input)
     end
 
     if keys[input] and not keys[input].expired then
+        -- Ambil durasi dari Gist, jika tidak ada pakai default 1440 menit (24 jam)
+        keyDurationMinutes = keys[input].duration or 1440
         keyValid = true
         KeyScreen:Destroy()
     else
@@ -170,8 +174,9 @@ end)
 repeat task.wait() until keyValid or not Player.Parent
 if not keyValid then return end
 
--- ==================== SCRIPT START TIME (KEY DURATION) ====================
+-- ==================== SCRIPT START TIME & KEY EXPIRE TIME ====================
 local scriptStartTime = os.clock()
+keyExpireTime = scriptStartTime + (keyDurationMinutes * 60)
 
 -- ==================== SCRIPT UTAMA ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
@@ -1139,7 +1144,7 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD WITH KEY DURATION ====================
+-- ==================== DASHBOARD WITH KEY COUNTDOWN ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0, 230, 0, 0)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
@@ -1200,8 +1205,8 @@ local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, DARK_THEME.TextMe
 local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, DARK_THEME.TextMedium)
 local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
 
--- KEY DURATION LABEL
-local keyDurationLabel = createDashLabel("🔑 <b>Key Duration:</b> 0h 0m 0s", 7, Color3.fromRGB(255, 200, 100))
+-- KEY COUNTDOWN LABEL
+local keyDurationLabel = createDashLabel("🔑 <b>Key Expires In:</b> 0h 0m 0s", 7, Color3.fromRGB(255, 200, 100))
 
 createDashDivider(8)
 
@@ -1211,17 +1216,31 @@ local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 10
 local function updateDashboard()
     if not Dashboard.Visible then return end
     
+    -- KEY COUNTDOWN
+    local remaining = keyExpireTime - os.clock()
+    if remaining <= 0 then
+        Player:Kick("Key expired! Silakan beli key baru dari penjual.")
+        return
+    end
+    
+    local hours = math.floor(remaining / 3600)
+    local minutes = math.floor((remaining % 3600) / 60)
+    local seconds = math.floor(remaining % 60)
+    
+    if remaining < 300 then -- Kurang dari 5 menit -> merah
+        keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+    elseif remaining < 600 then -- Kurang dari 10 menit -> kuning
+        keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    else
+        keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+    end
+    
+    keyDurationLabel.Text = "🔑 <b>Key Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
+
     mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
     timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
-    local hours = (os.clock() - Stats.sessionStart) / 3600
-    speedLabel.Text = "⚡ <b>Rate:</b> " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
-
-    -- KEY DURATION
-    local durSec = math.floor(os.clock() - scriptStartTime)
-    local durHr = math.floor(durSec / 3600)
-    local durMin = math.floor((durSec % 3600) / 60)
-    durSec = durSec % 60
-    keyDurationLabel.Text = "🔑 <b>Key Duration:</b> " .. durHr .. "h " .. durMin .. "m " .. durSec .. "s"
+    local sessionHours = (os.clock() - Stats.sessionStart) / 3600
+    speedLabel.Text = "⚡ <b>Rate:</b> " .. ((sessionHours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / sessionHours) or 0) .. " maps/hr"
 
     if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
