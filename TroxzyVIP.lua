@@ -36,7 +36,7 @@ local function GetRealTime()
 end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/67f2a4076bbf66ea7d5f175c2b9c7fb3581f3cc1/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/619041b73151700a3b16d749bc7bdd7c6949b4b7/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
