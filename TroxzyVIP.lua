@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM – TANGGAL ABSOLUT & PERMANEN
--- 🔥 Dashboard with Countdown
+-- 🔥 KEY SYSTEM – ABSOLUTE DATE & PERMANENT
+-- 🔥 REAL-TIME COUNTDOWN (os.time)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -190,6 +190,7 @@ local function checkKey(input)
         return
     end
 
+    -- Bandingkan dengan waktu SEKARANG (real-time Roblox server)
     if os.time() > expireTime then
         Player:Kick("Key sudah expired! Beli key baru.")
         return
