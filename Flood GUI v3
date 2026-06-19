@@ -1,5 +1,5 @@
 -- ============================================
--- TROXZY VIP v22.0 "SPECTRAL BLADE"
+-- TROXZY VIP v22.0 "SPECTRAL BLADE" [FIXED]
 -- Badan Intelijen Negara - TOMATOTXT AUTO FARM ENGINE
 -- ============================================
 
@@ -14,16 +14,10 @@ local function supremeKeyValidation()
     local Player = Players.LocalPlayer
     if not Player then return false end
 
-    local function GetRealTime()
-        local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
-        if ok and srvTime and srvTime > 1000000 then return srvTime end
-        return os.time()
-    end
-
+    -- GetRealTime dan keyExpireTime sudah didefinisikan di luar (global scope)
     local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/53bc5a811ddea93e7018a87166e1abdfbab7d1b9/TroxzyKey.json"
     local keyValid = false
     local attempts = 0
-    local keyExpireTime = 0
 
     local function parseExpiry(expiry)
         if expiry == "permanent" then return 9999999999 end
@@ -102,6 +96,15 @@ local function supremeKeyValidation()
     return keyValid
 end
 
+-- [PINDAH KE SCOPE GLOBAL AGAR BISA DIAKSES DASHBOARD]
+local keyExpireTime = 0
+local function GetRealTime()
+    local Workspace = game:GetService("Workspace")
+    local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
+    if ok and srvTime and srvTime > 1000000 then return srvTime end
+    return os.time()
+end
+
 if not supremeKeyValidation() then return end
 
 -- [ MAIN SCRIPT v22.0 - SPECTRAL BLADE ]
@@ -149,6 +152,7 @@ local TAS_STATUS_LABEL = nil
 local AUTO_QUEUE_ENABLED = false
 local AutoQueueListener = nil
 local liftTarget, moveToLift = nil, false
+local mapCompleted = false  -- Pindah ke sini agar bisa diakses ExecuteTAS
 
 -- Admin Detector
 local DetectedAdmins = {}
@@ -421,6 +425,20 @@ local AlertRemote = RemoteFolder:WaitForChild("Alert")
 TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg) if type(msg) == "string" and msg:lower():match("escaped") then Escaped = true end end))
 TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end))
 
+-- ==================== FUNGSI PENTING YANG HILANG ====================
+local function Check(flag)
+    local char = Player.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    if flag == "InLift" then
+        return hrp.Position.X < 50 and hrp.Position.Z > 70
+    elseif flag == "InGame" then
+        return hrp.Position.X > 50
+    end
+    return false
+end
+
 local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
 local function GetDifficulty()
     local ok, res = pcall(function()
@@ -682,7 +700,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     end
 end))
 
-local mapCompleted = false
 local function StartAutoQueue()
     if AutoQueueListener then AutoQueueListener:Disconnect(); AutoQueueListener = nil end
     moveToLift = false; mapCompleted = false
