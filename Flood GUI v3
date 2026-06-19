@@ -1,6 +1,7 @@
 -- ============================================
--- TROXZY VIP v20.8 ULTIMATE (STABLE AUTO FARM LIKE v16.2)
--- 🔥 DIPERBAIKI: AUTO FARM = v16.2 + KEY SYSTEM
+-- TROXZY VIP v20.8 ULTIMATE (AUTO FARM = v16.2)
+-- 🔥 FIXED: AUTO FARM SAMA PERSIS v16.2
+-- 🔥 STEALTH ADMIN TETAP SEPERTI v20.8
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -224,8 +225,24 @@ local function getSpectators()
     return specs
 end
 local function blockAdminRemotes() local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote"); if not RemoteFolder then return end; local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }; for _, remote in ipairs(RemoteFolder:GetChildren()) do if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then local lowerName = remote.Name:lower(); for _, kw in ipairs(dangerousKeywords) do if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end end end end end
+
+-- ✅ STEALTH ADMIN SEPERTI v20.8 (TIDAK DISCONNECT)
 local lastAdminAlert = 0
-local function handleAdminDetection() if not CONFIG.ADMIN_DETECTOR then return end; local admins = getAdminPlayers(); local count = #admins; if count > lastAdminCount then local now = os.clock(); if now - lastAdminAlert < 10 then return end; lastAdminAlert = now; Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount); notify("Admin(s) detected! Protection active.", "Anti-Admin"); if CONFIG.ANTI_ADMIN then blockAdminRemotes() end; if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end end; lastAdminCount = count end
+local function handleAdminDetection()
+    if not CONFIG.ADMIN_DETECTOR then return end
+    local admins = getAdminPlayers()
+    local count = #admins
+    if count > lastAdminCount then
+        local now = os.clock()
+        if now - lastAdminAlert < 10 then return end
+        lastAdminAlert = now
+        Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount)
+        notify("Admin(s) detected! Protection active.", "Anti-Admin")
+        if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
+        if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
+    end
+    lastAdminCount = count
+end
 if CONFIG.ANTI_REPORT then pcall(function() Players.ReportAbuse = function() end end) end
 
 local floodColorMap = { Blue = Color3.fromRGB(0, 150, 255), Green = Color3.fromRGB(0, 255, 100), Red = Color3.fromRGB(255, 50, 50), Pink = Color3.fromRGB(255, 100, 200), Purple = Color3.fromRGB(150, 50, 255) }
@@ -421,7 +438,7 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (FROM V16.2) ====================
+-- ==================== MANUAL AUTO FARM LOGIC (100% SAMA v16.2) ====================
 local function OnMapLoad(map)
     clearESPCache()
 
@@ -430,9 +447,10 @@ local function OnMapLoad(map)
     local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
     Stats.currentMap = mapName
 
+    -- Admin detection (stealth, no disconnect)
     handleAdminDetection()
 
-    -- Blacklist handling (same as v16.2)
+    -- Blacklist handling (sama v16.2)
     if isMapBlacklisted(mapName) then
         Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
         notify("Blacklisted: " .. mapName, "Skip"); saveStats()
@@ -446,8 +464,6 @@ local function OnMapLoad(map)
             end
         end
         CurrentlyFarming = false
-        moveToLift = true
-        liftTarget = findLiftPosition()
         return
     end
 
@@ -473,7 +489,7 @@ local function OnMapLoad(map)
         return
     end
 
-    -- Collect items (same as v16.2)
+    -- Collect items (sama v16.2)
     local lostPage = map:FindFirstChild("_LostPage", true)
     local rescue = map:FindFirstChild("_Rescue", true)
     local ocf = hrp.CFrame
@@ -490,7 +506,7 @@ local function OnMapLoad(map)
 
     if CONFIG.TIMER_HOOK then TimerHookActive = true; TimerHookStart = os.clock() end
 
-    -- Find buttons (same as v16.2)
+    -- Find buttons (sama v16.2)
     local buttons = {}
     for _, obj in pairs(map:GetDescendants()) do
         if isRandStr(obj.Name) and obj.ClassName == "Model" then
@@ -508,7 +524,7 @@ local function OnMapLoad(map)
         end
     end
 
-    -- God mode connection
+    -- God mode connection (sama v16.2)
     local godMode
     if CONFIG.GOD_MODE then
         godMode = hum:GetPropertyChangedSignal("Health"):Connect(function()
@@ -519,7 +535,7 @@ local function OnMapLoad(map)
 
     applyNoclip(true)
 
-    -- Main farming loop (same as v16.2)
+    -- Main farming loop (sama v16.2)
     while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
         if not CurrentlyFarming then break end
 
@@ -805,6 +821,7 @@ AddToggle("Stealth", "Humanized Delay", "RANDOM_DELAY")
 AddToggle("Stealth", "Stealth Movement", "STEALTH_MODE")
 AddToggle("Stealth", "Hide GUI Nearby", "HIDE_SCRIPT")
 AddToggle("Stealth", "Detect Admins", "ADMIN_DETECTOR")
+AddToggle("Stealth", "Auto-Leave Admin", "AUTO_LEAVE_ADMIN")
 AddToggle("Stealth", "Block Admin Remotes", "ANTI_ADMIN")
 AddToggle("Stealth", "Disable Reports", "ANTI_REPORT")
 AddButton("Stealth", "Panic Mode [P]", DARK_THEME.ButtonPanic, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
@@ -858,5 +875,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 
 loadStats()
 setupAutoReconnect()
-notify("Troxzy VIP v20.8 - Stable Auto Farm Ready!", "Success")
-print("Troxzy VIP - Stable Auto Farm Loaded.")
+notify("Troxzy VIP v20.8 - Auto Farm v16.2 Style Ready!", "Success")
+print("Troxzy VIP - Auto Farm v16.2 with Stealth Admin Loaded.")
