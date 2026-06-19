@@ -1,8 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 REAL-TIME MAP NAME IN DASHBOARD
--- 🔥 Dashboard updates every frame
--- 🔥 KEY SYSTEM AKTIF
+-- 🔥 KEY SYSTEM CUSTOM GUI (FIXED)
+-- 🔥 No RequestInputAsync
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -27,43 +26,157 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
--- ==================== KEY VALIDATION ====================
+-- ==================== KEY VALIDATION GUI ====================
 local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
-local function validateKey()
-    local input = Player:RequestInputAsync("🔑 Masukkan Key Troxzy VIP", "TROXZY-XXXX-YYYY-ZZZZ")
-    if not input then
-        Player:Kick("Key diperlukan untuk menjalankan script ini.")
-        return false
-    end
+local keyValid = false
+local attempts = 0
 
+local KeyScreen = Instance.new("ScreenGui")
+KeyScreen.Name = "TroxzyKey"
+KeyScreen.ResetOnSpawn = false
+pcall(function() KeyScreen.Parent = CoreGui end)
+if not KeyScreen.Parent then KeyScreen.Parent = Player:WaitForChild("PlayerGui") end
+
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Size = UDim2.new(0, 320, 0, 190)
+KeyFrame.Position = UDim2.new(0.5, -160, 0.5, -95)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Active = true
+KeyFrame.Draggable = true
+KeyFrame.Parent = KeyScreen
+
+local KeyCorner = Instance.new("UICorner")
+KeyCorner.CornerRadius = UDim.new(0, 12)
+KeyCorner.Parent = KeyFrame
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Color = Color3.fromRGB(99, 102, 241)
+KeyStroke.Thickness = 2
+KeyStroke.Transparency = 0.3
+KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+KeyStroke.Parent = KeyFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Position = UDim2.new(0, 0, 0, 15)
+Title.Text = "🔑 TROXZY VIP KEY"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBlack
+Title.BackgroundTransparency = 1
+Title.Parent = KeyFrame
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(1, 0, 0, 20)
+Subtitle.Position = UDim2.new(0, 0, 0, 50)
+Subtitle.Text = "Masukkan key untuk melanjutkan"
+Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200)
+Subtitle.TextSize = 12
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.BackgroundTransparency = 1
+Subtitle.Parent = KeyFrame
+
+local TextBox = Instance.new("TextBox")
+TextBox.Size = UDim2.new(0, 260, 0, 35)
+TextBox.Position = UDim2.new(0.5, -130, 0, 80)
+TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"
+TextBox.Text = ""
+TextBox.Font = Enum.Font.GothamMedium
+TextBox.TextSize = 14
+TextBox.ClearTextOnFocus = false
+TextBox.Parent = KeyFrame
+
+local TextCorner = Instance.new("UICorner")
+TextCorner.CornerRadius = UDim.new(0, 6)
+TextCorner.Parent = TextBox
+
+local TextStroke = Instance.new("UIStroke")
+TextStroke.Color = Color3.fromRGB(99, 102, 241)
+TextStroke.Thickness = 1
+TextStroke.Transparency = 0.5
+TextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+TextStroke.Parent = TextBox
+
+local SubmitBtn = Instance.new("TextButton")
+SubmitBtn.Size = UDim2.new(0, 260, 0, 35)
+SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125)
+SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+SubmitBtn.Text = "SUBMIT KEY"
+SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubmitBtn.TextSize = 14
+SubmitBtn.Font = Enum.Font.GothamBlack
+SubmitBtn.Parent = KeyFrame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = SubmitBtn
+
+local ErrorLabel = Instance.new("TextLabel")
+ErrorLabel.Size = UDim2.new(1, 0, 0, 20)
+ErrorLabel.Position = UDim2.new(0, 0, 0, 168)
+ErrorLabel.Text = ""
+ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+ErrorLabel.TextSize = 11
+ErrorLabel.Font = Enum.Font.GothamMedium
+ErrorLabel.BackgroundTransparency = 1
+ErrorLabel.Parent = KeyFrame
+
+local function checkKey(input)
+    if input == "" then
+        ErrorLabel.Text = "Key tidak boleh kosong!"
+        return
+    end
+    
     local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
     if not success then
-        Player:Kick("Gagal terhubung ke server key. Coba lagi nanti.")
-        return false
+        ErrorLabel.Text = "Gagal terhubung ke server key"
+        return
     end
 
-    local keys = HttpService:JSONDecode(data)
-    if not keys[input] or keys[input].expired then
-        Player:Kick("Key tidak valid atau telah kadaluarsa. Beli key resmi dari penjual.")
-        return false
+    local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
+    if not ok then
+        ErrorLabel.Text = "Data key rusak"
+        return
     end
 
-    return true
+    if keys[input] and not keys[input].expired then
+        keyValid = true
+        KeyScreen:Destroy()
+    else
+        attempts = attempts + 1
+        if attempts >= 3 then
+            Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
+        else
+            ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
+            TextBox.Text = ""
+        end
+    end
 end
 
-if not validateKey() then
-    return
-end
+SubmitBtn.MouseButton1Click:Connect(function()
+    checkKey(TextBox.Text)
+end)
 
--- Jika key valid, lanjutkan ke script utama
+TextBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        checkKey(TextBox.Text)
+    end
+end)
+
+repeat task.wait() until keyValid or not Player.Parent
+if not keyValid then return end
+
+-- ==================== SCRIPT UTAMA ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
 task.wait(1)
 
 local Camera = Workspace.CurrentCamera
 local IS_MOBILE = UIS.TouchEnabled
 
--- Global state
 _G.TroxzyAutoFarm = false
 
 -- Variabel Utama
