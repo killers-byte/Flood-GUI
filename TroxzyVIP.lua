@@ -1,8 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 ADVANCED KEY SYSTEM
--- 🔥 DUKUNGAN: menit, jam, hari, minggu, bulan, tahun, permanent
--- 🔥 KEY EXPIRED TIDAK BISA DIPAKAI LAGI
+-- 🔥 KEY SYSTEM – EXPIRY FLEXIBLE
+-- 🔥 Dashboard with Key Countdown
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -32,44 +31,57 @@ local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8
 
 local keyValid = false
 local attempts = 0
-local keyDurationMinutes = nil
 local keyExpireTime = 0
-local usedKey = nil
 
--- ==================== KONVERSI DURASI ====================
-local function parseDuration(value, unit)
-    if unit == "permanent" or unit == "lifetime" then
-        return nil, true -- nil artinya permanent, flag true
+-- Fungsi untuk membaca format expiry
+local function parseExpiry(expiry)
+    if expiry == "permanent" then
+        return 9999999999
     end
-    
-    if not value or value <= 0 then
-        return nil, false
+
+    if type(expiry) == "number" then
+        return expiry
     end
-    
-    local multipliers = {
-        minute = 1,
-        minutes = 1,
-        hour = 60,
-        hours = 60,
-        day = 1440,
-        days = 1440,
-        week = 10080,
-        weeks = 10080,
-        month = 43200, -- 30 hari
-        months = 43200,
-        year = 525600, -- 365 hari
-        years = 525600
-    }
-    
-    local multiplier = multipliers[unit:lower()]
-    if not multiplier then
-        return nil, false
+
+    if type(expiry) == "string" then
+        -- Format durasi: angka + huruf (30m, 7d, 1w, 2M, 1y)
+        local num, unit = string.match(expiry, "^(%d+)([mhdwMy])$")
+        if num and unit then
+            local now = os.time()
+            local seconds = tonumber(num)
+            if unit == "m" then
+                seconds = seconds * 60
+            elseif unit == "h" then
+                seconds = seconds * 3600
+            elseif unit == "d" then
+                seconds = seconds * 86400
+            elseif unit == "w" then
+                seconds = seconds * 604800
+            elseif unit == "M" then
+                seconds = seconds * 2592000
+            elseif unit == "y" then
+                seconds = seconds * 31536000
+            end
+            return now + seconds
+        end
+
+        -- Format tanggal: YYYY-MM-DD
+        local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
+        if year and month and day then
+            return os.time({
+                year = tonumber(year),
+                month = tonumber(month),
+                day = tonumber(day),
+                hour = 23,
+                min = 59,
+                sec = 59
+            })
+        end
     end
-    
-    return value * multiplier, false
+
+    return nil
 end
 
--- ==================== GUI KEY ====================
 local KeyScreen = Instance.new("ScreenGui")
 KeyScreen.Name = "TroxzyKey"
 KeyScreen.ResetOnSpawn = false
@@ -182,87 +194,37 @@ local function checkKey(input)
     end
 
     local keyData = keys[input]
-    
-    -- Cek apakah key ada
     if not keyData then
-        ErrorLabel.Text = "Key tidak ditemukan!"
         attempts = attempts + 1
-        checkAttempts()
-        return
-    end
-    
-    -- Cek apakah key expired
-    if keyData.expired then
-        ErrorLabel.Text = "Key sudah expired dan tidak bisa digunakan lagi!"
-        return
-    end
-    
-    -- Cek durasi key
-    if not keyData.duration then
-        StarterGui:SetCore("SendNotification", {
-            Title = "Key Error",
-            Text = "Key tidak memiliki durasi yang valid",
-            Duration = 5
-        })
-        Player:Kick("Key tidak valid. Hubungi penjual.")
-        return
-    end
-    
-    local dur = keyData.duration
-    if type(dur) == "number" then
-        -- Format lama: langsung menit
-        keyDurationMinutes = dur
-        keyValid = true
-        usedKey = input
-        KeyScreen:Destroy()
-        return
-    end
-    
-    if type(dur) == "table" then
-        -- Format baru: {value = 30, unit = "days"} atau "permanent"
-        if dur.unit == "permanent" or dur.unit == "lifetime" then
-            keyDurationMinutes = nil -- permanent
-            keyValid = true
-            usedKey = input
-            KeyScreen:Destroy()
-            return
+        if attempts >= 3 then
+            Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
+        else
+            ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
+            TextBox.Text = ""
         end
-        
-        local minutes, isPermanent = parseDuration(dur.value, dur.unit)
-        if isPermanent then
-            keyDurationMinutes = nil
-            keyValid = true
-            usedKey = input
-            KeyScreen:Destroy()
-            return
-        end
-        
-        if not minutes then
-            StarterGui:SetCore("SendNotification", {
-                Title = "Key Error",
-                Text = "Format durasi tidak valid",
-                Duration = 5
-            })
-            return
-        end
-        
-        keyDurationMinutes = minutes
-        keyValid = true
-        usedKey = input
-        KeyScreen:Destroy()
         return
     end
-    
-    ErrorLabel.Text = "Format durasi key tidak valid!"
-end
 
-function checkAttempts()
-    if attempts >= 3 then
-        Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
-    else
-        ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
-        TextBox.Text = ""
+    if not keyData.expiry then
+        Player:Kick("Key tidak memiliki field 'expiry'. Hubungi penjual.")
+        return
     end
+
+    local expireTime = parseExpiry(keyData.expiry)
+    if not expireTime then
+        Player:Kick("Format expiry tidak valid. Hubungi penjual.")
+        return
+    end
+
+    if os.time() > expireTime then
+        Player:Kick("Key sudah expired! Beli key baru.")
+        return
+    end
+
+    -- Key valid
+    keyValid = true
+    keyExpireTime = expireTime
+    KeyScreen:Destroy()
 end
 
 SubmitBtn.MouseButton1Click:Connect(function()
@@ -277,14 +239,6 @@ end)
 
 repeat task.wait() until keyValid or not Player.Parent
 if not keyValid then return end
-
--- ==================== SCRIPT START TIME & KEY EXPIRE TIME ====================
-local scriptStartTime = os.clock()
-if keyDurationMinutes then
-    keyExpireTime = scriptStartTime + (keyDurationMinutes * 60)
-else
-    keyExpireTime = nil -- permanent
-end
 
 -- ==================== SCRIPT UTAMA ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
@@ -1314,7 +1268,7 @@ local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, DARK_THEME.T
 local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
 
 -- KEY COUNTDOWN LABEL
-local keyDurationLabel = createDashLabel("🔑 <b>Key Expires In:</b> 0h 0m 0s", 7, Color3.fromRGB(255, 200, 100))
+local keyDurationLabel = createDashLabel("🔑 <b>Key Expires In:</b> ...", 7, Color3.fromRGB(255, 200, 100))
 
 createDashDivider(8)
 
@@ -1325,13 +1279,16 @@ local function updateDashboard()
     if not Dashboard.Visible then return end
     
     -- KEY COUNTDOWN
-    if keyExpireTime then
-        local remaining = keyExpireTime - os.clock()
-        if remaining <= 0 then
-            Player:Kick("Key expired! Silakan beli key baru dari penjual.")
-            return
-        end
-        
+    local remaining = keyExpireTime - os.time()
+    if remaining <= 0 then
+        Player:Kick("Key expired! Silakan beli key baru dari penjual.")
+        return
+    end
+    
+    if keyExpireTime > os.time() + 315360000 then -- lebih dari 10 tahun -> permanen
+        keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"
+        keyDurationLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+    else
         local hours = math.floor(remaining / 3600)
         local minutes = math.floor((remaining % 3600) / 60)
         local seconds = math.floor(remaining % 60)
@@ -1345,9 +1302,6 @@ local function updateDashboard()
         end
         
         keyDurationLabel.Text = "🔑 <b>Key Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
-    else
-        keyDurationLabel.Text = "🔑 <b>Key Type:</b> PERMANENT"
-        keyDurationLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
 
     mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
