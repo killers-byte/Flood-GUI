@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 KEY SYSTEM CUSTOM GUI
--- 🔥 KEY DURATION COUNTDOWN
+-- 🔥 KEY COUNTDOWN (NO DEFAULT DURATION)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -31,7 +31,7 @@ local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8
 
 local keyValid = false
 local attempts = 0
-local keyDurationMinutes = 1440  -- Default 24 jam
+local keyDurationMinutes = nil  -- tidak ada default
 local keyExpireTime = 0
 
 local KeyScreen = Instance.new("ScreenGui")
@@ -146,8 +146,12 @@ local function checkKey(input)
     end
 
     if keys[input] and not keys[input].expired then
-        -- Ambil durasi dari Gist, jika tidak ada pakai default 1440 menit (24 jam)
-        keyDurationMinutes = keys[input].duration or 1440
+        -- WAJIB ADA DURASI
+        if not keys[input].duration then
+            Player:Kick("Key tidak memiliki durasi. Beli key resmi dari penjual.")
+            return
+        end
+        keyDurationMinutes = keys[input].duration
         keyValid = true
         KeyScreen:Destroy()
     else
