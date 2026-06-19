@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: AUTO FARM MOVE TO LIFT + CRAZY+ SUPPORT
+-- 🔥 FIXED: AUTO FARM WALK TO LIFT (NO MORE STUCK)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -54,48 +54,32 @@ local function parseExpiry(expiry)
                 if m == 2 and isLeap(year) then days = days + 1 end
             end
             days = days + (day - 1)
-            local expire = (days * 86400) + 86399 - (7 * 3600) -- UTC+7
+            local expire = (days * 86400) + 86399 - (7 * 3600)
             return expire
         end
     end
     return nil
 end
 
-local KeyScreen = Instance.new("ScreenGui")
-KeyScreen.Name = "TroxzyKey"
-KeyScreen.ResetOnSpawn = false
+local KeyScreen = Instance.new("ScreenGui"); KeyScreen.Name = "TroxzyKey"; KeyScreen.ResetOnSpawn = false
 pcall(function() KeyScreen.Parent = CoreGui end)
 if not KeyScreen.Parent then KeyScreen.Parent = Player:WaitForChild("PlayerGui") end
 
-local KeyFrame = Instance.new("Frame")
-KeyFrame.Size = UDim2.new(0, 320, 0, 190)
-KeyFrame.Position = UDim2.new(0.5, -160, 0.5, -95)
-KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-KeyFrame.BorderSizePixel = 0
-KeyFrame.Active = true
-KeyFrame.Draggable = true
-KeyFrame.Parent = KeyScreen
-
+local KeyFrame = Instance.new("Frame"); KeyFrame.Size = UDim2.new(0, 320, 0, 190); KeyFrame.Position = UDim2.new(0.5, -160, 0.5, -95); KeyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30); KeyFrame.BorderSizePixel = 0; KeyFrame.Active = true; KeyFrame.Draggable = true; KeyFrame.Parent = KeyScreen
 local KeyCorner = Instance.new("UICorner"); KeyCorner.CornerRadius = UDim.new(0, 12); KeyCorner.Parent = KeyFrame
 local KeyStroke = Instance.new("UIStroke"); KeyStroke.Color = Color3.fromRGB(99, 102, 241); KeyStroke.Thickness = 2; KeyStroke.Transparency = 0.3; KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; KeyStroke.Parent = KeyFrame
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35); Title.Position = UDim2.new(0, 0, 0, 15); Title.Text = "🔑 TROXZY VIP KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 18; Title.Font = Enum.Font.GothamBlack; Title.BackgroundTransparency = 1; Title.Parent = KeyFrame
+local Title = Instance.new("TextLabel"); Title.Size = UDim2.new(1, 0, 0, 35); Title.Position = UDim2.new(0, 0, 0, 15); Title.Text = "🔑 TROXZY VIP KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 18; Title.Font = Enum.Font.GothamBlack; Title.BackgroundTransparency = 1; Title.Parent = KeyFrame
+local Subtitle = Instance.new("TextLabel"); Subtitle.Size = UDim2.new(1, 0, 0, 20); Subtitle.Position = UDim2.new(0, 0, 0, 50); Subtitle.Text = "Masukkan key untuk melanjutkan"; Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200); Subtitle.TextSize = 12; Subtitle.Font = Enum.Font.Gotham; Subtitle.BackgroundTransparency = 1; Subtitle.Parent = KeyFrame
 
-local Subtitle = Instance.new("TextLabel")
-Subtitle.Size = UDim2.new(1, 0, 0, 20); Subtitle.Position = UDim2.new(0, 0, 0, 50); Subtitle.Text = "Masukkan key untuk melanjutkan"; Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200); Subtitle.TextSize = 12; Subtitle.Font = Enum.Font.Gotham; Subtitle.BackgroundTransparency = 1; Subtitle.Parent = KeyFrame
-
-local TextBox = Instance.new("TextBox")
-TextBox.Size = UDim2.new(0, 260, 0, 35); TextBox.Position = UDim2.new(0.5, -130, 0, 80); TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45); TextBox.TextColor3 = Color3.fromRGB(255, 255, 255); TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"; TextBox.Text = ""; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14; TextBox.ClearTextOnFocus = false; TextBox.Parent = KeyFrame
+local TextBox = Instance.new("TextBox"); TextBox.Size = UDim2.new(0, 260, 0, 35); TextBox.Position = UDim2.new(0.5, -130, 0, 80); TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45); TextBox.TextColor3 = Color3.fromRGB(255, 255, 255); TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"; TextBox.Text = ""; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14; TextBox.ClearTextOnFocus = false; TextBox.Parent = KeyFrame
 local TextCorner = Instance.new("UICorner"); TextCorner.CornerRadius = UDim.new(0, 6); TextCorner.Parent = TextBox
 local TextStroke = Instance.new("UIStroke"); TextStroke.Color = Color3.fromRGB(99, 102, 241); TextStroke.Thickness = 1; TextStroke.Transparency = 0.5; TextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; TextStroke.Parent = TextBox
 
-local SubmitBtn = Instance.new("TextButton")
-SubmitBtn.Size = UDim2.new(0, 260, 0, 35); SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125); SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241); SubmitBtn.Text = "SUBMIT KEY"; SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255); SubmitBtn.TextSize = 14; SubmitBtn.Font = Enum.Font.GothamBlack; SubmitBtn.Parent = KeyFrame
+local SubmitBtn = Instance.new("TextButton"); SubmitBtn.Size = UDim2.new(0, 260, 0, 35); SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125); SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241); SubmitBtn.Text = "SUBMIT KEY"; SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255); SubmitBtn.TextSize = 14; SubmitBtn.Font = Enum.Font.GothamBlack; SubmitBtn.Parent = KeyFrame
 local BtnCorner = Instance.new("UICorner"); BtnCorner.CornerRadius = UDim.new(0, 6); BtnCorner.Parent = SubmitBtn
 
-local ErrorLabel = Instance.new("TextLabel")
-ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 168); ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80); ErrorLabel.TextSize = 11; ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.BackgroundTransparency = 1; ErrorLabel.Parent = KeyFrame
+local ErrorLabel = Instance.new("TextLabel"); ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 168); ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80); ErrorLabel.TextSize = 11; ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.BackgroundTransparency = 1; ErrorLabel.Parent = KeyFrame
 
 local function checkKey(input)
     if input == "" then ErrorLabel.Text = "Key tidak boleh kosong!"; return end
@@ -308,10 +292,14 @@ local function GetDifficulty()
     local ok, res = pcall(function()
         local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
         local raw = diffLabel.Text
-        -- Dukung berbagai format penulisan difficulty
-        local cleaned = string.gsub(string.split(raw, ":")[1], "^%s*(.-)%s*$", "%1")
-        if cleaned == "Crazy+" or cleaned == "Crazy +" then return "Crazy+" end
-        return cleaned
+        local cleaned = raw:gsub("%s+", " "):lower()
+        if cleaned:find("crazy+") or cleaned:find("crazy %+") then return "Crazy+" end
+        if cleaned:find("crazy") then return "Crazy" end
+        if cleaned:find("insane") then return "Insane" end
+        if cleaned:find("hard") then return "Hard" end
+        if cleaned:find("normal") then return "Normal" end
+        if cleaned:find("easy") then return "Easy" end
+        return nil
     end)
     if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
     return 0, "Unknown"
@@ -320,14 +308,14 @@ local function isRandStr(str) if #str == 0 then return false end; for i = 1, #st
 
 -- ==================== 60 FPS AUTO WALK TO LIFT (FIXED) ====================
 local function findLiftPosition()
-    -- Cari model/part bernama Lift di Lobby
-    for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
+    -- Cari semua BasePart bernama "Lift" di seluruh Workspace
+    for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name:lower():find("lift") then
-            return obj.Position + Vector3.new(0, 5, 0) -- sedikit di atas lantai lift
+            return obj.Position + Vector3.new(0, 5, 0)
         end
     end
-    -- Fallback: koordinat tengah lobby
-    return Vector3.new(25, 7, 85)
+    -- Fallback: koordinat di depan lift (dekat teleporter)
+    return Vector3.new(27, 7, 89)
 end
 
 TrackConnection(RunService.Heartbeat:Connect(function()
@@ -351,6 +339,9 @@ TrackConnection(RunService.Heartbeat:Connect(function()
                 pcall(function() AddedWaiting:FireServer() end)
                 moveToLift = false
             end
+        else
+            -- Karakter hilang/ mati, reset moveToLift
+            moveToLift = false
         end
     end
 end))
@@ -380,13 +371,18 @@ local function StopAutoQueue()
 end
 
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.3) do  -- lebih responsif
         if (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive then
             local char = Player.Character
             if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not TAS_RUNNING and not CurrentlyFarming then
-                moveToLift = true; liftTarget = findLiftPosition()
-            else moveToLift = false end
-        else moveToLift = false end
+                liftTarget = findLiftPosition()
+                moveToLift = true
+            else
+                moveToLift = false
+            end
+        else
+            moveToLift = false
+        end
     end
 end)
 
@@ -432,7 +428,7 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (FIXED) ====================
+-- ==================== MANUAL AUTO FARM LOGIC ====================
 local function OnMapLoad(map)
     clearESPCache()
     pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
@@ -450,7 +446,6 @@ local function OnMapLoad(map)
     if not hrp or not hum then CurrentlyFarming = false; return end
 
     local curRank, curName = GetDifficulty()
-    -- Jika difficulty tidak dikenali, anggap aman
     if curRank == 0 then curRank = 5; curName = "Crazy" end
     if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
@@ -773,7 +768,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     pcall(function()
         local ch = Player.Character; if not ch then return end; local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
-        if not CurrentlyFarming then local baseSpeed = moveToLift and 20 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
+        if not CurrentlyFarming then local baseSpeed = moveToLift and 25 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
