@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: AUTO FARM WALK TO LIFT (NO MORE STUCK)
+-- 🔥 FIXED: CRAZY+ DETECTION & AUTO FARM (ROBUST)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -288,34 +288,60 @@ TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg) if type(msg) == 
 TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end))
 
 local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
+
+-- ✅ FUNGSI GET DIFFICULTY SUPER ROBUST
 local function GetDifficulty()
-    local ok, res = pcall(function()
+    local results = {}
+    -- Coba dari GUI Lobby
+    pcall(function()
         local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
-        local raw = diffLabel.Text
-        local cleaned = raw:gsub("%s+", " "):lower()
-        if cleaned:find("crazy+") or cleaned:find("crazy %+") then return "Crazy+" end
-        if cleaned:find("crazy") then return "Crazy" end
-        if cleaned:find("insane") then return "Insane" end
-        if cleaned:find("hard") then return "Hard" end
-        if cleaned:find("normal") then return "Normal" end
-        if cleaned:find("easy") then return "Easy" end
-        return nil
+        if diffLabel and diffLabel.Text then
+            local raw = diffLabel.Text
+            local cleaned = raw:gsub("%s+", ""):lower()
+            table.insert(results, cleaned)
+        end
     end)
-    if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
+    -- Coba dari Map Settings (jika ada)
+    pcall(function()
+        for _, map in pairs(Multiplayer:GetChildren()) do
+            if map:IsA("Folder") and map:FindFirstChild("Settings") then
+                local attr = map.Settings:GetAttribute("Difficulty")
+                if attr then table.insert(results, tostring(attr):gsub("%s+", ""):lower()) end
+            end
+        end
+    end)
+    -- Cek semua teks yang mengandung "difficulty"
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Text:lower():find("difficulty") then
+            local txt = obj.Text:gsub("%s+", ""):lower()
+            table.insert(results, txt)
+        end
+    end
+
+    -- Cocokkan dengan rank
+    for _, txt in ipairs(results) do
+        if txt:find("crazy%+") or txt:find("crazy+") then return 6, "Crazy+" end
+        if txt:find("crazy") then return 5, "Crazy" end
+        if txt:find("insane") then return 4, "Insane" end
+        if txt:find("hard") then return 3, "Hard" end
+        if txt:find("normal") then return 2, "Normal" end
+        if txt:find("easy") then return 1, "Easy" end
+    end
+
+    -- Fallback: lihat dari jumlah pemain / vote? (tidak, tetap return 0)
     return 0, "Unknown"
 end
+
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
--- ==================== 60 FPS AUTO WALK TO LIFT (FIXED) ====================
+-- ==================== 60 FPS AUTO WALK TO LIFT ====================
 local function findLiftPosition()
-    -- Cari semua BasePart bernama "Lift" di seluruh Workspace
-    for _, obj in pairs(Workspace:GetDescendants()) do
+    for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name:lower():find("lift") then
             return obj.Position + Vector3.new(0, 5, 0)
         end
     end
-    -- Fallback: koordinat di depan lift (dekat teleporter)
-    return Vector3.new(27, 7, 89)
+    return Vector3.new(25, 7, 85)
 end
 
 TrackConnection(RunService.Heartbeat:Connect(function()
@@ -339,9 +365,6 @@ TrackConnection(RunService.Heartbeat:Connect(function()
                 pcall(function() AddedWaiting:FireServer() end)
                 moveToLift = false
             end
-        else
-            -- Karakter hilang/ mati, reset moveToLift
-            moveToLift = false
         end
     end
 end))
@@ -371,18 +394,13 @@ local function StopAutoQueue()
 end
 
 task.spawn(function()
-    while task.wait(0.3) do  -- lebih responsif
+    while task.wait(0.5) do
         if (AUTO_QUEUE_ENABLED or _G.TroxzyAutoFarm) and not panicActive then
             local char = Player.Character
             if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not TAS_RUNNING and not CurrentlyFarming then
-                liftTarget = findLiftPosition()
-                moveToLift = true
-            else
-                moveToLift = false
-            end
-        else
-            moveToLift = false
-        end
+                moveToLift = true; liftTarget = findLiftPosition()
+            else moveToLift = false end
+        else moveToLift = false end
     end
 end)
 
@@ -428,7 +446,7 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC ====================
+-- ==================== MANUAL AUTO FARM LOGIC (FIXED) ====================
 local function OnMapLoad(map)
     clearESPCache()
     pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
@@ -446,8 +464,11 @@ local function OnMapLoad(map)
     if not hrp or not hum then CurrentlyFarming = false; return end
 
     local curRank, curName = GetDifficulty()
+    print("DEBUG: Detected difficulty rank:", curRank, "name:", curName)
+    -- ✅ FALLBACK: Jika tidak terbaca, anggap Crazy biasa (tetap lanjutkan)
     if curRank == 0 then curRank = 5; curName = "Crazy" end
     if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+        notify("Map " .. Stats.currentMap .. " is " .. curName .. " (above target " .. CONFIG.TARGET_DIFFICULTY .. "). Resetting...", "AutoFarm")
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
         hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return
     end
@@ -768,7 +789,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
     pcall(function()
         local ch = Player.Character; if not ch then return end; local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
-        if not CurrentlyFarming then local baseSpeed = moveToLift and 25 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
+        if not CurrentlyFarming then local baseSpeed = moveToLift and 20 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
