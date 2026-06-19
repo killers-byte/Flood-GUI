@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 KEY SYSTEM CUSTOM GUI
--- 🔥 REALTIME DASHBOARD + SCRIPT UPTIME
+-- 🔥 REALTIME DASHBOARD + KEY DURATION
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -170,7 +170,7 @@ end)
 repeat task.wait() until keyValid or not Player.Parent
 if not keyValid then return end
 
--- ==================== SCRIPT START TIME ====================
+-- ==================== SCRIPT START TIME (KEY DURATION) ====================
 local scriptStartTime = os.clock()
 
 -- ==================== SCRIPT UTAMA ====================
@@ -1139,7 +1139,7 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD WITH UPTIME ====================
+-- ==================== DASHBOARD WITH KEY DURATION ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0, 230, 0, 0)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
@@ -1200,8 +1200,8 @@ local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, DARK_THEME.TextMe
 local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, DARK_THEME.TextMedium)
 local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
 
--- UPTIME LABEL
-local uptimeLabel = createDashLabel("⏳ <b>Uptime:</b> 0m 0s", 7, Color3.fromRGB(150, 200, 255))
+-- KEY DURATION LABEL
+local keyDurationLabel = createDashLabel("🔑 <b>Key Duration:</b> 0h 0m 0s", 7, Color3.fromRGB(255, 200, 100))
 
 createDashDivider(8)
 
@@ -1216,11 +1216,12 @@ local function updateDashboard()
     local hours = (os.clock() - Stats.sessionStart) / 3600
     speedLabel.Text = "⚡ <b>Rate:</b> " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
 
-    -- UPTIME
-    local uptimeSec = math.floor(os.clock() - scriptStartTime)
-    local uptimeMin = math.floor(uptimeSec / 60)
-    uptimeSec = uptimeSec % 60
-    uptimeLabel.Text = "⏳ <b>Uptime:</b> " .. uptimeMin .. "m " .. uptimeSec .. "s"
+    -- KEY DURATION
+    local durSec = math.floor(os.clock() - scriptStartTime)
+    local durHr = math.floor(durSec / 3600)
+    local durMin = math.floor((durSec % 3600) / 60)
+    durSec = durSec % 60
+    keyDurationLabel.Text = "🔑 <b>Key Duration:</b> " .. durHr .. "h " .. durMin .. "m " .. durSec .. "s"
 
     if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
