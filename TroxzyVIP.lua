@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM – ABSOLUTE DATE & PERMANENT (FIXED)
--- 🔥 REAL-TIME COUNTDOWN (os.time)
+-- 🔥 KEY SYSTEM – FIXED DATE COUNTDOWN
+-- 🔥 REAL-TIME os.time FROM ROBLOX
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -27,7 +27,7 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/67f2a4076bbf66ea7d5f175c2b9c7fb3581f3cc1/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
@@ -42,13 +42,21 @@ local function parseExpiry(expiry)
     if type(expiry) == "string" then
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
         if year and month and day then
+            -- Roblox os.time mendukung tabel dengan year, month, day
             local timestamp = os.time({
                 year = tonumber(year),
                 month = tonumber(month),
-                day = tonumber(day)
+                day = tonumber(day),
+                hour = 0,
+                min = 0,
+                sec = 0
             })
             if timestamp then
-                return timestamp + 86399 -- 23:59:59
+                -- Tambah 86399 detik untuk 23:59:59
+                return timestamp + 86399
+            else
+                -- Fallback jika os.time gagal (seharusnya tidak)
+                return nil
             end
         end
     end
