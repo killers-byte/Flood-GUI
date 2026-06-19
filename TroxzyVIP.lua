@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM – FIXED: INTERNET TIME SYNC
+-- 🔥 KEY SYSTEM – FIXED DATE COUNTDOWN (DEBUG)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -25,29 +25,6 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
--- ==================== TIME SYNC SYSTEM (ANTI-SPOOF) ====================
--- Sistem ini memastikan skrip menggunakan "Waktu Bumi" nyata (WIB), bukan jam PC user.
-local timeOffset = 0
-pcall(function()
-    -- Fallback: Gunakan waktu murni Server Roblox
-    local serverTime = math.floor(Workspace:GetServerTimeNow())
-    timeOffset = serverTime - os.time()
-end)
-
-pcall(function()
-    -- Utama: Sinkronisasi waktu internet (Jakarta/WIB)
-    local timeData = game:HttpGet("http://worldtimeapi.org/api/timezone/Asia/Jakarta")
-    local parsed = HttpService:JSONDecode(timeData)
-    if parsed and parsed.unixtime then
-        timeOffset = parsed.unixtime - os.time()
-        print("TROXZY: Sourced Real-World Time (WIB) Successfully.")
-    end
-end)
-
-local function GetCurrentTime()
-    return os.time() + timeOffset
-end
-
 -- ==================== KEY VALIDATION GUI ====================
 local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/67f2a4076bbf66ea7d5f175c2b9c7fb3581f3cc1/TroxzyKey.json"
 
@@ -55,6 +32,7 @@ local keyValid = false
 local attempts = 0
 local keyExpireTime = 0
 
+-- Fungsi parseExpiry YANG SUDAH DIPERBAIKI
 local function parseExpiry(expiry)
     if expiry == "permanent" then
         return 9999999999
@@ -64,11 +42,15 @@ local function parseExpiry(expiry)
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
         if year and month and day then
             year, month, day = tonumber(year), tonumber(month), tonumber(day)
+            -- GUNAKAN os.time DENGAN HANYA year, month, day (TANPA hour/min/sec)
             local timestamp = os.time({ year = year, month = month, day = day })
             if timestamp then
-                local expire = timestamp + 86399 -- Ditambah 86399 detik agar expired pukul 23:59:59
+                -- TAMBAH 86399 DETIK (23:59:59 UTC)
+                local expire = timestamp + 86399
+                print("DEBUG parseExpiry:", expiry, "-> timestamp:", timestamp, "expire:", expire, "os.time now:", os.time())
                 return expire
             else
+                -- FALLBACK JIKA os.time GAGAL
                 warn("os.time gagal untuk", expiry)
                 return nil
             end
@@ -207,17 +189,19 @@ local function checkKey(input)
 
     local expireTime = parseExpiry(keyData.expiry)
     if not expireTime then
-        Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'.")
+        Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'. Hubungi penjual.")
         return
     end
 
-    -- Kunci Validasi: Menggunakan Real Time Internet, Bukan Waktu HP User
-    local now = GetCurrentTime()
+    -- Bandingkan dengan waktu SEKARANG (real-time Roblox server)
+    local now = os.time()
+    print("DEBUG checkKey: now =", now, "expireTime =", expireTime)
     if now > expireTime then
         Player:Kick("Key sudah expired! Beli key baru.")
         return
     end
 
+    -- Key valid
     keyValid = true
     keyExpireTime = expireTime
     KeyScreen:Destroy()
@@ -272,6 +256,8 @@ local lastAdminCount = 0
 
 -- UI State
 local isMinimized = false
+
+-- Dashboard real-time
 local lastDashboardUpdate = 0
 
 -- Cleanup UI Lama
@@ -1272,35 +1258,30 @@ local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 10
 local function updateDashboard()
     if not Dashboard.Visible then return end
     
-    -- Hitung mundur menggunakan Waktu Bumi Asli
-    local remaining = keyExpireTime - GetCurrentTime()
+    -- KEY COUNTDOWN
+    local remaining = keyExpireTime - os.time()
     if remaining <= 0 then
         Player:Kick("Key expired! Silakan beli key baru dari penjual.")
         return
     end
     
-    if keyExpireTime > GetCurrentTime() + 315360000 then -- Jika Expired > 10 Tahun (Permanent)
+    if keyExpireTime > os.time() + 315360000 then -- lebih dari 10 tahun -> permanen
         keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"
         keyDurationLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
     else
-        local days = math.floor(remaining / 86400)
-        local hours = math.floor((remaining % 86400) / 3600)
+        local hours = math.floor(remaining / 3600)
         local minutes = math.floor((remaining % 3600) / 60)
         local seconds = math.floor(remaining % 60)
         
         if remaining < 300 then
             keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-        elseif remaining < 3600 then
+        elseif remaining < 600 then
             keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
         else
             keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
         end
         
-        if days > 0 then
-            keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. days .. "d " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
-        else
-            keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
-        end
+        keyDurationLabel.Text = "🔑 <b>Key Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
     end
 
     mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
@@ -1341,6 +1322,87 @@ local function updateDashboard()
     end
 end
 
+-- ==================== MENU BUILDING ====================
+AddSection("TAS", "SEAMLESS AUTOMATION")
+AddToggle("TAS", "Seamless Auto Queue", "AUTO_QUEUE")
+AddToggle("TAS", "Auto-Start Play", "TAS_AUTO_START")
+AddButton("TAS", "Record Route", DARK_THEME.ButtonRecord, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
+AddButton("TAS", "Force Play Route", DARK_THEME.Accent, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
+TAS_STATUS_LABEL = AddInfoLabel("TAS", "Status: ▶ READY")
+
+AddSection("Farm", "CORE (MANUAL)")
+AddToggle("Farm", "Enable Auto Farm", "AutoFarm")
+AddInfoLabel("Farm", "Target: " .. CONFIG.TARGET_MAP)
+
+AddSection("Move", "CHARACTER")
+AddToggle("Move", "Noclip Bypass", "NOCLIP")
+AddToggle("Move", "Speed Modifier", "SPEED")
+AddInput("Move", "Speed Value", CONFIG.SPEED_VAL, function(v) CONFIG.SPEED_VAL=v end)
+AddToggle("Move", "Infinite Jump", "INF_JUMP")
+
+AddSection("Visual", "RENDERING")
+AddToggle("Visual", "God Mode", "GOD_MODE")
+AddToggle("Visual", "Player ESP (All)", "ESP")
+AddToggle("Visual", "Fullbright", "FULLBRIGHT")
+AddToggle("Visual", "FOV Override", "FOV")
+AddInput("Visual", "Field of View", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL=v end)
+AddToggle("Visual", "Live Dashboard", "DASHBOARD")
+
+AddSection("Stealth", "SECURITY")
+AddToggle("Stealth", "Humanized Delay", "RANDOM_DELAY")
+AddToggle("Stealth", "Stealth Movement", "STEALTH_MODE")
+AddToggle("Stealth", "Hide GUI Nearby", "HIDE_SCRIPT")
+AddToggle("Stealth", "Detect Admins", "ADMIN_DETECTOR")
+AddToggle("Stealth", "Block Admin Remotes", "ANTI_ADMIN")
+AddToggle("Stealth", "Disable Reports", "ANTI_REPORT")
+AddButton("Stealth", "Panic Mode [P]", DARK_THEME.ButtonPanic, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
+AddButton("Stealth", "Force Reconnect", DARK_THEME.ButtonForceLeave, forceReconnect)
+
+AddSection("Premium", "SYSTEM & UPDATES")
+AddToggle("Premium", "Auto-Updater (On Boot)", "AUTO_UPDATE")
+AddButton("Premium", "Check for Updates", DARK_THEME.Accent, function()
+    notify("Checking GitHub for updates...", "Updater")
+    task.spawn(function()
+        local updateUrl = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
+        local success, newScript = pcall(function() return game:HttpGet(updateUrl) end)
+
+        if success and newScript and #newScript > 100 then
+            notify("Update found! Reloading script...", "Updater")
+            task.wait(1.5)
+
+            local func, compileErr = loadstring(newScript)
+            if func then
+                func()
+            else
+                notify("Compile Error: " .. tostring(compileErr), "Error")
+            end
+        else
+            notify("Failed to fetch update or network error.", "Updater")
+        end
+    end)
+end)
+
+AddSection("Extra", "MISC")
+AddToggle("Extra", "Auto Collect Items", "COLLECT_ITEMS")
+AddToggle("Extra", "Bypass Water (Air Swim)", "AIR_SWIM")
+AddToggle("Extra", "Timer Override (3s)", "TIMER_HOOK")
+AddToggle("Extra", "Light Theme", "NIGHT_MODE")
+AddToggle("Extra", "Custom Elements", "CUSTOM_FLOOD_COLORS")
+local FCLabel = AddInfoLabel("Extra", "Current: " .. CONFIG.FLOOD_COLOR)
+AddButton("Extra", "Cycle Color", DARK_THEME.Accent, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="Current: "..CONFIG.FLOOD_COLOR end)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
+CloseBtn.MouseButton1Click:Connect(function() minimizeUI(false) end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    if isMinimized then
+        maximizeUI()
+    else
+        minimizeUI(false)
+    end
+end)
+
 -- ==================== EVENT LOOPS ====================
 TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == Enum.KeyCode.P then if not panicActive then activatePanicMode() else deactivatePanicMode() end end end))
 
@@ -1361,8 +1423,8 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
 
-    -- Update dashboard SETIAP HEARTBEAT (real-time) menggunakan waktu murni
-    if os.clock() - lastDashboardUpdate >= 1 then
+    -- Update dashboard SETIAP HEARTBEAT (real-time)
+    if os.clock() - lastDashboardUpdate >= 0.1 then
         lastDashboardUpdate = os.clock()
         pcall(updateDashboard)
         pcall(handleAdminDetection)
