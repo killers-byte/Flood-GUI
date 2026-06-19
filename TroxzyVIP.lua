@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM – EXPIRY FLEXIBLE
--- 🔥 Dashboard with Key Countdown
+-- 🔥 KEY SYSTEM – TANGGAL ABSOLUT & PERMANEN
+-- 🔥 Dashboard with Countdown
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -27,45 +27,19 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a28f4a171eaf8d3062a9b2b493138d73d5d00736/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
 local keyExpireTime = 0
 
--- Fungsi untuk membaca format expiry
+-- HANYA mendukung YYYY-MM-DD atau "permanent"
 local function parseExpiry(expiry)
     if expiry == "permanent" then
         return 9999999999
     end
 
-    if type(expiry) == "number" then
-        return expiry
-    end
-
     if type(expiry) == "string" then
-        -- Format durasi: angka + huruf (30m, 7d, 1w, 2M, 1y)
-        local num, unit = string.match(expiry, "^(%d+)([mhdwMy])$")
-        if num and unit then
-            local now = os.time()
-            local seconds = tonumber(num)
-            if unit == "m" then
-                seconds = seconds * 60
-            elseif unit == "h" then
-                seconds = seconds * 3600
-            elseif unit == "d" then
-                seconds = seconds * 86400
-            elseif unit == "w" then
-                seconds = seconds * 604800
-            elseif unit == "M" then
-                seconds = seconds * 2592000
-            elseif unit == "y" then
-                seconds = seconds * 31536000
-            end
-            return now + seconds
-        end
-
-        -- Format tanggal: YYYY-MM-DD
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
         if year and month and day then
             return os.time({
@@ -212,7 +186,7 @@ local function checkKey(input)
 
     local expireTime = parseExpiry(keyData.expiry)
     if not expireTime then
-        Player:Kick("Format expiry tidak valid. Hubungi penjual.")
+        Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'. Hubungi penjual.")
         return
     end
 
