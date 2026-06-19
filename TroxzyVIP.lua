@@ -1,6 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: CRAZY+ DETECTION & AUTO FARM (ROBUST)
+-- 🔥 SEMUA MAP DIFARM (NO BLACKLIST)
+-- 🔥 AUTO WALK TO LIFT SETELAH SELESAI
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -183,7 +184,9 @@ local CONFIG = {
     TAS_MODE = "Play", TAS_AUTO_START = false,
     NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false, ESP = false, FULLBRIGHT = false, FOV = false,
     SPEED_VAL = 20, FOV_VAL = 90,
-    BLACKLIST_ENABLED = true, AUTO_RECONNECT = true, STEALTH_MODE = true, ADMIN_DETECTOR = true, AUTO_LEAVE_ADMIN = true,
+    -- ✅ BLACKLIST DINONAKTIFKAN (semua map difarm)
+    BLACKLIST_ENABLED = false,
+    AUTO_RECONNECT = true, STEALTH_MODE = true, ADMIN_DETECTOR = true, AUTO_LEAVE_ADMIN = true,
     RANDOM_DELAY = true, HIDE_SCRIPT = true, MAP_ROTATION = false, NIGHT_MODE = false, DASHBOARD = true, SMART_ALERTS = true,
     PANIC_MODE = false, COLLECT_ITEMS = true, AIR_SWIM = true, TIMER_HOOK = false, ANTI_REPORT = false, ANTI_ADMIN = false, AUTO_UPDATE = false,
     CUSTOM_FLOOD_COLORS = false, FLOOD_COLOR = "Blue"
@@ -200,6 +203,7 @@ local function updateStats(d) Stats.mapsCompleted = Stats.mapsCompleted + 1; if 
 local function getStatsText() return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft) end
 
 -- ==================== CORE FUNCTIONS ====================
+-- Blacklist tetap disimpan tapi dinonaktifkan
 local MapBlacklist = { "Blue Moon", "Poisonous Chasm", "Rustic Jungle", "Luminance" }
 local function isMapBlacklisted(n) if not CONFIG.BLACKLIST_ENABLED then return false end; for _, bl in ipairs(MapBlacklist) do if n:lower():find(bl:lower()) then return true end end; return false end
 
@@ -289,46 +293,21 @@ TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController();
 
 local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
 
--- ✅ FUNGSI GET DIFFICULTY SUPER ROBUST
+-- ✅ FUNGSI GET DIFFICULTY ANTI-GAGAL
 local function GetDifficulty()
-    local results = {}
-    -- Coba dari GUI Lobby
-    pcall(function()
+    local ok, res = pcall(function()
         local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
-        if diffLabel and diffLabel.Text then
-            local raw = diffLabel.Text
-            local cleaned = raw:gsub("%s+", ""):lower()
-            table.insert(results, cleaned)
-        end
+        local raw = diffLabel.Text
+        local cleaned = raw:gsub("%s+", " "):lower()
+        if cleaned:find("crazy+") or cleaned:find("crazy %+") then return "Crazy+" end
+        if cleaned:find("crazy") then return "Crazy" end
+        if cleaned:find("insane") then return "Insane" end
+        if cleaned:find("hard") then return "Hard" end
+        if cleaned:find("normal") then return "Normal" end
+        if cleaned:find("easy") then return "Easy" end
+        return nil
     end)
-    -- Coba dari Map Settings (jika ada)
-    pcall(function()
-        for _, map in pairs(Multiplayer:GetChildren()) do
-            if map:IsA("Folder") and map:FindFirstChild("Settings") then
-                local attr = map.Settings:GetAttribute("Difficulty")
-                if attr then table.insert(results, tostring(attr):gsub("%s+", ""):lower()) end
-            end
-        end
-    end)
-    -- Cek semua teks yang mengandung "difficulty"
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("TextLabel") and obj.Text:lower():find("difficulty") then
-            local txt = obj.Text:gsub("%s+", ""):lower()
-            table.insert(results, txt)
-        end
-    end
-
-    -- Cocokkan dengan rank
-    for _, txt in ipairs(results) do
-        if txt:find("crazy%+") or txt:find("crazy+") then return 6, "Crazy+" end
-        if txt:find("crazy") then return 5, "Crazy" end
-        if txt:find("insane") then return 4, "Insane" end
-        if txt:find("hard") then return 3, "Hard" end
-        if txt:find("normal") then return 2, "Normal" end
-        if txt:find("easy") then return 1, "Easy" end
-    end
-
-    -- Fallback: lihat dari jumlah pemain / vote? (tidak, tetap return 0)
+    if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
     return 0, "Unknown"
 end
 
@@ -446,29 +425,22 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (FIXED) ====================
+-- ==================== MANUAL AUTO FARM LOGIC (SEMUA MAP DIFARM) ====================
 local function OnMapLoad(map)
     clearESPCache()
     pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
     handleAdminDetection()
 
-    if isMapBlacklisted(Stats.currentMap) then
-        Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1; saveStats()
-        pcall(function() local c = Player.Character; c.HumanoidRootPart.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); c.Humanoid.Health = 0 end)
-        CurrentlyFarming = false; Stats.currentMap = ""; return
-    end
-
+    -- ✅ BLACKLIST TIDAK AKTIF, jadi tidak ada map yang di-skip
     CurrentlyFarming = true; Escaped = false; TimerHookActive = false
     local char = Player.Character; if not char then CurrentlyFarming = false; return end
     local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then CurrentlyFarming = false; return end
 
     local curRank, curName = GetDifficulty()
-    print("DEBUG: Detected difficulty rank:", curRank, "name:", curName)
-    -- ✅ FALLBACK: Jika tidak terbaca, anggap Crazy biasa (tetap lanjutkan)
+    -- ✅ FALLBACK: Jika tidak terbaca, anggap Crazy biasa
     if curRank == 0 then curRank = 5; curName = "Crazy" end
     if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
-        notify("Map " .. Stats.currentMap .. " is " .. curName .. " (above target " .. CONFIG.TARGET_DIFFICULTY .. "). Resetting...", "AutoFarm")
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
         hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return
     end
@@ -800,5 +772,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 
 loadStats()
 setupAutoReconnect()
-notify("Troxzy VIP v20.7 - PRO Edition Ready!", "Success")
+notify("Troxzy VIP v20.7 - PRO Edition Ready! (All Maps)", "Success")
 print("Troxzy VIP - PRO Edition Loaded.")
