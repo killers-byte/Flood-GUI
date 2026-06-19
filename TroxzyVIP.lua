@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: TRUE REAL-WORLD TIME SYNC (ANTI-SPOOF)
+-- 🔥 FIXED: AUTO FARM MOVE TO LIFT + CRAZY+ SUPPORT
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -26,13 +26,10 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== TRUE TIME SYSTEM ====================
--- Mengambil waktu MURNI dari Server Roblox, kebal dari jam HP/PC yang ngaco.
 local function GetRealTime()
     local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
-    if ok and srvTime > 1000000 then
-        return srvTime
-    end
-    return os.time() -- Fallback terakhir
+    if ok and srvTime > 1000000 then return srvTime end
+    return os.time()
 end
 
 -- ==================== KEY VALIDATION GUI ====================
@@ -43,35 +40,21 @@ local attempts = 0
 local keyExpireTime = 0
 
 local function parseExpiry(expiry)
-    if expiry == "permanent" then
-        return 9999999999
-    end
-
+    if expiry == "permanent" then return 9999999999 end
     if type(expiry) == "string" then
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
         if year and month and day then
             year, month, day = tonumber(year), tonumber(month), tonumber(day)
-            
-            -- Kalkulasi Unix Timestamp secara manual untuk mencegah error timezone lokal
             local isLeap = function(y) return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) end
             local daysInMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
-            
             local days = 0
             for y = 1970, year - 1 do days = days + (isLeap(y) and 366 or 365) end
-            for m = 1, month - 1 do 
+            for m = 1, month - 1 do
                 days = days + daysInMonth[m]
                 if m == 2 and isLeap(year) then days = days + 1 end
             end
             days = days + (day - 1)
-            
-            -- Konversi hari ke detik (GMT/UTC)
-            local timestamp = (days * 86400) 
-            -- Tambah waktu agar expired persis jam 23:59:59 di tanggal tersebut
-            local expire = timestamp + 86399 
-            
-            -- Sesuaikan dengan UTC+7 (WIB) karena API waktu pakai WIB
-            expire = expire - (7 * 3600)
-            
+            local expire = (days * 86400) + 86399 - (7 * 3600) -- UTC+7
             return expire
         end
     end
@@ -93,149 +76,49 @@ KeyFrame.Active = true
 KeyFrame.Draggable = true
 KeyFrame.Parent = KeyScreen
 
-local KeyCorner = Instance.new("UICorner")
-KeyCorner.CornerRadius = UDim.new(0, 12)
-KeyCorner.Parent = KeyFrame
-
-local KeyStroke = Instance.new("UIStroke")
-KeyStroke.Color = Color3.fromRGB(99, 102, 241)
-KeyStroke.Thickness = 2
-KeyStroke.Transparency = 0.3
-KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-KeyStroke.Parent = KeyFrame
+local KeyCorner = Instance.new("UICorner"); KeyCorner.CornerRadius = UDim.new(0, 12); KeyCorner.Parent = KeyFrame
+local KeyStroke = Instance.new("UIStroke"); KeyStroke.Color = Color3.fromRGB(99, 102, 241); KeyStroke.Thickness = 2; KeyStroke.Transparency = 0.3; KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; KeyStroke.Parent = KeyFrame
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Position = UDim2.new(0, 0, 0, 15)
-Title.Text = "🔑 TROXZY VIP KEY"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 18
-Title.Font = Enum.Font.GothamBlack
-Title.BackgroundTransparency = 1
-Title.Parent = KeyFrame
+Title.Size = UDim2.new(1, 0, 0, 35); Title.Position = UDim2.new(0, 0, 0, 15); Title.Text = "🔑 TROXZY VIP KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 18; Title.Font = Enum.Font.GothamBlack; Title.BackgroundTransparency = 1; Title.Parent = KeyFrame
 
 local Subtitle = Instance.new("TextLabel")
-Subtitle.Size = UDim2.new(1, 0, 0, 20)
-Subtitle.Position = UDim2.new(0, 0, 0, 50)
-Subtitle.Text = "Masukkan key untuk melanjutkan"
-Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200)
-Subtitle.TextSize = 12
-Subtitle.Font = Enum.Font.Gotham
-Subtitle.BackgroundTransparency = 1
-Subtitle.Parent = KeyFrame
+Subtitle.Size = UDim2.new(1, 0, 0, 20); Subtitle.Position = UDim2.new(0, 0, 0, 50); Subtitle.Text = "Masukkan key untuk melanjutkan"; Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200); Subtitle.TextSize = 12; Subtitle.Font = Enum.Font.Gotham; Subtitle.BackgroundTransparency = 1; Subtitle.Parent = KeyFrame
 
 local TextBox = Instance.new("TextBox")
-TextBox.Size = UDim2.new(0, 260, 0, 35)
-TextBox.Position = UDim2.new(0.5, -130, 0, 80)
-TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"
-TextBox.Text = ""
-TextBox.Font = Enum.Font.GothamMedium
-TextBox.TextSize = 14
-TextBox.ClearTextOnFocus = false
-TextBox.Parent = KeyFrame
-
-local TextCorner = Instance.new("UICorner")
-TextCorner.CornerRadius = UDim.new(0, 6)
-TextCorner.Parent = TextBox
-
-local TextStroke = Instance.new("UIStroke")
-TextStroke.Color = Color3.fromRGB(99, 102, 241)
-TextStroke.Thickness = 1
-TextStroke.Transparency = 0.5
-TextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-TextStroke.Parent = TextBox
+TextBox.Size = UDim2.new(0, 260, 0, 35); TextBox.Position = UDim2.new(0.5, -130, 0, 80); TextBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45); TextBox.TextColor3 = Color3.fromRGB(255, 255, 255); TextBox.PlaceholderText = "TROXZY-XXXX-YYYY-ZZZZ"; TextBox.Text = ""; TextBox.Font = Enum.Font.GothamMedium; TextBox.TextSize = 14; TextBox.ClearTextOnFocus = false; TextBox.Parent = KeyFrame
+local TextCorner = Instance.new("UICorner"); TextCorner.CornerRadius = UDim.new(0, 6); TextCorner.Parent = TextBox
+local TextStroke = Instance.new("UIStroke"); TextStroke.Color = Color3.fromRGB(99, 102, 241); TextStroke.Thickness = 1; TextStroke.Transparency = 0.5; TextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; TextStroke.Parent = TextBox
 
 local SubmitBtn = Instance.new("TextButton")
-SubmitBtn.Size = UDim2.new(0, 260, 0, 35)
-SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125)
-SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
-SubmitBtn.Text = "SUBMIT KEY"
-SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-SubmitBtn.TextSize = 14
-SubmitBtn.Font = Enum.Font.GothamBlack
-SubmitBtn.Parent = KeyFrame
-
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 6)
-BtnCorner.Parent = SubmitBtn
+SubmitBtn.Size = UDim2.new(0, 260, 0, 35); SubmitBtn.Position = UDim2.new(0.5, -130, 0, 125); SubmitBtn.BackgroundColor3 = Color3.fromRGB(99, 102, 241); SubmitBtn.Text = "SUBMIT KEY"; SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255); SubmitBtn.TextSize = 14; SubmitBtn.Font = Enum.Font.GothamBlack; SubmitBtn.Parent = KeyFrame
+local BtnCorner = Instance.new("UICorner"); BtnCorner.CornerRadius = UDim.new(0, 6); BtnCorner.Parent = SubmitBtn
 
 local ErrorLabel = Instance.new("TextLabel")
-ErrorLabel.Size = UDim2.new(1, 0, 0, 20)
-ErrorLabel.Position = UDim2.new(0, 0, 0, 168)
-ErrorLabel.Text = ""
-ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-ErrorLabel.TextSize = 11
-ErrorLabel.Font = Enum.Font.GothamMedium
-ErrorLabel.BackgroundTransparency = 1
-ErrorLabel.Parent = KeyFrame
+ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 168); ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80); ErrorLabel.TextSize = 11; ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.BackgroundTransparency = 1; ErrorLabel.Parent = KeyFrame
 
 local function checkKey(input)
-    if input == "" then
-        ErrorLabel.Text = "Key tidak boleh kosong!"
-        return
-    end
-    
+    if input == "" then ErrorLabel.Text = "Key tidak boleh kosong!"; return end
     local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
-    if not success then
-        ErrorLabel.Text = "Gagal terhubung ke server key"
-        return
-    end
-
+    if not success then ErrorLabel.Text = "Gagal terhubung ke server key"; return end
     local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
-    if not ok then
-        ErrorLabel.Text = "Data key rusak"
-        return
-    end
-
+    if not ok then ErrorLabel.Text = "Data key rusak"; return end
     local keyData = keys[input]
     if not keyData then
         attempts = attempts + 1
-        if attempts >= 3 then
-            Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
-        else
-            ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
-            TextBox.Text = ""
-        end
+        if attempts >= 3 then Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.") else ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"; TextBox.Text = "" end
         return
     end
-
-    if not keyData.expiry then
-        Player:Kick("Key tidak memiliki field 'expiry'. Hubungi penjual.")
-        return
-    end
-
+    if not keyData.expiry then Player:Kick("Key tidak memiliki field 'expiry'. Hubungi penjual."); return end
     local expireTime = parseExpiry(keyData.expiry)
-    if not expireTime then
-        Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'.")
-        return
-    end
-
-    -- Kunci Validasi: Pakai Waktu Asli Bumi
-    local now = GetRealTime()
-    
-    if now > expireTime then
-        Player:Kick("Key sudah expired! Beli key baru.")
-        return
-    end
-
-    keyValid = true
-    keyExpireTime = expireTime
-    KeyScreen:Destroy()
+    if not expireTime then Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'."); return end
+    if GetRealTime() > expireTime then Player:Kick("Key sudah expired! Beli key baru."); return end
+    keyValid = true; keyExpireTime = expireTime; KeyScreen:Destroy()
 end
 
-SubmitBtn.MouseButton1Click:Connect(function()
-    checkKey(TextBox.Text)
-end)
+SubmitBtn.MouseButton1Click:Connect(function() checkKey(TextBox.Text) end)
+TextBox.FocusLost:Connect(function(enterPressed) if enterPressed then checkKey(TextBox.Text) end end)
 
-TextBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        checkKey(TextBox.Text)
-    end
-end)
-
--- Script HANYA akan lanjut jika Key Valid
 repeat task.wait() until keyValid or not Player.Parent
 if not keyValid then return end
 
@@ -245,7 +128,6 @@ task.wait(1)
 
 local Camera = Workspace.CurrentCamera
 local IS_MOBILE = UIS.TouchEnabled
-
 _G.TroxzyAutoFarm = false
 
 -- Variabel Utama
@@ -253,93 +135,32 @@ local CurrentlyFarming = false
 local mapCompleted = false
 local Escaped = false
 local Main, ToggleBtn, MapDetect = nil, nil, nil
-local TimerHookActive = false
-local TimerHookStart = 0
-
--- TAS & Auto Queue State
-local TAS_COROUTINE = nil
-local TAS_RUNNING = false
-local TAS_STATUS_LABEL = nil
-local AUTO_QUEUE_ENABLED = false
-local AutoQueueListener = nil
-
--- 60 FPS Movement
-local liftTarget = nil
-local moveToLift = false
-
--- Admin Detector Pro
-local DetectedAdmins = {}
-local lastAdminCount = 0
-
--- UI State
-local isMinimized = false
-local lastDashboardUpdate = 0
+local TimerHookActive, TimerHookStart = false, 0
+local TAS_COROUTINE, TAS_RUNNING, TAS_STATUS_LABEL = nil, false, nil
+local AUTO_QUEUE_ENABLED, AutoQueueListener = false, nil
+local liftTarget, moveToLift = nil, false
+local DetectedAdmins, lastAdminCount = {}, 0
+local isMinimized, lastDashboardUpdate = false, 0
 
 -- Cleanup UI Lama
 pcall(function()
-    for _, gui in pairs(CoreGui:GetChildren()) do
-        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
-    end
-    for _, gui in pairs(Player.PlayerGui:GetChildren()) do
-        if gui.Name:find("TROXZY_VIP") then gui:Destroy() end
-    end
+    for _, gui in pairs(CoreGui:GetChildren()) do if gui.Name:find("TROXZY_VIP") then gui:Destroy() end end
+    for _, gui in pairs(Player.PlayerGui:GetChildren()) do if gui.Name:find("TROXZY_VIP") then gui:Destroy() end end
 end)
-
-if _G.TroxzyConnections then
-    for _, conn in pairs(_G.TroxzyConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-end
+if _G.TroxzyConnections then for _, conn in pairs(_G.TroxzyConnections) do pcall(function() conn:Disconnect() end) end end
 _G.TroxzyConnections = {}
-
-local function TrackConnection(conn)
-    table.insert(_G.TroxzyConnections, conn)
-    return conn
-end
+local function TrackConnection(conn) table.insert(_G.TroxzyConnections, conn); return conn end
 
 -- ==================== UTILITY & THEME ====================
-local function addCorner(obj, r)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r or 6)
-    c.Parent = obj
-end
-
-local function addStroke(obj, color, thickness, transparency)
-    local s = Instance.new("UIStroke")
-    s.Color = color or Color3.fromRGB(255,255,255)
-    s.Thickness = thickness or 1
-    s.Transparency = transparency or 0.85
-    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    s.Parent = obj
-    return s
-end
-
-local function Tween(obj, props, time)
-    if not obj then return end
-    TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
-end
-
-local function notify(msg, title)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", { Title = title or "Troxzy VIP", Text = msg, Duration = 2 })
-    end)
-end
-
+local function addCorner(obj, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 6); c.Parent = obj end
+local function addStroke(obj, color, thickness, transparency) local s = Instance.new("UIStroke"); s.Color = color or Color3.fromRGB(255,255,255); s.Thickness = thickness or 1; s.Transparency = transparency or 0.85; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Parent = obj; return s end
+local function Tween(obj, props, time) if not obj then return end; TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play() end
+local function notify(msg, title) pcall(function() StarterGui:SetCore("SendNotification", { Title = title or "Troxzy VIP", Text = msg, Duration = 2 }) end) end
 local SOUND_IDS = { success = 9120386436, alert = 9116456845, error = 9116456845 }
-local function playSound(id)
-    pcall(function()
-        local s = Instance.new("Sound", Workspace)
-        s.SoundId = "rbxassetid://" .. id
-        s.Volume = 0.5
-        s:Play()
-        game.Debris:AddItem(s, 3)
-    end)
-end
+local function playSound(id) pcall(function() local s = Instance.new("Sound", Workspace); s.SoundId = "rbxassetid://" .. id; s.Volume = 0.5; s:Play(); game.Debris:AddItem(s, 3) end) end
 
 local ThemeObjects = {}
-local function RegisterThemeObject(obj, property, darkValue, lightValue)
-    table.insert(ThemeObjects, { obj = obj, property = property, dark = darkValue, light = lightValue })
-end
+local function RegisterThemeObject(obj, property, darkValue, lightValue) table.insert(ThemeObjects, { obj = obj, property = property, dark = darkValue, light = lightValue }) end
 
 local currentTheme = "Dark"
 local DARK_THEME = {
@@ -366,18 +187,10 @@ local LIGHT_THEME = {
     InfoText = Color3.fromRGB(20, 40, 80), ButtonRecord = Color3.fromRGB(200, 50, 50),
     ButtonPanic = Color3.fromRGB(255, 90, 90), ButtonForceLeave = Color3.fromRGB(190, 60, 60)
 }
-
 local function applyTheme(theme)
-    currentTheme = theme
-    local t = (theme == "Dark") and DARK_THEME or LIGHT_THEME
-    for _, entry in ipairs(ThemeObjects) do
-        if entry.obj and entry.obj.Parent then
-            Tween(entry.obj, { [entry.property] = (theme == "Dark") and entry.dark or entry.light })
-        end
-    end
-    if _G.ToggleStates then
-        for _, toggle in pairs(_G.ToggleStates) do toggle.SetState(toggle.state) end
-    end
+    currentTheme = theme; local t = (theme == "Dark") and DARK_THEME or LIGHT_THEME
+    for _, entry in ipairs(ThemeObjects) do if entry.obj and entry.obj.Parent then Tween(entry.obj, { [entry.property] = (theme == "Dark") and entry.dark or entry.light }) end end
+    if _G.ToggleStates then for _, toggle in pairs(_G.ToggleStates) do toggle.SetState(toggle.state) end end
 end
 
 -- ==================== CONFIG & STATS ====================
@@ -397,214 +210,71 @@ local Stats = {
     difficultyStats = { Easy = 0, Normal = 0, Hard = 0, Insane = 0, Crazy = 0, ["Crazy+"] = 0 },
     blacklistedSkipped = 0, adminDetected = 0, adminLeft = 0, currentMap = ""
 }
-
-local function loadStats()
-    pcall(function()
-        if isfile("Troxzy_Stats.json") then
-            local d = HttpService:JSONDecode(readfile("Troxzy_Stats.json"))
-            for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end
-        end
-    end)
-    Stats.sessionStart = os.clock()
-end
-
-local function saveStats()
-    pcall(function()
-        Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart)
-        writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats))
-        Stats.sessionStart = os.clock()
-    end)
-end
-
-local function updateStats(d)
-    Stats.mapsCompleted = Stats.mapsCompleted + 1
-    if d and Stats.difficultyStats[d] then
-        Stats.difficultyStats[d] = Stats.difficultyStats[d] + 1
-    end
-end
-
-local function getStatsText()
-    return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft)
-end
+local function loadStats() pcall(function() if isfile("Troxzy_Stats.json") then local d = HttpService:JSONDecode(readfile("Troxzy_Stats.json")); for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end end end); Stats.sessionStart = os.clock() end
+local function saveStats() pcall(function() Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart); writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats)); Stats.sessionStart = os.clock() end) end
+local function updateStats(d) Stats.mapsCompleted = Stats.mapsCompleted + 1; if d and Stats.difficultyStats[d] then Stats.difficultyStats[d] = Stats.difficultyStats[d] + 1 end end
+local function getStatsText() return string.format("Maps: %d  |  Adm: %d", Stats.mapsCompleted, Stats.adminLeft) end
 
 -- ==================== CORE FUNCTIONS ====================
 local MapBlacklist = { "Blue Moon", "Poisonous Chasm", "Rustic Jungle", "Luminance" }
-local function isMapBlacklisted(n)
-    if not CONFIG.BLACKLIST_ENABLED then return false end
-    for _, bl in ipairs(MapBlacklist) do if n:lower():find(bl:lower()) then return true end end
-    return false
-end
+local function isMapBlacklisted(n) if not CONFIG.BLACKLIST_ENABLED then return false end; for _, bl in ipairs(MapBlacklist) do if n:lower():find(bl:lower()) then return true end end; return false end
 
 local MapRotation = { "Sandswept Ruins", "Axiom", "Castle Tides", "Lost Woods", "Nimble Valley", "Mayan Remnants", "Sulphureous Sea", "Lava Tower", "Dark Sci-Forest", "Sedimentary Temple", "Abandoned Facility", "Sinking Ship", "Familiar Ruins" }
 local rotationIndex = 1
-local function rotateMap()
-    if not CONFIG.MAP_ROTATION then return end
-    CONFIG.TARGET_MAP = MapRotation[rotationIndex]
-    rotationIndex = rotationIndex + 1
-    if rotationIndex > #MapRotation then rotationIndex = 1 end
-end
+local function rotateMap() if not CONFIG.MAP_ROTATION then return end; CONFIG.TARGET_MAP = MapRotation[rotationIndex]; rotationIndex = rotationIndex + 1; if rotationIndex > #MapRotation then rotationIndex = 1 end end
 
 local adminKeywords = { ["admin"] = true, ["mod"] = true, ["owner"] = true, ["dev"] = true, ["helper"] = true, ["staff"] = true }
-local function isAdmin(p)
-    if not CONFIG.ADMIN_DETECTOR then return false end
-    local name = p.Name:lower(); local display = p.DisplayName:lower()
-    for kw, _ in pairs(adminKeywords) do if name:find(kw) or display:find(kw) then return true end end
-    return false
-end
-
-local function getAdminPlayers()
-    local admins = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= Player and isAdmin(p) then table.insert(admins, p) end
-    end
-    return admins
-end
-
+local function isAdmin(p) if not CONFIG.ADMIN_DETECTOR then return false end; local name = p.Name:lower(); local display = p.DisplayName:lower(); for kw, _ in pairs(adminKeywords) do if name:find(kw) or display:find(kw) then return true end end; return false end
+local function getAdminPlayers() local admins = {}; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and isAdmin(p) then table.insert(admins, p) end end; return admins end
 local function getSpectators()
-    local specs = {}
-    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
+    local specs = {}; if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
     local myRoot = Player.Character.HumanoidRootPart
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("HumanoidRootPart") then
             local hum = p.Character.Humanoid
-            local isDead = hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead
-            if isDead then
-                local theirRoot = p.Character.HumanoidRootPart
-                local dist = (myRoot.Position - theirRoot.Position).Magnitude
-                if dist < 50 then table.insert(specs, p) end
+            if hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then
+                if (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude < 50 then table.insert(specs, p) end
             end
         end
     end
     return specs
 end
-
-local function blockAdminRemotes()
-    local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote")
-    if not RemoteFolder then return end
-    local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
-    for _, remote in ipairs(RemoteFolder:GetChildren()) do
-        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-            local lowerName = remote.Name:lower()
-            for _, kw in ipairs(dangerousKeywords) do
-                if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end
-            end
-        end
-    end
-end
-
+local function blockAdminRemotes() local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote"); if not RemoteFolder then return end; local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }; for _, remote in ipairs(RemoteFolder:GetChildren()) do if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then local lowerName = remote.Name:lower(); for _, kw in ipairs(dangerousKeywords) do if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end end end end end
 local lastAdminAlert = 0
-local function handleAdminDetection()
-    if not CONFIG.ADMIN_DETECTOR then return end
-    local admins = getAdminPlayers()
-    local count = #admins
-    if count > lastAdminCount then
-        local now = os.clock()
-        if now - lastAdminAlert < 10 then return end
-        lastAdminAlert = now
-        Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount)
-        notify("Admin(s) detected! Protection active.", "Anti-Admin")
-        if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
-        if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
-    end
-    lastAdminCount = count
-end
-
+local function handleAdminDetection() if not CONFIG.ADMIN_DETECTOR then return end; local admins = getAdminPlayers(); local count = #admins; if count > lastAdminCount then local now = os.clock(); if now - lastAdminAlert < 10 then return end; lastAdminAlert = now; Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount); notify("Admin(s) detected! Protection active.", "Anti-Admin"); if CONFIG.ANTI_ADMIN then blockAdminRemotes() end; if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end end; lastAdminCount = count end
 if CONFIG.ANTI_REPORT then pcall(function() Players.ReportAbuse = function() end end) end
 
 local floodColorMap = { Blue = Color3.fromRGB(0, 150, 255), Green = Color3.fromRGB(0, 255, 100), Red = Color3.fromRGB(255, 50, 50), Pink = Color3.fromRGB(255, 100, 200), Purple = Color3.fromRGB(150, 50, 255) }
-local function applyFloodColors()
-    if not CONFIG.CUSTOM_FLOOD_COLORS then return end
-    local targetColor = floodColorMap[CONFIG.FLOOD_COLOR] or Color3.fromRGB(0, 150, 255)
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then
-            pcall(function() v.Color = targetColor end)
-        end
-    end
-end
-
+local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local targetColor = floodColorMap[CONFIG.FLOOD_COLOR] or Color3.fromRGB(0, 150, 255); for _, v in pairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then pcall(function() v.Color = targetColor end) end end end
 local lastFloodColorUpdate = 0
-local function periodicFloodColorUpdate()
-    if not CONFIG.CUSTOM_FLOOD_COLORS then return end
-    local now = os.clock()
-    if now - lastFloodColorUpdate < 0.5 then return end
-    lastFloodColorUpdate = now
-    applyFloodColors()
-end
+local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
 
 local function stealthDelay() return CONFIG.STEALTH_MODE and math.random(10, 50) / 100 or 0.05 end
 local function stealthOffset() return CONFIG.STEALTH_MODE and Vector3.new(math.random(-50,50)/100, math.random(-30,30)/100, math.random(-50,50)/100) or Vector3.new(math.random(), math.random(), math.random()) end
 
 local buttonCount = 0
-local function shouldTakeBreak()
-    if not CONFIG.RANDOM_DELAY then return false end
-    buttonCount = buttonCount + 1
-    if buttonCount >= math.random(3,8) then buttonCount = 0; return true end
-    return false
-end
+local function shouldTakeBreak() if not CONFIG.RANDOM_DELAY then return false end; buttonCount = buttonCount + 1; if buttonCount >= math.random(3,8) then buttonCount = 0; return true end; return false end
+local function isPlayerNearby() if not CONFIG.HIDE_SCRIPT then return false end; local char = Player.Character; if not char then return false end; local root = char:FindFirstChild("HumanoidRootPart"); if not root then return false end; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end end end; return false end
 
-local function isPlayerNearby()
-    if not CONFIG.HIDE_SCRIPT then return false end
-    local char = Player.Character; if not char then return false end
-    local root = char:FindFirstChild("HumanoidRootPart"); if not root then return false end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end
-        end
-    end
-    return false
-end
-
-local function attemptReconnect()
-    saveStats(); task.wait(3)
-    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end)
-end
-
-local function setupAutoReconnect()
-    if not CONFIG.AUTO_RECONNECT then return end
-    TrackConnection(Player:GetPropertyChangedSignal("Parent"):Connect(function() if not Player.Parent then attemptReconnect() end end))
-    TrackConnection(TeleportService.TeleportInitFailed:Connect(attemptReconnect))
-    TrackConnection(Player.OnTeleport:Connect(saveStats))
-end
-
-local function forceReconnect()
-    saveStats(); task.wait(1)
-    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
-    task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end)
-end
+local function attemptReconnect() saveStats(); task.wait(3); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end); task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) end
+local function setupAutoReconnect() if not CONFIG.AUTO_RECONNECT then return end; TrackConnection(Player:GetPropertyChangedSignal("Parent"):Connect(function() if not Player.Parent then attemptReconnect() end end)); TrackConnection(TeleportService.TeleportInitFailed:Connect(attemptReconnect)); TrackConnection(Player.OnTeleport:Connect(saveStats)) end
+local function forceReconnect() saveStats(); task.wait(1); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end); task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) end
 
 local DIFFICULTY_RANKS = { ["Easy"] = 1, ["Normal"] = 2, ["Hard"] = 3, ["Insane"] = 4, ["Crazy"] = 5, ["Crazy+"] = 6 }
-local function DisconnectMapDetection()
-    if MapDetect then MapDetect:Disconnect(); MapDetect = nil end
-end
+local function DisconnectMapDetection() if MapDetect then MapDetect:Disconnect(); MapDetect = nil end end
 
 -- ==================== TAS ENGINE ====================
 local function ExecuteTAS()
     if not CONFIG.TAS_AUTO_START then notify("TAS Auto-Start is OFF. Enable it first.", "TAS"); return end
-    if TAS_RUNNING then
-        if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end
-        TAS_RUNNING = false; task.wait(0.2)
-    end
-
-    _G.TroxzyAutoFarm = false
-    CurrentlyFarming = false
-    DisconnectMapDetection()
-
-    local url = CONFIG.TAS_MODE == "Record"
-        and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau"
-        or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
-
+    if TAS_RUNNING then if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil end; TAS_RUNNING = false; task.wait(0.2) end
+    _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection()
+    local url = CONFIG.TAS_MODE == "Record" and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau" or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
     local success, scriptContent = pcall(function() return game:HttpGet(url) end)
     if not success then notify("Download failed.", "Error"); return end
-
     local func, compileErr = loadstring(scriptContent)
     if not func then notify("Compile error.", "Error"); return end
-
     TAS_COROUTINE = coroutine.create(function()
-        TAS_RUNNING = true
-        local execOk, execErr = pcall(func)
-        TAS_RUNNING = false
-        TAS_COROUTINE = nil
+        TAS_RUNNING = true; local execOk, execErr = pcall(func); TAS_RUNNING = false; TAS_COROUTINE = nil
         if AUTO_QUEUE_ENABLED then mapCompleted = true end
         if not execOk then notify("TAS runtime error: " .. tostring(execErr), "Error") else notify("TAS finished!", "Success") end
         if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: ▶ READY" end
@@ -634,19 +304,30 @@ TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg) if type(msg) == 
 TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end))
 
 local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
-local function GetDifficulty() local ok, res = pcall(function() local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty; return string.gsub(string.split(diffLabel.Text, ":")[1], "^%s*(.-)%s*$", "%1") end); if ok and res then return DIFFICULTY_RANKS[res] or 0, res end; return 0, "Unknown" end
+local function GetDifficulty()
+    local ok, res = pcall(function()
+        local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
+        local raw = diffLabel.Text
+        -- Dukung berbagai format penulisan difficulty
+        local cleaned = string.gsub(string.split(raw, ":")[1], "^%s*(.-)%s*$", "%1")
+        if cleaned == "Crazy+" or cleaned == "Crazy +" then return "Crazy+" end
+        return cleaned
+    end)
+    if ok and res then return DIFFICULTY_RANKS[res] or 0, res end
+    return 0, "Unknown"
+end
 local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
 
+-- ==================== 60 FPS AUTO WALK TO LIFT (FIXED) ====================
 local function findLiftPosition()
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = obj.Name:lower()
-            if name:find("lift") or name:find("elevator") or name:find("lobby") then
-                return obj.Position
-            end
+    -- Cari model/part bernama Lift di Lobby
+    for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name:lower():find("lift") then
+            return obj.Position + Vector3.new(0, 5, 0) -- sedikit di atas lantai lift
         end
     end
-    return Vector3.new(25, 10, 85)
+    -- Fallback: koordinat tengah lobby
+    return Vector3.new(25, 7, 85)
 end
 
 TrackConnection(RunService.Heartbeat:Connect(function()
@@ -658,10 +339,17 @@ TrackConnection(RunService.Heartbeat:Connect(function()
             if not Check("InGame") and not Check("InLift") then
                 if liftTarget then
                     local dir = (liftTarget - hrp.Position)
-                    if dir.Magnitude > 2 then hum:MoveTo(liftTarget) else pcall(function() AddedWaiting:FireServer() end); moveToLift = false end
+                    if dir.Magnitude > 3 then
+                        hum:MoveTo(liftTarget)
+                        hum.WalkSpeed = 25
+                    else
+                        pcall(function() AddedWaiting:FireServer() end)
+                        moveToLift = false
+                    end
                 end
             elseif Check("InLift") then
-                pcall(function() AddedWaiting:FireServer() end); moveToLift = false
+                pcall(function() AddedWaiting:FireServer() end)
+                moveToLift = false
             end
         end
     end
@@ -672,10 +360,7 @@ local function StartAutoQueue()
     moveToLift = false; mapCompleted = false
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
         if not AUTO_QUEUE_ENABLED or panicActive then return end
-        pcall(function()
-            local settings = newMap:WaitForChild("Settings", 5)
-            if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end
-        end)
+        pcall(function() local settings = newMap:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
         repeat task.wait() until Check("InGame")
         mapCompleted = false
         if not TAS_RUNNING then
@@ -716,50 +401,38 @@ local function refreshNoclip() ncCache = {}; local char = Player.Character; if c
 local function applyNoclip(state) if state == ncActive then return end; ncActive = state; for _, v in ipairs(ncCache) do if v and v.Parent then v.CanCollide = not state end end end
 refreshNoclip()
 
-local espCache = {}
-local lastESPUpdate = 0
+local espCache, lastESPUpdate = {}, 0
 local function updateESP()
-    if os.clock() - lastESPUpdate < 0.1 then return end
-    lastESPUpdate = os.clock()
+    if os.clock() - lastESPUpdate < 0.1 then return end; lastESPUpdate = os.clock()
     if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= Player then
             if plr.Character and not espCache[plr] then
-                local hl = Instance.new("Highlight")
-                hl.FillColor = Color3.fromRGB(160, 180, 200)
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.Parent = plr.Character
-                espCache[plr] = hl
-            elseif not plr.Character and espCache[plr] then
-                pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil
-            end
+                local hl = Instance.new("Highlight"); hl.FillColor = Color3.fromRGB(160, 180, 200); hl.OutlineColor = Color3.fromRGB(255, 255, 255); hl.Parent = plr.Character; espCache[plr] = hl
+            elseif not plr.Character and espCache[plr] then pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil end
         end
     end
-    for plr, hl in pairs(espCache) do
-        if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then pcall(function() hl:Destroy() end); espCache[plr] = nil end
-    end
+    for plr, hl in pairs(espCache) do if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then pcall(function() hl:Destroy() end); espCache[plr] = nil end end
 end
-
 local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
 
 -- ==================== PANIC MODE ====================
 local panicActive = false; _G.ToggleStates = {}
 local minimizeUI, maximizeUI
-
 local function activatePanicMode() 
-    panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false); 
-    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency"); 
+    panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false)
+    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency")
     if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end 
 end
 local function deactivatePanicMode() 
-    panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); 
+    panicActive = false; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end)
     applyNoclip(false); maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end 
 end
 
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC ====================
+-- ==================== MANUAL AUTO FARM LOGIC (FIXED) ====================
 local function OnMapLoad(map)
     clearESPCache()
     pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
@@ -777,7 +450,12 @@ local function OnMapLoad(map)
     if not hrp or not hum then CurrentlyFarming = false; return end
 
     local curRank, curName = GetDifficulty()
-    if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20; hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return end
+    -- Jika difficulty tidak dikenali, anggap aman
+    if curRank == 0 then curRank = 5; curName = "Crazy" end
+    if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+        repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
+        hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return
+    end
 
     if CONFIG.COLLECT_ITEMS then
         local lp = map:FindFirstChild("_LostPage", true); local rsc = map:FindFirstChild("_Rescue", true)
@@ -860,94 +538,62 @@ TrackConnection(NewMapVote.OnClientEvent:Connect(function(data)
 end))
 
 -- ==================== NEW PROFESSIONAL UI ====================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "TROXZY_VIP"
-ScreenGui.ResetOnSpawn = false
+local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
 
 ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(0,50,0,50)
-ToggleBtn.Position = IS_MOBILE and UDim2.new(0.88,0,0.05,0) or UDim2.new(0.015,0,0.015,0)
-ToggleBtn.BackgroundColor3 = DARK_THEME.HeaderBg
-ToggleBtn.Text = "⚡"
-ToggleBtn.TextSize = 22
-ToggleBtn.Font = Enum.Font.GothamBlack
-ToggleBtn.TextColor3 = DARK_THEME.Accent
-addCorner(ToggleBtn, 12); addStroke(ToggleBtn, DARK_THEME.Border, 1, 0.9)
-ToggleBtn.Parent = ScreenGui
+ToggleBtn.Size = UDim2.new(0,50,0,50); ToggleBtn.Position = IS_MOBILE and UDim2.new(0.88,0,0.05,0) or UDim2.new(0.015,0,0.015,0)
+ToggleBtn.BackgroundColor3 = DARK_THEME.HeaderBg; ToggleBtn.Text = "⚡"; ToggleBtn.TextSize = 22; ToggleBtn.Font = Enum.Font.GothamBlack; ToggleBtn.TextColor3 = DARK_THEME.Accent
+addCorner(ToggleBtn, 12); addStroke(ToggleBtn, DARK_THEME.Border, 1, 0.9); ToggleBtn.Parent = ScreenGui
 
 Main = Instance.new("Frame")
-Main.Size = UDim2.new(0,390,0,540)
-Main.Position = UDim2.new(0.5,-195,0.5,-270)
-Main.BackgroundColor3 = DARK_THEME.MainBg
-Main.BorderSizePixel = 0
-Main.Visible = true; Main.Active = true; Main.Draggable = true
-addCorner(Main, 10); addStroke(Main, DARK_THEME.Border, 1, 0.85)
-Main.Parent = ScreenGui
+Main.Size = UDim2.new(0,390,0,540); Main.Position = UDim2.new(0.5,-195,0.5,-270); Main.BackgroundColor3 = DARK_THEME.MainBg; Main.BorderSizePixel = 0; Main.Visible = true; Main.Active = true; Main.Draggable = true
+addCorner(Main, 10); addStroke(Main, DARK_THEME.Border, 1, 0.85); Main.Parent = ScreenGui
 RegisterThemeObject(Main, "BackgroundColor3", DARK_THEME.MainBg, LIGHT_THEME.MainBg)
 
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1,0,0,60); Header.BackgroundColor3 = DARK_THEME.HeaderBg; Header.BorderSizePixel = 0
-addCorner(Header, 10); Header.Parent = Main
+local Header = Instance.new("Frame"); Header.Size = UDim2.new(1,0,0,60); Header.BackgroundColor3 = DARK_THEME.HeaderBg; Header.BorderSizePixel = 0; addCorner(Header, 10); Header.Parent = Main
 RegisterThemeObject(Header, "BackgroundColor3", DARK_THEME.HeaderBg, LIGHT_THEME.HeaderBg)
 local hc = Instance.new("Frame"); hc.Size = UDim2.new(1,0,0.5,0); hc.Position = UDim2.new(0,0,0.5,0); hc.BackgroundColor3 = DARK_THEME.HeaderBg; hc.BorderSizePixel = 0; hc.Parent = Header
 RegisterThemeObject(hc, "BackgroundColor3", DARK_THEME.HeaderBg, LIGHT_THEME.HeaderBg)
 
-local AvatarFrame = Instance.new("Frame")
-AvatarFrame.Size = UDim2.new(0,40,0,40); AvatarFrame.Position = UDim2.new(0,14,0.5,-20); AvatarFrame.BackgroundColor3 = DARK_THEME.Accent
-addCorner(AvatarFrame, 20); AvatarFrame.Parent = Header
-local Avatar = Instance.new("ImageLabel")
-Avatar.Size = UDim2.new(0,36,0,36); Avatar.Position = UDim2.new(0,2,0,2); Avatar.BackgroundColor3 = DARK_THEME.MainBg
-addCorner(Avatar, 18); Avatar.Parent = AvatarFrame
+local AvatarFrame = Instance.new("Frame"); AvatarFrame.Size = UDim2.new(0,40,0,40); AvatarFrame.Position = UDim2.new(0,14,0.5,-20); AvatarFrame.BackgroundColor3 = DARK_THEME.Accent; addCorner(AvatarFrame, 20); AvatarFrame.Parent = Header
+local Avatar = Instance.new("ImageLabel"); Avatar.Size = UDim2.new(0,36,0,36); Avatar.Position = UDim2.new(0,2,0,2); Avatar.BackgroundColor3 = DARK_THEME.MainBg; addCorner(Avatar, 18); Avatar.Parent = AvatarFrame
 task.spawn(function() pcall(function() Avatar.Image = Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420) end) end)
 
-local PlayerName = Instance.new("TextLabel")
-PlayerName.Size = UDim2.new(0,150,0,18); PlayerName.Position = UDim2.new(0,65,0.5,-16); PlayerName.Text = Player.DisplayName; PlayerName.TextColor3 = DARK_THEME.TextBright; PlayerName.TextSize = 14; PlayerName.Font = Enum.Font.GothamBold; PlayerName.BackgroundTransparency = 1; PlayerName.TextXAlignment = Enum.TextXAlignment.Left; PlayerName.Parent = Header
+local PlayerName = Instance.new("TextLabel"); PlayerName.Size = UDim2.new(0,150,0,18); PlayerName.Position = UDim2.new(0,65,0.5,-16); PlayerName.Text = Player.DisplayName; PlayerName.TextColor3 = DARK_THEME.TextBright; PlayerName.TextSize = 14; PlayerName.Font = Enum.Font.GothamBold; PlayerName.BackgroundTransparency = 1; PlayerName.TextXAlignment = Enum.TextXAlignment.Left; PlayerName.Parent = Header
 RegisterThemeObject(PlayerName, "TextColor3", DARK_THEME.TextBright, LIGHT_THEME.TextBright)
 
-local Username = Instance.new("TextLabel")
-Username.Size = UDim2.new(0,150,0,14); Username.Position = UDim2.new(0,65,0.5,4); Username.Text = "@" .. Player.Name; Username.TextColor3 = DARK_THEME.TextDim; Username.TextSize = 11; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1; Username.TextXAlignment = Enum.TextXAlignment.Left; Username.Parent = Header
+local Username = Instance.new("TextLabel"); Username.Size = UDim2.new(0,150,0,14); Username.Position = UDim2.new(0,65,0.5,4); Username.Text = "@" .. Player.Name; Username.TextColor3 = DARK_THEME.TextDim; Username.TextSize = 11; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1; Username.TextXAlignment = Enum.TextXAlignment.Left; Username.Parent = Header
 RegisterThemeObject(Username, "TextColor3", DARK_THEME.TextDim, LIGHT_THEME.TextDim)
 
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "TROXZY VIP"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 15; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
+local TitleLabel = Instance.new("TextLabel"); TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "TROXZY VIP"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 15; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
 RegisterThemeObject(TitleLabel, "TextColor3", DARK_THEME.Accent, LIGHT_THEME.Accent)
 
-local Divider = Instance.new("Frame")
-Divider.Size = UDim2.new(1, -28, 0, 1); Divider.Position = UDim2.new(0, 14, 0, 60); Divider.BackgroundColor3 = DARK_THEME.Border; Divider.BackgroundTransparency = 0.9; Divider.BorderSizePixel = 0; Divider.Parent = Main
+local Divider = Instance.new("Frame"); Divider.Size = UDim2.new(1, -28, 0, 1); Divider.Position = UDim2.new(0, 14, 0, 60); Divider.BackgroundColor3 = DARK_THEME.Border; Divider.BackgroundTransparency = 0.9; Divider.BorderSizePixel = 0; Divider.Parent = Main
 RegisterThemeObject(Divider, "BackgroundColor3", DARK_THEME.Border, LIGHT_THEME.Border)
 
-local StatsBar = Instance.new("Frame")
-StatsBar.Size = UDim2.new(1,-28,0,28); StatsBar.Position = UDim2.new(0,14,0,70); StatsBar.BackgroundColor3 = DARK_THEME.StatsBg
-addCorner(StatsBar, 6); addStroke(StatsBar, DARK_THEME.Border, 1, 0.9); StatsBar.Parent = Main
+local StatsBar = Instance.new("Frame"); StatsBar.Size = UDim2.new(1,-28,0,28); StatsBar.Position = UDim2.new(0,14,0,70); StatsBar.BackgroundColor3 = DARK_THEME.StatsBg; addCorner(StatsBar, 6); addStroke(StatsBar, DARK_THEME.Border, 1, 0.9); StatsBar.Parent = Main
 RegisterThemeObject(StatsBar, "BackgroundColor3", DARK_THEME.StatsBg, LIGHT_THEME.StatsBg)
 
-local StatsLabel = Instance.new("TextLabel")
-StatsLabel.Size = UDim2.new(1,0,1,0); StatsLabel.BackgroundTransparency = 1; StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = DARK_THEME.StatsText; StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 11; StatsLabel.Parent = StatsBar
+local StatsLabel = Instance.new("TextLabel"); StatsLabel.Size = UDim2.new(1,0,1,0); StatsLabel.BackgroundTransparency = 1; StatsLabel.Text = getStatsText(); StatsLabel.TextColor3 = DARK_THEME.StatsText; StatsLabel.Font = Enum.Font.GothamMedium; StatsLabel.TextSize = 11; StatsLabel.Parent = StatsBar
 RegisterThemeObject(StatsLabel, "TextColor3", DARK_THEME.StatsText, LIGHT_THEME.StatsText)
 task.spawn(function() while task.wait(5) do pcall(function() StatsLabel.Text = getStatsText() end) end end)
 
-local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1,-28,0,36); TabBar.Position = UDim2.new(0,14,0,108); TabBar.BackgroundTransparency = 1; TabBar.Parent = Main
-local TabList = Instance.new("UIListLayout")
-TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,4); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center; TabList.VerticalAlignment = Enum.VerticalAlignment.Center; TabList.Parent = TabBar
+local TabBar = Instance.new("Frame"); TabBar.Size = UDim2.new(1,-28,0,36); TabBar.Position = UDim2.new(0,14,0,108); TabBar.BackgroundTransparency = 1; TabBar.Parent = Main
+local TabList = Instance.new("UIListLayout"); TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,4); TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center; TabList.VerticalAlignment = Enum.VerticalAlignment.Center; TabList.Parent = TabBar
 
 local tabItems = { {name="TAS", key="TAS"}, {name="Farm", key="Farm"}, {name="Move", key="Move"}, {name="Visual", key="Visual"}, {name="Stealth", key="Stealth"}, {name="Premium", key="Premium"}, {name="Extra", key="Extra"} }
 local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
-    local tabBtn = Instance.new("TextButton")
-    tabBtn.Size = UDim2.new(0.13,0,0,32); tabBtn.BackgroundColor3 = (tab.key=="TAS") and DARK_THEME.TabActive or DARK_THEME.TabInactive; tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold; tabBtn.TextColor3 = (tab.key=="TAS") and DARK_THEME.TextBright or DARK_THEME.TextDim; tabBtn.AutoButtonColor = false
+    local tabBtn = Instance.new("TextButton"); tabBtn.Size = UDim2.new(0.13,0,0,32); tabBtn.BackgroundColor3 = (tab.key=="TAS") and DARK_THEME.TabActive or DARK_THEME.TabInactive; tabBtn.Text = tab.name; tabBtn.TextSize = 9; tabBtn.Font = Enum.Font.GothamBold; tabBtn.TextColor3 = (tab.key=="TAS") and DARK_THEME.TextBright or DARK_THEME.TextDim; tabBtn.AutoButtonColor = false
     addCorner(tabBtn, 6); tabBtn.Parent = TabBar; table.insert(tabBtns, tabBtn)
 
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Size = UDim2.new(1,-28,1,-165); contentFrame.Position = UDim2.new(0,14,0,155); contentFrame.BackgroundTransparency = 1; contentFrame.Visible = (tab.key=="TAS"); contentFrame.Parent = Main
+    local contentFrame = Instance.new("Frame"); contentFrame.Size = UDim2.new(1,-28,1,-165); contentFrame.Position = UDim2.new(0,14,0,155); contentFrame.BackgroundTransparency = 1; contentFrame.Visible = (tab.key=="TAS"); contentFrame.Parent = Main
 
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1,0,1,0); scrollFrame.BackgroundTransparency = 1; scrollFrame.ScrollBarThickness = 2; scrollFrame.ScrollBarImageColor3 = DARK_THEME.Accent; scrollFrame.CanvasSize = UDim2.new(0,0,0,0); scrollFrame.ScrollingEnabled = true; scrollFrame.Parent = contentFrame
+    local scrollFrame = Instance.new("ScrollingFrame"); scrollFrame.Size = UDim2.new(1,0,1,0); scrollFrame.BackgroundTransparency = 1; scrollFrame.ScrollBarThickness = 2; scrollFrame.ScrollBarImageColor3 = DARK_THEME.Accent; scrollFrame.CanvasSize = UDim2.new(0,0,0,0); scrollFrame.ScrollingEnabled = true; scrollFrame.Parent = contentFrame
 
-    local scrollLayout = Instance.new("UIListLayout")
-    scrollLayout.Padding = UDim.new(0,6); scrollLayout.Parent = scrollFrame
+    local scrollLayout = Instance.new("UIListLayout"); scrollLayout.Padding = UDim.new(0,6); scrollLayout.Parent = scrollFrame
     scrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() scrollFrame.CanvasSize = UDim2.new(0,0,0,scrollLayout.AbsoluteContentSize.Y + 15) end)
 
     table.insert(tabContents, {scroll=scrollFrame, layout=scrollLayout})
@@ -963,53 +609,22 @@ for i, tab in ipairs(tabItems) do
 end
 
 -- UI Helpers
-local function AddSection(tabKey, title)
-    local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
-    local s = Instance.new("TextLabel"); s.Size = UDim2.new(1,0,0,24); s.Text = "  " .. title; s.TextColor3 = DARK_THEME.Accent; s.Font = Enum.Font.GothamBlack; s.TextSize = 11; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; s.Parent = tabContents[tabIdx].scroll
-end
-
-local function AddButton(tabKey, name, color, callback)
-    local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
-    local b = Instance.new("TextButton"); b.Size = UDim2.new(1,0,0,38); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamBold; b.TextColor3 = Color3.fromRGB(255,255,255); b.AutoButtonColor = false; addCorner(b,6); addStroke(b, Color3.new(1,1,1), 1, 0.9); b.Parent = tabContents[tabIdx].scroll
-    b.MouseEnter:Connect(function() Tween(b, {BackgroundColor3 = Color3.new(color.R*0.8, color.G*0.8, color.B*0.8)}) end)
-    b.MouseLeave:Connect(function() Tween(b, {BackgroundColor3 = color}) end)
-    b.MouseButton1Click:Connect(function() Tween(b, {Size = UDim2.new(0.98,0,0,34)}, 0.1); task.wait(0.1); Tween(b, {Size = UDim2.new(1,0,0,38)}, 0.1); pcall(callback) end)
-    return b
-end
-
-local function AddInfoLabel(tabKey, text)
-    local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
-    local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,0,0,36); l.BackgroundColor3 = DARK_THEME.InfoBg; l.Text = text; l.TextColor3 = DARK_THEME.InfoText; l.Font = Enum.Font.GothamMedium; l.TextSize = 11; addCorner(l,6); addStroke(l, DARK_THEME.Border, 1, 0.9); l.Parent = tabContents[tabIdx].scroll
-    RegisterThemeObject(l, "BackgroundColor3", DARK_THEME.InfoBg, LIGHT_THEME.InfoBg)
-    return l
-end
-
-local function AddToggle(tabKey, name, stateKey)
-    local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
-    local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,40); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll
-    RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
-
+local function AddSection(tabKey, title) local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end; local s = Instance.new("TextLabel"); s.Size = UDim2.new(1,0,0,24); s.Text = "  " .. title; s.TextColor3 = DARK_THEME.Accent; s.Font = Enum.Font.GothamBlack; s.TextSize = 11; s.BackgroundTransparency = 1; s.TextXAlignment = Enum.TextXAlignment.Left; s.Parent = tabContents[tabIdx].scroll end
+local function AddButton(tabKey, name, color, callback) local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end; local b = Instance.new("TextButton"); b.Size = UDim2.new(1,0,0,38); b.BackgroundColor3 = color; b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamBold; b.TextColor3 = Color3.fromRGB(255,255,255); b.AutoButtonColor = false; addCorner(b,6); addStroke(b, Color3.new(1,1,1), 1, 0.9); b.Parent = tabContents[tabIdx].scroll; b.MouseEnter:Connect(function() Tween(b, {BackgroundColor3 = Color3.new(color.R*0.8, color.G*0.8, color.B*0.8)}) end); b.MouseLeave:Connect(function() Tween(b, {BackgroundColor3 = color}) end); b.MouseButton1Click:Connect(function() Tween(b, {Size = UDim2.new(0.98,0,0,34)}, 0.1); task.wait(0.1); Tween(b, {Size = UDim2.new(1,0,0,38)}, 0.1); pcall(callback) end); return b end
+local function AddInfoLabel(tabKey, text) local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end; local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,0,0,36); l.BackgroundColor3 = DARK_THEME.InfoBg; l.Text = text; l.TextColor3 = DARK_THEME.InfoText; l.Font = Enum.Font.GothamMedium; l.TextSize = 11; addCorner(l,6); addStroke(l, DARK_THEME.Border, 1, 0.9); l.Parent = tabContents[tabIdx].scroll; RegisterThemeObject(l, "BackgroundColor3", DARK_THEME.InfoBg, LIGHT_THEME.InfoBg); return l end
+local function AddToggle(tabKey, name, stateKey) local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end; local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,40); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll; RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(0.6,0,1,0); lbl.Position = UDim2.new(0,14,0,0); lbl.Text = name; lbl.TextColor3 = DARK_THEME.TextMedium; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = f
     local sb = Instance.new("Frame"); sb.Size = UDim2.new(0,40,0,20); sb.Position = UDim2.new(1,-54,0.5,-10); sb.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(sb,10); addStroke(sb, DARK_THEME.Border, 1, 0.8); sb.Parent = f
     local dot = Instance.new("Frame"); dot.Size = UDim2.new(0,14,0,14); dot.Position = UDim2.new(0,3,0.5,-7); dot.BackgroundColor3 = DARK_THEME.ToggleDot; addCorner(dot,7); dot.Parent = sb
     local btn = Instance.new("TextButton"); btn.Size = UDim2.new(1,0,1,0); btn.BackgroundTransparency = 1; btn.Text = ""; btn.Parent = f
 
     local state = false
-    local function setToggleUI(st)
-        state = st; local t = (currentTheme == "Dark") and DARK_THEME or LIGHT_THEME
-        local pos = st and UDim2.new(0,23,0.5,-7) or UDim2.new(0,3,0.5,-7)
-        Tween(dot, {Position = pos, BackgroundColor3 = st and Color3.fromRGB(255,255,255) or t.ToggleDot})
-        Tween(sb, {BackgroundColor3 = st and t.Accent or t.ToggleBg})
-        Tween(lbl, {TextColor3 = st and t.TextBright or t.TextMedium})
-    end
-
+    local function setToggleUI(st) state = st; local t = (currentTheme == "Dark") and DARK_THEME or LIGHT_THEME; local pos = st and UDim2.new(0,23,0.5,-7) or UDim2.new(0,3,0.5,-7); Tween(dot, {Position = pos, BackgroundColor3 = st and Color3.fromRGB(255,255,255) or t.ToggleDot}); Tween(sb, {BackgroundColor3 = st and t.Accent or t.ToggleBg}); Tween(lbl, {TextColor3 = st and t.TextBright or t.TextMedium}) end
     if stateKey then _G.ToggleStates[stateKey] = { state = false, dot = dot, sb = sb, btn = btn, SetState = setToggleUI } end
 
     btn.MouseButton1Click:Connect(function()
         state = not state; setToggleUI(state)
-        if stateKey == "AUTO_QUEUE" then
-            AUTO_QUEUE_ENABLED = state
-            if state then CONFIG.TAS_MODE = "Play"; CONFIG.TAS_AUTO_START = true; mapCompleted = false; if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end; StartAutoQueue() else StopAutoQueue() end
+        if stateKey == "AUTO_QUEUE" then AUTO_QUEUE_ENABLED = state; if state then CONFIG.TAS_MODE = "Play"; CONFIG.TAS_AUTO_START = true; mapCompleted = false; if _G.ToggleStates["TAS_AUTO_START"] then _G.ToggleStates["TAS_AUTO_START"].SetState(true) end; StartAutoQueue() else StopAutoQueue() end
         elseif stateKey == "AutoFarm" then _G.TroxzyAutoFarm = state; if state then ConnectMapDetection() else DisconnectMapDetection(); CurrentlyFarming = false end
         elseif stateKey == "NIGHT_MODE" then applyTheme(state and "Light" or "Dark")
         elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
@@ -1018,18 +633,13 @@ local function AddToggle(tabKey, name, stateKey)
     end)
     return { Toggle = setToggleUI, Frame = f }
 end
-
-local function AddInput(tabKey, label, defaultVal, callback)
-    local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end
-    local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,44); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll
-    RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
-
+local function AddInput(tabKey, label, defaultVal, callback) local tabIdx; for i, t in ipairs(tabItems) do if t.key==tabKey then tabIdx=i; break end end; if not tabIdx then return end; local f = Instance.new("Frame"); f.Size = UDim2.new(1,0,0,44); f.BackgroundColor3 = DARK_THEME.ToggleBg; addCorner(f,6); addStroke(f, DARK_THEME.Border, 1, 0.9); f.Parent = tabContents[tabIdx].scroll; RegisterThemeObject(f, "BackgroundColor3", DARK_THEME.ToggleBg, LIGHT_THEME.ToggleBg)
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(0.5,0,1,0); lbl.Position = UDim2.new(0,14,0,0); lbl.Text = label; lbl.TextColor3 = DARK_THEME.TextMedium; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = f
     local inp = Instance.new("TextBox"); inp.Size = UDim2.new(0,70,0,26); inp.Position = UDim2.new(1,-84,0.5,-13); inp.BackgroundColor3 = DARK_THEME.InputBg; inp.TextColor3 = DARK_THEME.TextBright; inp.PlaceholderText = tostring(defaultVal); inp.Text = tostring(defaultVal); inp.Font = Enum.Font.GothamBold; inp.TextSize = 11; addCorner(inp,6); addStroke(inp, DARK_THEME.Border, 1, 0.8); inp.Parent = f
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) else inp.Text = tostring(defaultVal) end end)
 end
 
--- ==================== SMOOTH MINIMIZE/MAXIMIZE FUNCTIONS ====================
+-- ==================== SMOOTH MINIMIZE/MAXIMIZE ====================
 minimizeUI = function(instant)
     if not Main.Visible then return end
     if instant then Main.Visible = false; Main.Size = UDim2.new(0,390,0,0); Main.BackgroundTransparency = 0; isMinimized = true; return end
@@ -1038,7 +648,6 @@ minimizeUI = function(instant)
     t:Play()
     t.Completed:Connect(function() Main.Visible = false; Main.Size = UDim2.new(0,390,0,0); Main.BackgroundTransparency = 0 end)
 end
-
 maximizeUI = function()
     if Main.Visible then return end
     isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,390,0,0); Main.BackgroundTransparency = 1
@@ -1046,36 +655,14 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD WITH TRUE KEY COUNTDOWN ====================
-local Dashboard = Instance.new("Frame")
-Dashboard.Size = UDim2.new(0, 230, 0, 0)
-Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
-Dashboard.AnchorPoint = Vector2.new(1, 0)
-Dashboard.BackgroundColor3 = DARK_THEME.MainBg
-Dashboard.AutomaticSize = Enum.AutomaticSize.Y
-Dashboard.Visible = CONFIG.DASHBOARD
-addCorner(Dashboard, 8)
-addStroke(Dashboard, DARK_THEME.Accent, 1, 0.6)
-Dashboard.Parent = ScreenGui
-_G.DashboardUI = Dashboard
+-- ==================== DASHBOARD ====================
+local Dashboard = Instance.new("Frame"); Dashboard.Size = UDim2.new(0, 230, 0, 0); Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0); Dashboard.AnchorPoint = Vector2.new(1, 0); Dashboard.BackgroundColor3 = DARK_THEME.MainBg; Dashboard.AutomaticSize = Enum.AutomaticSize.Y; Dashboard.Visible = CONFIG.DASHBOARD; addCorner(Dashboard, 8); addStroke(Dashboard, DARK_THEME.Accent, 1, 0.6); Dashboard.Parent = ScreenGui; _G.DashboardUI = Dashboard
+local DPad = Instance.new("UIPadding"); DPad.PaddingTop = UDim.new(0, 12); DPad.PaddingBottom = UDim.new(0, 12); DPad.PaddingLeft = UDim.new(0, 12); DPad.PaddingRight = UDim.new(0, 12); DPad.Parent = Dashboard
+local DLayout = Instance.new("UIListLayout"); DLayout.SortOrder = Enum.SortOrder.LayoutOrder; DLayout.Padding = UDim.new(0, 6); DLayout.Parent = Dashboard
+local function createDashLabel(text, order, color) local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 0, 16); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = color or DARK_THEME.TextBright; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 11; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y; lbl.RichText = true; lbl.LayoutOrder = order; lbl.Parent = Dashboard; return lbl end
+local function createDashDivider(order) local div = Instance.new("Frame"); div.Size = UDim2.new(1, 0, 0, 1); div.BackgroundColor3 = DARK_THEME.Border; div.BackgroundTransparency = 0.85; div.BorderSizePixel = 0; div.LayoutOrder = order; div.Parent = Dashboard; return div end
 
-local DPad = Instance.new("UIPadding")
-DPad.PaddingTop = UDim.new(0, 12); DPad.PaddingBottom = UDim.new(0, 12); DPad.PaddingLeft = UDim.new(0, 12); DPad.PaddingRight = UDim.new(0, 12); DPad.Parent = Dashboard
-
-local DLayout = Instance.new("UIListLayout")
-DLayout.SortOrder = Enum.SortOrder.LayoutOrder; DLayout.Padding = UDim.new(0, 6); DLayout.Parent = Dashboard
-
-local function createDashLabel(text, order, color)
-    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 0, 16); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = color or DARK_THEME.TextBright; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 11; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y; lbl.RichText = true; lbl.LayoutOrder = order; lbl.Parent = Dashboard; return lbl
-end
-
-local function createDashDivider(order)
-    local div = Instance.new("Frame"); div.Size = UDim2.new(1, 0, 0, 1); div.BackgroundColor3 = DARK_THEME.Border; div.BackgroundTransparency = 0.85; div.BorderSizePixel = 0; div.LayoutOrder = order; div.Parent = Dashboard; return div
-end
-
-local dTitle = createDashLabel("<b>📊 SYSTEM OVERVIEW</b>", 1, DARK_THEME.Accent)
-dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 12
-
+local dTitle = createDashLabel("<b>📊 SYSTEM OVERVIEW</b>", 1, DARK_THEME.Accent); dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 12
 createDashDivider(2)
 local mapLabel = createDashLabel("🗺️ <b>Map:</b> Waiting...", 3)
 local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, DARK_THEME.TextMedium)
@@ -1088,53 +675,28 @@ local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 10
 
 local function updateDashboard()
     if not Dashboard.Visible then return end
-    
-    -- Hitung mundur menggunakan Waktu Nyata dari Server Roblox
     local remaining = keyExpireTime - GetRealTime()
-    
-    if remaining <= 0 then
-        Player:Kick("Key expired! Silakan beli key baru dari penjual.")
-        return
-    end
-    
-    if keyExpireTime > GetRealTime() + 315360000 then 
-        keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"
-        keyDurationLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+    if remaining <= 0 then Player:Kick("Key expired! Silakan beli key baru dari penjual."); return end
+    if keyExpireTime > GetRealTime() + 315360000 then keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"; keyDurationLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
     else
-        local days = math.floor(remaining / 86400)
-        local hours = math.floor((remaining % 86400) / 3600)
-        local minutes = math.floor((remaining % 3600) / 60)
-        local seconds = math.floor(remaining % 60)
-        
-        if remaining < 300 then keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-        elseif remaining < 3600 then keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-        else keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255) end
-        
-        if days > 0 then keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. days .. "d " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
-        else keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s" end
+        local days = math.floor(remaining / 86400); local hours = math.floor((remaining % 86400) / 3600); local minutes = math.floor((remaining % 3600) / 60); local seconds = math.floor(remaining % 60)
+        if remaining < 300 then keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80) elseif remaining < 3600 then keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0) else keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255) end
+        if days > 0 then keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. days .. "d " .. hours .. "h " .. minutes .. "m " .. seconds .. "s" else keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s" end
     end
-
     mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
     timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
     local sessionHours = (os.clock() - Stats.sessionStart) / 3600
     speedLabel.Text = "⚡ <b>Rate:</b> " .. ((sessionHours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / sessionHours) or 0) .. " maps/hr"
-
     if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
     elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255)
     elseif CONFIG.STEALTH_MODE then statusLabel.Text = "ℹ️ <b>Status:</b> Stealth"; statusLabel.TextColor3 = Color3.fromRGB(255,180,50)
     else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = DARK_THEME.TextDim end
-
     local admins = getAdminPlayers()
-    if #admins > 0 then
-        local adminTexts = {}; for _, adm in ipairs(admins) do table.insert(adminTexts, string.format(" - %s (@%s)", adm.DisplayName, adm.Name)) end
-        adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(adminTexts, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)
+    if #admins > 0 then local adminTexts = {}; for _, adm in ipairs(admins) do table.insert(adminTexts, string.format(" - %s (@%s)", adm.DisplayName, adm.Name)) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(adminTexts, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80)
     else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
-
     local spectators = getSpectators()
-    if #spectators > 0 then
-        local specTexts = {}; for _, spec in ipairs(spectators) do table.insert(specTexts, " - " .. spec.DisplayName) end
-        spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(specTexts, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0)
+    if #spectators > 0 then local specTexts = {}; for _, spec in ipairs(spectators) do table.insert(specTexts, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(specTexts, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0)
     else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
 end
 
@@ -1198,10 +760,8 @@ AddToggle("Extra", "Custom Elements", "CUSTOM_FLOOD_COLORS")
 local FCLabel = AddInfoLabel("Extra", "Current: " .. CONFIG.FLOOD_COLOR)
 AddButton("Extra", "Cycle Color", DARK_THEME.Accent, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="Current: "..CONFIG.FLOOD_COLOR end)
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
+local CloseBtn = Instance.new("TextButton"); CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
 CloseBtn.MouseButton1Click:Connect(function() minimizeUI(false) end)
-
 ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
 -- ==================== EVENT LOOPS ====================
@@ -1211,32 +771,18 @@ local lastHeartbeat = 0
 TrackConnection(RunService.Heartbeat:Connect(function()
     if os.clock() - lastHeartbeat < 0.1 then return end; lastHeartbeat = os.clock()
     pcall(function()
-        local ch = Player.Character; if not ch then return end
-        local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
+        local ch = Player.Character; if not ch then return end; local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
-        
-        if not CurrentlyFarming then 
-            local baseSpeed = moveToLift and 20 or 16
-            hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed 
-        end
-        
+        if not CurrentlyFarming then local baseSpeed = moveToLift and 20 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
-
-    -- Update dashboard SETIAP DETIK (real-time akurat)
-    if os.clock() - lastDashboardUpdate >= 1 then
-        lastDashboardUpdate = os.clock()
-        pcall(updateDashboard)
-        pcall(handleAdminDetection)
-    end
+    if os.clock() - lastDashboardUpdate >= 1 then lastDashboardUpdate = os.clock(); pcall(updateDashboard); pcall(handleAdminDetection) end
 end))
-
 TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
 TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player.Character then local h = Player.Character:FindFirstChild("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end))
 
 loadStats()
 setupAutoReconnect()
-
 notify("Troxzy VIP v20.7 - PRO Edition Ready!", "Success")
 print("Troxzy VIP - PRO Edition Loaded.")
