@@ -1,7 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM – FIXED DATE COUNTDOWN
--- 🔥 REAL-TIME os.time FROM ROBLOX
+-- 🔥 KEY SYSTEM – FIXED DATE COUNTDOWN (DEBUG)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -27,13 +26,13 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/67f2a4076bbf66ea7d5f175c2b9c7fb3581f3cc1/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
 local keyExpireTime = 0
 
--- HANYA mendukung YYYY-MM-DD atau "permanent"
+-- Fungsi parseExpiry YANG SUDAH DIPERBAIKI
 local function parseExpiry(expiry)
     if expiry == "permanent" then
         return 9999999999
@@ -42,25 +41,21 @@ local function parseExpiry(expiry)
     if type(expiry) == "string" then
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
         if year and month and day then
-            -- Roblox os.time mendukung tabel dengan year, month, day
-            local timestamp = os.time({
-                year = tonumber(year),
-                month = tonumber(month),
-                day = tonumber(day),
-                hour = 0,
-                min = 0,
-                sec = 0
-            })
+            year, month, day = tonumber(year), tonumber(month), tonumber(day)
+            -- GUNAKAN os.time DENGAN HANYA year, month, day (TANPA hour/min/sec)
+            local timestamp = os.time({ year = year, month = month, day = day })
             if timestamp then
-                -- Tambah 86399 detik untuk 23:59:59
-                return timestamp + 86399
+                -- TAMBAH 86399 DETIK (23:59:59 UTC)
+                local expire = timestamp + 86399
+                print("DEBUG parseExpiry:", expiry, "-> timestamp:", timestamp, "expire:", expire, "os.time now:", os.time())
+                return expire
             else
-                -- Fallback jika os.time gagal (seharusnya tidak)
+                -- FALLBACK JIKA os.time GAGAL
+                warn("os.time gagal untuk", expiry)
                 return nil
             end
         end
     end
-
     return nil
 end
 
@@ -199,7 +194,9 @@ local function checkKey(input)
     end
 
     -- Bandingkan dengan waktu SEKARANG (real-time Roblox server)
-    if os.time() > expireTime then
+    local now = os.time()
+    print("DEBUG checkKey: now =", now, "expireTime =", expireTime)
+    if now > expireTime then
         Player:Kick("Key sudah expired! Beli key baru.")
         return
     end
