@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 FIXED: TRUE REAL-WORLD TIME SYNC (ANTI-SPOOF)
+-- 🔥 FIXED: AUTO-DETECT DATE FORMAT (YYYY-MM-DD / DD-MM-YYYY)
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -36,19 +36,28 @@ local function GetRealTime()
 end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/adfecf5f3c1f3c538de7ec0c25c8534ffcc151bb/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
 local keyExpireTime = 0
 
+-- FUNGSI EXPIRED YANG SUDAH DIBUAT KEBAL TYPO FORMAT TANGGAL
 local function parseExpiry(expiry)
     if expiry == "permanent" then
         return 9999999999
     end
 
     if type(expiry) == "string" then
+        -- 1. Coba deteksi format YYYY-MM-DD (Contoh: 2026-06-20)
         local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
+        
+        -- 2. Jika gagal, coba deteksi format DD-MM-YYYY (Contoh: 20-06-2026)
+        if not (year and month and day) then
+            day, month, year = string.match(expiry, "^(%d%d)-(%d%d)-(%d%d%d%d)$")
+        end
+
+        -- Jika berhasil mendapatkan angka dari salah satu format di atas:
         if year and month and day then
             year, month, day = tonumber(year), tonumber(month), tonumber(day)
             
@@ -69,7 +78,7 @@ local function parseExpiry(expiry)
             -- Tambah waktu agar expired persis jam 23:59:59 di tanggal tersebut
             local expire = timestamp + 86399 
             
-            -- Sesuaikan dengan UTC+7 (WIB) karena API waktu pakai WIB
+            -- Sesuaikan dengan UTC+7 (WIB)
             expire = expire - (7 * 3600)
             
             return expire
@@ -208,7 +217,7 @@ local function checkKey(input)
 
     local expireTime = parseExpiry(keyData.expiry)
     if not expireTime then
-        Player:Kick("Format expiry tidak valid. Hanya YYYY-MM-DD atau 'permanent'.")
+        Player:Kick("Format expiry tidak valid. Gunakan YYYY-MM-DD atau DD-MM-YYYY.")
         return
     end
 
@@ -1137,72 +1146,6 @@ local function updateDashboard()
         spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(specTexts, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0)
     else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
 end
-
--- ==================== MENU BUILDING ====================
-AddSection("TAS", "SEAMLESS AUTOMATION")
-AddToggle("TAS", "Seamless Auto Queue", "AUTO_QUEUE")
-AddToggle("TAS", "Auto-Start Play", "TAS_AUTO_START")
-AddButton("TAS", "Record Route", DARK_THEME.ButtonRecord, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
-AddButton("TAS", "Force Play Route", DARK_THEME.Accent, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
-TAS_STATUS_LABEL = AddInfoLabel("TAS", "Status: ▶ READY")
-
-AddSection("Farm", "CORE (MANUAL)")
-AddToggle("Farm", "Enable Auto Farm", "AutoFarm")
-AddInfoLabel("Farm", "Target: " .. CONFIG.TARGET_MAP)
-
-AddSection("Move", "CHARACTER")
-AddToggle("Move", "Noclip Bypass", "NOCLIP")
-AddToggle("Move", "Speed Modifier", "SPEED")
-AddInput("Move", "Speed Value", CONFIG.SPEED_VAL, function(v) CONFIG.SPEED_VAL=v end)
-AddToggle("Move", "Infinite Jump", "INF_JUMP")
-
-AddSection("Visual", "RENDERING")
-AddToggle("Visual", "God Mode", "GOD_MODE")
-AddToggle("Visual", "Player ESP (All)", "ESP")
-AddToggle("Visual", "Fullbright", "FULLBRIGHT")
-AddToggle("Visual", "FOV Override", "FOV")
-AddInput("Visual", "Field of View", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL=v end)
-AddToggle("Visual", "Live Dashboard", "DASHBOARD")
-
-AddSection("Stealth", "SECURITY")
-AddToggle("Stealth", "Humanized Delay", "RANDOM_DELAY")
-AddToggle("Stealth", "Stealth Movement", "STEALTH_MODE")
-AddToggle("Stealth", "Hide GUI Nearby", "HIDE_SCRIPT")
-AddToggle("Stealth", "Detect Admins", "ADMIN_DETECTOR")
-AddToggle("Stealth", "Block Admin Remotes", "ANTI_ADMIN")
-AddToggle("Stealth", "Disable Reports", "ANTI_REPORT")
-AddButton("Stealth", "Panic Mode [P]", DARK_THEME.ButtonPanic, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
-AddButton("Stealth", "Force Reconnect", DARK_THEME.ButtonForceLeave, forceReconnect)
-
-AddSection("Premium", "SYSTEM & UPDATES")
-AddToggle("Premium", "Auto-Updater (On Boot)", "AUTO_UPDATE")
-AddButton("Premium", "Check for Updates", DARK_THEME.Accent, function()
-    notify("Checking GitHub for updates...", "Updater")
-    task.spawn(function()
-        local updateUrl = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua"
-        local success, newScript = pcall(function() return game:HttpGet(updateUrl) end)
-        if success and newScript and #newScript > 100 then
-            notify("Update found! Reloading script...", "Updater"); task.wait(1.5)
-            local func, compileErr = loadstring(newScript)
-            if func then func() else notify("Compile Error: " .. tostring(compileErr), "Error") end
-        else notify("Failed to fetch update or network error.", "Updater") end
-    end)
-end)
-
-AddSection("Extra", "MISC")
-AddToggle("Extra", "Auto Collect Items", "COLLECT_ITEMS")
-AddToggle("Extra", "Bypass Water (Air Swim)", "AIR_SWIM")
-AddToggle("Extra", "Timer Override (3s)", "TIMER_HOOK")
-AddToggle("Extra", "Light Theme", "NIGHT_MODE")
-AddToggle("Extra", "Custom Elements", "CUSTOM_FLOOD_COLORS")
-local FCLabel = AddInfoLabel("Extra", "Current: " .. CONFIG.FLOOD_COLOR)
-AddButton("Extra", "Cycle Color", DARK_THEME.Accent, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="Current: "..CONFIG.FLOOD_COLOR end)
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(1,-28,0,32); CloseBtn.Position = UDim2.new(0,14,1,-42); CloseBtn.BackgroundColor3 = DARK_THEME.ButtonPanic; CloseBtn.Text = "Minimize UI"; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.TextColor3 = Color3.fromRGB(255,255,255); addCorner(CloseBtn,6); CloseBtn.Parent = Main
-CloseBtn.MouseButton1Click:Connect(function() minimizeUI(false) end)
-
-ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
 -- ==================== EVENT LOOPS ====================
 TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == Enum.KeyCode.P then if not panicActive then activatePanicMode() else deactivatePanicMode() end end end))
