@@ -1,7 +1,8 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM CUSTOM GUI
--- 🔥 KEY COUNTDOWN (NO DEFAULT DURATION)
+-- 🔥 ADVANCED KEY SYSTEM
+-- 🔥 DUKUNGAN: menit, jam, hari, minggu, bulan, tahun, permanent
+-- 🔥 KEY EXPIRED TIDAK BISA DIPAKAI LAGI
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -27,13 +28,48 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/95bb7de29f49725991f341a78d19eec9a88fa9d6/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
-local keyDurationMinutes = nil  -- tidak ada default
+local keyDurationMinutes = nil
 local keyExpireTime = 0
+local usedKey = nil
 
+-- ==================== KONVERSI DURASI ====================
+local function parseDuration(value, unit)
+    if unit == "permanent" or unit == "lifetime" then
+        return nil, true -- nil artinya permanent, flag true
+    end
+    
+    if not value or value <= 0 then
+        return nil, false
+    end
+    
+    local multipliers = {
+        minute = 1,
+        minutes = 1,
+        hour = 60,
+        hours = 60,
+        day = 1440,
+        days = 1440,
+        week = 10080,
+        weeks = 10080,
+        month = 43200, -- 30 hari
+        months = 43200,
+        year = 525600, -- 365 hari
+        years = 525600
+    }
+    
+    local multiplier = multipliers[unit:lower()]
+    if not multiplier then
+        return nil, false
+    end
+    
+    return value * multiplier, false
+end
+
+-- ==================== GUI KEY ====================
 local KeyScreen = Instance.new("ScreenGui")
 KeyScreen.Name = "TroxzyKey"
 KeyScreen.ResetOnSpawn = false
@@ -145,23 +181,87 @@ local function checkKey(input)
         return
     end
 
-    if keys[input] and not keys[input].expired then
-        -- WAJIB ADA DURASI
-        if not keys[input].duration then
-            Player:Kick("Key tidak memiliki durasi. Beli key resmi dari penjual.")
+    local keyData = keys[input]
+    
+    -- Cek apakah key ada
+    if not keyData then
+        ErrorLabel.Text = "Key tidak ditemukan!"
+        attempts = attempts + 1
+        checkAttempts()
+        return
+    end
+    
+    -- Cek apakah key expired
+    if keyData.expired then
+        ErrorLabel.Text = "Key sudah expired dan tidak bisa digunakan lagi!"
+        return
+    end
+    
+    -- Cek durasi key
+    if not keyData.duration then
+        StarterGui:SetCore("SendNotification", {
+            Title = "Key Error",
+            Text = "Key tidak memiliki durasi yang valid",
+            Duration = 5
+        })
+        Player:Kick("Key tidak valid. Hubungi penjual.")
+        return
+    end
+    
+    local dur = keyData.duration
+    if type(dur) == "number" then
+        -- Format lama: langsung menit
+        keyDurationMinutes = dur
+        keyValid = true
+        usedKey = input
+        KeyScreen:Destroy()
+        return
+    end
+    
+    if type(dur) == "table" then
+        -- Format baru: {value = 30, unit = "days"} atau "permanent"
+        if dur.unit == "permanent" or dur.unit == "lifetime" then
+            keyDurationMinutes = nil -- permanent
+            keyValid = true
+            usedKey = input
+            KeyScreen:Destroy()
             return
         end
-        keyDurationMinutes = keys[input].duration
-        keyValid = true
-        KeyScreen:Destroy()
-    else
-        attempts = attempts + 1
-        if attempts >= 3 then
-            Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
-        else
-            ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
-            TextBox.Text = ""
+        
+        local minutes, isPermanent = parseDuration(dur.value, dur.unit)
+        if isPermanent then
+            keyDurationMinutes = nil
+            keyValid = true
+            usedKey = input
+            KeyScreen:Destroy()
+            return
         end
+        
+        if not minutes then
+            StarterGui:SetCore("SendNotification", {
+                Title = "Key Error",
+                Text = "Format durasi tidak valid",
+                Duration = 5
+            })
+            return
+        end
+        
+        keyDurationMinutes = minutes
+        keyValid = true
+        usedKey = input
+        KeyScreen:Destroy()
+        return
+    end
+    
+    ErrorLabel.Text = "Format durasi key tidak valid!"
+end
+
+function checkAttempts()
+    if attempts >= 3 then
+        Player:Kick("Key salah 3 kali. Beli key resmi dari penjual.")
+    else
+        ErrorLabel.Text = "Key salah! Percobaan: " .. attempts .. "/3"
+        TextBox.Text = ""
     end
 end
 
@@ -180,7 +280,11 @@ if not keyValid then return end
 
 -- ==================== SCRIPT START TIME & KEY EXPIRE TIME ====================
 local scriptStartTime = os.clock()
-keyExpireTime = scriptStartTime + (keyDurationMinutes * 60)
+if keyDurationMinutes then
+    keyExpireTime = scriptStartTime + (keyDurationMinutes * 60)
+else
+    keyExpireTime = nil -- permanent
+end
 
 -- ==================== SCRIPT UTAMA ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
@@ -1221,25 +1325,30 @@ local function updateDashboard()
     if not Dashboard.Visible then return end
     
     -- KEY COUNTDOWN
-    local remaining = keyExpireTime - os.clock()
-    if remaining <= 0 then
-        Player:Kick("Key expired! Silakan beli key baru dari penjual.")
-        return
-    end
-    
-    local hours = math.floor(remaining / 3600)
-    local minutes = math.floor((remaining % 3600) / 60)
-    local seconds = math.floor(remaining % 60)
-    
-    if remaining < 300 then -- Kurang dari 5 menit -> merah
-        keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-    elseif remaining < 600 then -- Kurang dari 10 menit -> kuning
-        keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    if keyExpireTime then
+        local remaining = keyExpireTime - os.clock()
+        if remaining <= 0 then
+            Player:Kick("Key expired! Silakan beli key baru dari penjual.")
+            return
+        end
+        
+        local hours = math.floor(remaining / 3600)
+        local minutes = math.floor((remaining % 3600) / 60)
+        local seconds = math.floor(remaining % 60)
+        
+        if remaining < 300 then
+            keyDurationLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        elseif remaining < 600 then
+            keyDurationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        else
+            keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+        end
+        
+        keyDurationLabel.Text = "🔑 <b>Key Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
     else
-        keyDurationLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+        keyDurationLabel.Text = "🔑 <b>Key Type:</b> PERMANENT"
+        keyDurationLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
-    
-    keyDurationLabel.Text = "🔑 <b>Key Expires In:</b> " .. hours .. "h " .. minutes .. "m " .. seconds .. "s"
 
     mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap and Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
     timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
