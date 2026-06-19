@@ -2,6 +2,7 @@
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
 -- 🔥 REAL-TIME MAP NAME IN DASHBOARD
 -- 🔥 Dashboard updates every frame
+-- 🔥 KEY SYSTEM AKTIF
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -25,6 +26,37 @@ local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
+
+-- ==================== KEY VALIDATION ====================
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
+
+local function validateKey()
+    local input = Player:RequestInputAsync("🔑 Masukkan Key Troxzy VIP", "TROXZY-XXXX-YYYY-ZZZZ")
+    if not input then
+        Player:Kick("Key diperlukan untuk menjalankan script ini.")
+        return false
+    end
+
+    local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
+    if not success then
+        Player:Kick("Gagal terhubung ke server key. Coba lagi nanti.")
+        return false
+    end
+
+    local keys = HttpService:JSONDecode(data)
+    if not keys[input] or keys[input].expired then
+        Player:Kick("Key tidak valid atau telah kadaluarsa. Beli key resmi dari penjual.")
+        return false
+    end
+
+    return true
+end
+
+if not validateKey() then
+    return
+end
+
+-- Jika key valid, lanjutkan ke script utama
 if not Player.Character then Player.CharacterAdded:Wait() end
 task.wait(1)
 
