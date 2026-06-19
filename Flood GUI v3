@@ -1,14 +1,12 @@
 -- ============================================
--- TROXZY VIP v20.8 ULTIMATE (TOMATOTXT V3 ENGINE)
--- 🔥 FIXED: STEPPED BRUTEFORCE ENGINE INJECTED
--- 🔥 100% CRAZY+ MAP SURVIVAL & COMPLETION
--- 🔥 ANTI-ACID/WATER HAZARD BYPASS
+-- TROXZY VIP v20.8 ULTIMATE (STABLE AUTO FARM)
+-- 🔥 DIPERBAIKI: TIDAK MELAYANG, SEMUA MAP WORK
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 
-print("TROXZY: V3 Engine Started")
+print("TROXZY: Script started")
 
 -- Services
 local Players = game:GetService("Players")
@@ -127,7 +125,6 @@ local AUTO_QUEUE_ENABLED, AutoQueueListener = false, nil
 local liftTarget, moveToLift = nil, false
 local DetectedAdmins, lastAdminCount = {}, 0
 local isMinimized, lastDashboardUpdate = false, 0
-local V3_Connection = nil
 
 -- Cleanup UI Lama
 pcall(function()
@@ -236,6 +233,11 @@ local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return 
 local lastFloodColorUpdate = 0
 local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
 
+local function stealthDelay() return CONFIG.STEALTH_MODE and math.random(10, 50) / 100 or 0.05 end
+local function stealthOffset() return CONFIG.STEALTH_MODE and Vector3.new(math.random(-50,50)/100, math.random(-30,30)/100, math.random(-50,50)/100) or Vector3.new(math.random(), math.random(), math.random()) end
+
+local buttonCount = 0
+local function shouldTakeBreak() if not CONFIG.RANDOM_DELAY then return false end; buttonCount = buttonCount + 1; if buttonCount >= math.random(3,8) then buttonCount = 0; return true end; return false end
 local function isPlayerNearby() if not CONFIG.HIDE_SCRIPT then return false end; local char = Player.Character; if not char then return false end; local root = char:FindFirstChild("HumanoidRootPart"); if not root then return false end; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then if (root.Position - p.Character.HumanoidRootPart.Position).Magnitude < 20 then return true end end end; return false end
 
 local function attemptReconnect() saveStats(); task.wait(3); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end); task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) end
@@ -285,6 +287,9 @@ local AlertRemote = RemoteFolder:WaitForChild("Alert")
 TrackConnection(AlertRemote.OnClientEvent:Connect(function(msg) if type(msg) == "string" and msg:lower():match("escaped") then Escaped = true end end))
 TrackConnection(Player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end))
 
+local function GetRandomPoint(part) local s = part.Size; return part.CFrame * CFrame.new((math.random()-0.5) * s.X * 0.9, (math.random()-0.5) * s.Y * 0.9, (math.random()-0.5) * s.Z * 0.9) end
+
+-- ✅ FUNGSI GET DIFFICULTY ANTI-GAGAL
 local function GetDifficulty()
     local ok, res = pcall(function()
         local diffLabel = Workspace.Lobby.GameInfo.SurfaceGui.Frame.Difficulty.Difficulty
@@ -302,6 +307,9 @@ local function GetDifficulty()
     return 0, "Unknown"
 end
 
+local function isRandStr(str) if #str == 0 then return false end; for i = 1, #str do if str:sub(i,i):lower() == str:sub(i,i) then return false end end; return true end
+
+-- ==================== 60 FPS AUTO WALK TO LIFT ====================
 local function findLiftPosition()
     for _, obj in pairs(Workspace.Lobby:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name:lower():find("lift") then
@@ -402,7 +410,6 @@ local panicActive = false; _G.ToggleStates = {}
 local minimizeUI, maximizeUI
 local function activatePanicMode() 
     panicActive = true; _G.TroxzyAutoFarm = false; CurrentlyFarming = false; DisconnectMapDetection(); StopAutoQueue(); applyNoclip(false)
-    if V3_Connection then V3_Connection:Disconnect(); V3_Connection = nil end
     pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); notify("PANIC MODE ACTIVATED!", "Emergency")
     if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end 
 end
@@ -414,7 +421,7 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (TOMATOTXT V3 ENGINE) ====================
+-- ==================== MANUAL AUTO FARM LOGIC (STABLE) ====================
 local function OnMapLoad(map)
     clearESPCache()
     pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
@@ -433,114 +440,68 @@ local function OnMapLoad(map)
     local char = Player.Character; if not char then CurrentlyFarming = false; return end
     local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then CurrentlyFarming = false; return end
-    
+
+    local curRank, curName = GetDifficulty()
+    if curRank == 0 then curRank = 5; curName = "Crazy" end
+    if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+        repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
+        hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return
+    end
+
     if CONFIG.COLLECT_ITEMS then
         local lp = map:FindFirstChild("_LostPage", true); local rsc = map:FindFirstChild("_Rescue", true)
-        if lp then hrp.CFrame = lp.CFrame; task.wait(0.1); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
-        if rsc then hrp.CFrame = rsc.Contact.CFrame; task.wait(0.1); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
+        if lp then hrp.CFrame = lp.CFrame; task.wait(); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
+        if rsc then hrp.CFrame = rsc.Contact.CFrame; task.wait(); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
     end
 
     if CONFIG.TIMER_HOOK then TimerHookActive = true; TimerHookStart = os.clock() end
-    
-    -- TOMATOTXT ENGINE: Matikan paksa State "Dead" agar immune jika menyentuh sesuatu sesaat
-    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+
+    local btns = {}
+    for _, obj in pairs(map:GetDescendants()) do
+        if isRandStr(obj.Name) and obj.ClassName == "Model" then
+            local hb; for _, c in pairs(obj:GetChildren()) do if c:IsA("BasePart") and tostring(c.BrickColor) ~= "Medium stone grey" then hb = c; break end end
+            if hb and isRandStr(hb.Name) then hb.Name = "Hitbox"; table.insert(btns, obj) end
+        end
+    end
+
+    local godCon; if CONFIG.GOD_MODE then godCon = hum:GetPropertyChangedSignal("Health"):Connect(function() if hum.Health < 1000 then hum.Health = 1000 end end) end
+    TrackConnection(godCon or {})
     applyNoclip(true)
 
-    -- Tentukan Koordinat ZONA AMAN di langit (Spawn + 150)
-    local safeCFrame = hrp.CFrame + Vector3.new(0, 150, 0)
-    pcall(function()
-        local spwn = map:FindFirstChild("_Spawn", true) or map:FindFirstChildWhichIsA("BasePart", true)
-        if spwn then safeCFrame = spwn.CFrame + Vector3.new(0, 150, 0) end
-    end)
-
-    if V3_Connection then V3_Connection:Disconnect() end
-
-    -- [TOMATOTXT V3 ENGINE] : RunService.Stepped Bruteforce Loop
-    V3_Connection = RunService.Stepped:Connect(function()
-        if not _G.TroxzyAutoFarm or not CurrentlyFarming or panicActive or not Check("InGame") then
-            if V3_Connection then V3_Connection:Disconnect(); V3_Connection = nil end
-            return
-        end
-
-        -- [BYPASS 1] MATIKAN SEMUA AIR, ACID, LAVA, DAN KILLBRICKS! DIJAMIN TIDAK BISA MATI DI CRAZY+
-        for _, v in ipairs(map:GetDescendants()) do
-            if v:IsA("BasePart") then
-                local ln = v.Name:lower()
-                local mat = v.Material
-                if ln:find("water") or ln:find("acid") or ln:find("lava") or ln:find("kill") or mat == Enum.Material.Water then
-                    v.CanTouch = false
-                    v.CanCollide = false
-                end
-            end
-        end
-
-        -- [BYPASS 2] TIMER HOOK (Escape otomatis jika kelamaan)
+    while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
+        if not CurrentlyFarming then break end
         if TimerHookActive and CONFIG.TIMER_HOOK and (os.clock() - TimerHookStart > 3) then
             local er = map:FindFirstChild("ExitRegion", true)
-            if er then
-                hrp.CFrame = er.CFrame
-                if firetouchinterest then firetouchinterest(hrp, er, 0); firetouchinterest(hrp, er, 1) end
-                TimerHookActive = false
-            end
+            if er then applyNoclip(false); hrp.CFrame = GetRandomPoint(er); hrp.Velocity = Vector3.zero; hum:ChangeState(Enum.HumanoidStateType.Jumping); TimerHookActive = false; break end
         end
-
-        -- [BYPASS 3] SCAN TARGET DINAMIS ALL-IN-ONE (Tanpa perulangan delay, langsung hajar memori)
-        local targetPart = nil
+        if CONFIG.HIDE_SCRIPT and Main then Tween(Main, {BackgroundTransparency = isPlayerNearby() and 1 or 0}, 0.5) end
+        if shouldTakeBreak() then task.wait(stealthDelay() * 10) end
         local er = map:FindFirstChild("ExitRegion", true)
-        
-        if er then
-            targetPart = er
-        else
-            for _, desc in ipairs(map:GetDescendants()) do
-                if desc:IsA("TouchInterest") and desc.Parent and desc.Parent:IsA("BasePart") then
-                    local p = desc.Parent
-                    local n = p.Name:lower()
-                    local mn = p.Parent and p.Parent.Name:lower() or ""
-                    
-                    -- Abaikan elemen cairan mematikan, kita cuma butuh tombol murni
-                    if not (n:find("water") or n:find("acid") or n:find("lava") or n:find("kill") or mn:find("water") or mn:find("acid") or mn:find("lava")) then
-                        local col = tostring(p.BrickColor)
-                        -- Ciri fisik map FE2: Tombol yang belum tertekan bukan warna abu-abu
-                        if col ~= "Medium stone grey" and col ~= "Dark stone grey" then
-                            targetPart = p
-                            break
-                        end
-                    end
+        local currHRP = Player.Character:FindFirstChild("HumanoidRootPart")
+        if not currHRP then break end
+        local failedScan = true
+
+        if not er then
+            if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end
+            currHRP.Anchored = true
+            for _, btnModel in pairs(btns) do
+                if not _G.TroxzyAutoFarm then break end
+                local bh = btnModel:FindFirstChild("Hitbox")
+                if bh and btnModel:FindFirstChild("TouchInterest", true) and btnModel:FindFirstChildWhichIsA("BillboardGui", true) then
+                    failedScan = false; currHRP.Anchored = false; currHRP.CFrame = CFrame.new(bh.Position - stealthOffset()); hum:ChangeState(Enum.HumanoidStateType.Jumping); task.wait(stealthDelay()); hum:ChangeState(Enum.HumanoidStateType.Running); task.wait(stealthDelay())
                 end
             end
-        end
-
-        -- [BYPASS 4] EXECUTION LOCK (Mengunci posisi dan melakukan FireTouch paksa)
-        if targetPart then
-            -- Set CFrame ke target persis. Tidak butuh Jitter lagi karena kita bekerja dalam Stepped physics
-            hrp.Velocity = Vector3.zero 
-            hrp.CFrame = targetPart.CFrame
-            if firetouchinterest then
-                firetouchinterest(hrp, targetPart, 0)
-                firetouchinterest(hrp, targetPart, 1)
-            end
+            if failedScan then RunService.Heartbeat:Wait() end
         else
-            -- [PERFECT STEALTH & SAFETY] : Jika tombol belum muncul/lagi animasi, MELAYANG DI ZONA AMAN.
-            hrp.Velocity = Vector3.zero
-            hrp.CFrame = safeCFrame
+            applyNoclip(false); currHRP.Anchored = false
+            if Camera.CameraSubject ~= er then Camera.CameraSubject = er end
+            if not Escaped then currHRP.CFrame = GetRandomPoint(er); currHRP.Velocity = Vector3.zero; hum:ChangeState(Enum.HumanoidStateType.Jumping) else Escaped = false; Camera.CameraSubject = hum; hum:ChangeState(Enum.HumanoidStateType.Dead); break end
         end
+    end
 
-        -- HIDE UI DARI PLAYER LAIN (Stealth Visual)
-        if CONFIG.HIDE_SCRIPT and Main then Tween(Main, {BackgroundTransparency = isPlayerNearby() and 1 or 0}, 0.5) end
-    end)
-
-    -- Tunggu hingga map selesai, karakter mati/kabur, atau farm dimatikan
-    repeat task.wait(0.5) until not Check("InGame") or not _G.TroxzyAutoFarm or panicActive or not CurrentlyFarming
-
-    if V3_Connection then V3_Connection:Disconnect(); V3_Connection = nil end
-    Camera.CameraSubject = hum
-    applyNoclip(false)
-    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
-    
-    CurrentlyFarming = false
-    local _, diffName = GetDifficulty()
-    if diffName and diffName ~= "Unknown" then updateStats(diffName) else updateStats("Crazy") end
-    rotateMap()
+    Camera.CameraSubject = hum; applyNoclip(false)
+    if godCon then godCon:Disconnect() end
+    CurrentlyFarming = false; updateStats(curName); rotateMap()
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
     clearESPCache(); Stats.currentMap = ""
 end
@@ -805,6 +766,7 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         local ch = Player.Character; if not ch then return end; local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
         if CONFIG.NOCLIP and not CurrentlyFarming then refreshNoclip(); applyNoclip(true) elseif not CurrentlyFarming then applyNoclip(false) end
         if not CurrentlyFarming then local baseSpeed = moveToLift and 20 or 16; hum.WalkSpeed = CONFIG.SPEED and CONFIG.SPEED_VAL or baseSpeed end
+        hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not CONFIG.GOD_MODE)
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
     if os.clock() - lastDashboardUpdate >= 1 then lastDashboardUpdate = os.clock(); pcall(updateDashboard); pcall(handleAdminDetection) end
@@ -814,5 +776,5 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 
 loadStats()
 setupAutoReconnect()
-notify("Troxzy VIP v20.8 - Tomatotxt V3 Engine Ready!", "Success")
-print("Troxzy VIP - Tomatotxt V3 Engine Loaded.")
+notify("Troxzy VIP v20.8 - Stable Auto Farm Ready!", "Success")
+print("Troxzy VIP - Stable Auto Farm Loaded.")
