@@ -1,17 +1,21 @@
 -- ============================================
--- TROXZY VIP v22.1 "SPECTRAL BLADE" [WIN ENGINE] FIXED
+-- TROXZY VIP v22.1 "SPECTRAL BLADE" [WIN ENGINE]
 -- Badan Intelijen Negara - AUTO WIN PROTOCOL
+-- 🔥 FIXED: PREMIUM AUTHENTICATION UI & CACHE BYPASS
 -- ============================================
 
--- [ SUPREME KEY SYSTEM - EMBEDDED ]
+-- [ SUPREME KEY SYSTEM - EMBEDDED & REDESIGNED ]
 local function supremeKeyValidation()
     local Players = game:GetService("Players")
     local Workspace = game:GetService("Workspace")
     local HttpService = game:GetService("HttpService")
+    local TweenService = game:GetService("TweenService")
     local Player = Players.LocalPlayer
     if not Player then return false end
 
-    local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/d1d4a29acd19b6de05dd5bc72017c07064b2d574/TroxzyKey.json"
+    -- Base URL
+    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/d1d4a29acd19b6de05dd5bc72017c07064b2d574/TroxzyKey.json"
+    
     local keyValid = false
     local attempts = 0
 
@@ -37,52 +41,112 @@ local function supremeKeyValidation()
     end
 
     local KeyScreen = Instance.new("ScreenGui", game:GetService("CoreGui"))
+    KeyScreen.Name = "TroxzyKeyAuth"
+    
     local Frame = Instance.new("Frame", KeyScreen)
-    Frame.Size = UDim2.new(0, 300, 0, 120)
-    Frame.Position = UDim2.new(0.5, -150, 0.5, -60)
-    Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    local UICorner = Instance.new("UICorner", Frame); UICorner.CornerRadius = UDim.new(0, 8)
-    local UIStroke = Instance.new("UIStroke", Frame); UIStroke.Color = Color3.fromRGB(100, 100, 200); UIStroke.Thickness = 1.5
-
-    local Title = Instance.new("TextLabel", Frame)
-    Title.Size = UDim2.new(1, 0, 0, 30); Title.Position = UDim2.new(0, 0, 0, 10)
-    Title.Text = "TROXZY KEY"; Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.Font = Enum.Font.GothamBlack; Title.TextSize = 16; Title.BackgroundTransparency = 1
+    Frame.Size = UDim2.new(0, 320, 0, 180)
+    Frame.Position = UDim2.new(0.5, -160, 0.5, -90)
+    Frame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+    Frame.BorderSizePixel = 0
+    local UICorner = Instance.new("UICorner", Frame); UICorner.CornerRadius = UDim.new(0, 10)
+    local UIStroke = Instance.new("UIStroke", Frame); UIStroke.Color = Color3.fromRGB(99, 102, 241); UIStroke.Thickness = 2
+    
+    local Header = Instance.new("Frame", Frame)
+    Header.Size = UDim2.new(1, 0, 0, 40)
+    Header.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+    Header.BorderSizePixel = 0
+    local HeaderCorner = Instance.new("UICorner", Header); HeaderCorner.CornerRadius = UDim.new(0, 10)
+    local BottomSquare = Instance.new("Frame", Header)
+    BottomSquare.Size = UDim2.new(1, 0, 0.5, 0); BottomSquare.Position = UDim2.new(0, 0, 0.5, 0); BottomSquare.BackgroundColor3 = Color3.fromRGB(25, 25, 38); BottomSquare.BorderSizePixel = 0
+    
+    local Title = Instance.new("TextLabel", Header)
+    Title.Size = UDim2.new(1, 0, 1, 0)
+    Title.Text = "🛡️ TROXZY AUTHENTICATION"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Font = Enum.Font.GothamBlack; Title.TextSize = 14; Title.BackgroundTransparency = 1
 
     local Input = Instance.new("TextBox", Frame)
-    Input.Size = UDim2.new(0, 240, 0, 30); Input.Position = UDim2.new(0.5, -120, 0, 45)
-    Input.BackgroundColor3 = Color3.fromRGB(25, 25, 40); Input.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Input.PlaceholderText = "Insert Key..."; Input.TextSize = 13; Input.Font = Enum.Font.Gotham
-    local InputCorner = Instance.new("UICorner", Input); InputCorner.CornerRadius = UDim.new(0, 4)
+    Input.Size = UDim2.new(0, 280, 0, 36); Input.Position = UDim2.new(0.5, -140, 0, 60)
+    Input.BackgroundColor3 = Color3.fromRGB(25, 25, 38); Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Input.PlaceholderText = "Paste your key here..."; Input.TextSize = 13; Input.Font = Enum.Font.GothamMedium
+    Input.ClearTextOnFocus = false
+    local InputCorner = Instance.new("UICorner", Input); InputCorner.CornerRadius = UDim.new(0, 6)
+    local InputStroke = Instance.new("UIStroke", Input); InputStroke.Color = Color3.fromRGB(60, 60, 80); InputStroke.Thickness = 1
 
     local Submit = Instance.new("TextButton", Frame)
-    Submit.Size = UDim2.new(0, 240, 0, 30); Submit.Position = UDim2.new(0.5, -120, 0, 80)
-    Submit.BackgroundColor3 = Color3.fromRGB(80, 80, 180); Submit.Text = "ACTIVATE"; Submit.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Submit.Font = Enum.Font.GothamBlack; Submit.TextSize = 14
-    local SubmitCorner = Instance.new("UICorner", Submit); SubmitCorner.CornerRadius = UDim.new(0, 4)
+    Submit.Size = UDim2.new(0, 280, 0, 36); Submit.Position = UDim2.new(0.5, -140, 0, 106)
+    Submit.BackgroundColor3 = Color3.fromRGB(99, 102, 241); Submit.Text = "VERIFY KEY"; Submit.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Submit.Font = Enum.Font.GothamBlack; Submit.TextSize = 13; Submit.AutoButtonColor = false
+    local SubmitCorner = Instance.new("UICorner", Submit); SubmitCorner.CornerRadius = UDim.new(0, 6)
 
     local ErrorLabel = Instance.new("TextLabel", Frame)
-    ErrorLabel.Size = UDim2.new(1, 0, 0, 15); ErrorLabel.Position = UDim2.new(0, 0, 0, 115)
+    ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 150)
     ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-    ErrorLabel.Font = Enum.Font.Gotham; ErrorLabel.TextSize = 10; ErrorLabel.BackgroundTransparency = 1
+    ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.TextSize = 11; ErrorLabel.BackgroundTransparency = 1
 
-    local function checkKey(input)
-        if input == "" then ErrorLabel.Text = "Key cannot be empty"; return end
-        local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
-        if not success then ErrorLabel.Text = "Server connection failed"; return end
+    Submit.MouseEnter:Connect(function() TweenService:Create(Submit, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(79, 70, 229)}):Play() end)
+    Submit.MouseLeave:Connect(function() TweenService:Create(Submit, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(99, 102, 241)}):Play() end)
+
+    local function checkKey(rawInput)
+        -- FIXED: Menghapus spasi ga sengaja di awal/akhir
+        local input = string.match(rawInput, "^%s*(.-)%s*$")
+        
+        if not input or input == "" then ErrorLabel.Text = "Key tidak boleh kosong!"; return end
+        
+        Submit.Text = "VERIFYING..."
+        Submit.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        
+        -- FIXED: Bypass cache executor dengan timestamp
+        local nocacheUrl = BASE_KEYS_URL .. "?t=" .. tostring(os.time())
+        
+        local success, data = pcall(function() return game:HttpGet(nocacheUrl) end)
+        if not success then 
+            ErrorLabel.Text = "Koneksi ke server gagal. Coba lagi."; 
+            Submit.Text = "VERIFY KEY"; Submit.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+            return 
+        end
+        
         local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
-        if not ok then ErrorLabel.Text = "Key data corrupted"; return end
+        if not ok then 
+            ErrorLabel.Text = "Data server error (Bukan JSON)."; 
+            Submit.Text = "VERIFY KEY"; Submit.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+            return 
+        end
+        
         local keyData = keys[input]
         if not keyData then
             attempts = attempts + 1
-            if attempts >= 3 then Player:Kick("Incorrect key 3 times.") else ErrorLabel.Text = "Invalid Key! (" .. attempts .. "/3)"; Input.Text = "" end
+            if attempts >= 3 then 
+                Player:Kick("TROXZY VIP: Key salah 3 kali berturut-turut.") 
+            else 
+                ErrorLabel.Text = "Key Salah / Tidak Terdaftar! (" .. attempts .. "/3)"
+                Input.Text = "" 
+            end
+            Submit.Text = "VERIFY KEY"; Submit.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
             return
         end
-        if not keyData.expiry then Player:Kick("Key missing expiry. Contact seller."); return end
+        
+        if not keyData.expiry then Player:Kick("Key missing expiry field. Hubungi penjual."); return end
+        
         local expireTime = parseExpiry(keyData.expiry)
-        if not expireTime then Player:Kick("Invalid expiry format."); return end
-        if GetRealTime() > expireTime then Player:Kick("Key expired! Purchase a new one."); return end
-        keyValid = true; keyExpireTime = expireTime; KeyScreen:Destroy()
+        if not expireTime then Player:Kick("Format tanggal expiry salah."); return end
+        
+        local GetRealTime = function()
+            local okTime, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
+            if okTime and srvTime and srvTime > 1000000 then return srvTime end
+            return os.time()
+        end
+
+        if GetRealTime() > expireTime then 
+            Player:Kick("Key sudah Expired! Silakan perpanjang.")
+            return 
+        end
+        
+        Submit.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+        Submit.Text = "SUCCESS!"
+        task.wait(0.5)
+        
+        keyValid = true; getgenv().keyExpireTime = expireTime; KeyScreen:Destroy()
     end
 
     Submit.MouseButton1Click:Connect(function() checkKey(Input.Text) end)
@@ -92,15 +156,16 @@ local function supremeKeyValidation()
     return keyValid
 end
 
-local keyExpireTime = 0
+if not supremeKeyValidation() then return end
+
+-- ==================== MAIN SCRIPT ====================
+local keyExpireTime = getgenv().keyExpireTime or 0
 local function GetRealTime()
     local Workspace = game:GetService("Workspace")
     local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
     if ok and srvTime and srvTime > 1000000 then return srvTime end
     return os.time()
 end
-
-if not supremeKeyValidation() then return end
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
@@ -497,7 +562,6 @@ local function StartWinEngine()
     if not success or not scriptContent then
         notify("Failed to download Win Engine!", "Error")
         WinDownloading = false
-        -- Paksa toggle UI kembali mati
         if _G.ToggleStates and _G.ToggleStates["AutoFarm"] then
             _G.ToggleStates["AutoFarm"].SetState(false)
         end
@@ -529,7 +593,7 @@ end
 
 local function StopWinEngine()
     if WinDownloading then
-        WinDownloading = false  -- batalkan
+        WinDownloading = false
     end
     if not WinFarmRunning then return end
     notify("Stopping Win Engine...", "Auto Farm")
@@ -582,7 +646,6 @@ local function StartAutoQueue()
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
         if not AUTO_QUEUE_ENABLED or panicActive or isGhostMode then return end
         pcall(function() local settings = newMap:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
-        -- FIXED: infinite loop jika AUTO_QUEUE dimatikan saat menunggu
         repeat task.wait() until Check("InGame") or not AUTO_QUEUE_ENABLED
         if not AUTO_QUEUE_ENABLED then return end
         mapCompleted = false
@@ -866,4 +929,4 @@ TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player
 loadStats()
 setupAutoReconnect()
 notify("SPECTRAL BLADE v22.1 - Fixed", "System")
-print("TROXZY: Spectral Blade v22.1 fixed.")
+print("TROXZY: Spectral Blade v22.1 Auth Fixed.")
