@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v20.8 ULTIMATE (STABLE AUTO FARM)
--- 🔥 DIPERBAIKI: TIDAK MELAYANG, SEMUA MAP WORK
+-- TROXZY VIP v20.8 ULTIMATE (STABLE AUTO FARM LIKE v16.2)
+-- 🔥 DIPERBAIKI: AUTO FARM = v16.2 + KEY SYSTEM
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -421,94 +421,176 @@ end
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
--- ==================== MANUAL AUTO FARM LOGIC (STABLE) ====================
+-- ==================== MANUAL AUTO FARM LOGIC (FROM V16.2) ====================
 local function OnMapLoad(map)
     clearESPCache()
-    pcall(function() local settings = map:WaitForChild("Settings", 5); if settings then Stats.currentMap = settings:GetAttribute("MapName") or "Unknown" end end)
+
+    -- Get map name
+    local settings = map:WaitForChild("Settings", 10)
+    local mapName = settings and settings:GetAttribute("MapName") or "Unknown"
+    Stats.currentMap = mapName
+
     handleAdminDetection()
 
-    if isMapBlacklisted(Stats.currentMap) then
-        Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1; saveStats()
-        pcall(function() local c = Player.Character; c.HumanoidRootPart.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); c.Humanoid.Health = 0 end)
-        CurrentlyFarming = false; Stats.currentMap = ""
+    -- Blacklist handling (same as v16.2)
+    if isMapBlacklisted(mapName) then
+        Stats.blacklistedSkipped = Stats.blacklistedSkipped + 1
+        notify("Blacklisted: " .. mapName, "Skip"); saveStats()
+        local char = GetChar()
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
+            if hrp and hum then
+                hrp.CFrame = CFrame.new(1000, 1000, 1000)
+                task.wait(0.25)
+                hum.Health = 0
+            end
+        end
+        CurrentlyFarming = false
         moveToLift = true
         liftTarget = findLiftPosition()
         return
     end
 
-    CurrentlyFarming = true; Escaped = false; TimerHookActive = false
-    local char = Player.Character; if not char then CurrentlyFarming = false; return end
-    local hrp = char:FindFirstChild("HumanoidRootPart"); local hum = char:FindFirstChild("Humanoid")
+    CurrentlyFarming = true
+    Escaped = false
+    TimerHookActive = false
+
+    local char = GetChar()
+    if not char then CurrentlyFarming = false; return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then CurrentlyFarming = false; return end
 
-    local curRank, curName = GetDifficulty()
-    if curRank == 0 then curRank = 5; curName = "Crazy" end
-    if curRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+    -- Difficulty check
+    local currentRank, currentName = GetDifficulty()
+    if currentRank > (DIFFICULTY_RANKS[CONFIG.TARGET_DIFFICULTY] or 999) then
+        notify("Difficulty High! Reset...", "Error")
         repeat task.wait() until not hrp.Anchored and hum.WalkSpeed >= 20
-        hrp.CFrame = CFrame.new(1000, 1000, 1000); task.wait(0.25); hum.Health = 0; CurrentlyFarming = false; Stats.currentMap = ""; return
+        hrp.CFrame = CFrame.new(1000, 1000, 1000)
+        task.wait(0.25)
+        hum.Health = 0
+        CurrentlyFarming = false
+        return
     end
 
-    if CONFIG.COLLECT_ITEMS then
-        local lp = map:FindFirstChild("_LostPage", true); local rsc = map:FindFirstChild("_Rescue", true)
-        if lp then hrp.CFrame = lp.CFrame; task.wait(); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
-        if rsc then hrp.CFrame = rsc.Contact.CFrame; task.wait(); hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
+    -- Collect items (same as v16.2)
+    local lostPage = map:FindFirstChild("_LostPage", true)
+    local rescue = map:FindFirstChild("_Rescue", true)
+    local ocf = hrp.CFrame
+    if lostPage then
+        hrp.CFrame = lostPage.CFrame
+        task.wait()
+        hrp.CFrame = ocf
+    end
+    if rescue then
+        hrp.CFrame = rescue.Contact.CFrame
+        task.wait()
+        hrp.CFrame = ocf
     end
 
     if CONFIG.TIMER_HOOK then TimerHookActive = true; TimerHookStart = os.clock() end
 
-    local btns = {}
+    -- Find buttons (same as v16.2)
+    local buttons = {}
     for _, obj in pairs(map:GetDescendants()) do
         if isRandStr(obj.Name) and obj.ClassName == "Model" then
-            local hb; for _, c in pairs(obj:GetChildren()) do if c:IsA("BasePart") and tostring(c.BrickColor) ~= "Medium stone grey" then hb = c; break end end
-            if hb and isRandStr(hb.Name) then hb.Name = "Hitbox"; table.insert(btns, obj) end
+            local hitbox
+            for _, c in pairs(obj:GetChildren()) do
+                if c:IsA("BasePart") and tostring(c.BrickColor) ~= "Medium stone grey" then
+                    hitbox = c
+                    break
+                end
+            end
+            if hitbox and isRandStr(hitbox.Name) then
+                hitbox.Name = "Hitbox"
+                table.insert(buttons, obj)
+            end
         end
     end
 
-    local godCon; if CONFIG.GOD_MODE then godCon = hum:GetPropertyChangedSignal("Health"):Connect(function() if hum.Health < 1000 then hum.Health = 1000 end end) end
-    TrackConnection(godCon or {})
+    -- God mode connection
+    local godMode
+    if CONFIG.GOD_MODE then
+        godMode = hum:GetPropertyChangedSignal("Health"):Connect(function()
+            hum.Health = 1000
+        end)
+        TrackConnection(godMode)
+    end
+
     applyNoclip(true)
 
+    -- Main farming loop (same as v16.2)
     while RunService.Heartbeat:Wait() and Check("InGame") and _G.TroxzyAutoFarm and not panicActive do
         if not CurrentlyFarming then break end
-        if TimerHookActive and CONFIG.TIMER_HOOK and (os.clock() - TimerHookStart > 3) then
-            local er = map:FindFirstChild("ExitRegion", true)
-            if er then applyNoclip(false); hrp.CFrame = GetRandomPoint(er); hrp.Velocity = Vector3.zero; hum:ChangeState(Enum.HumanoidStateType.Jumping); TimerHookActive = false; break end
+
+        if CONFIG.HIDE_SCRIPT and Main then
+            Main.Visible = not isPlayerNearby()
         end
-        if CONFIG.HIDE_SCRIPT and Main then Tween(Main, {BackgroundTransparency = isPlayerNearby() and 1 or 0}, 0.5) end
-        if shouldTakeBreak() then task.wait(stealthDelay() * 10) end
-        local er = map:FindFirstChild("ExitRegion", true)
-        local currHRP = Player.Character:FindFirstChild("HumanoidRootPart")
-        if not currHRP then break end
+
+        if shouldTakeBreak() then
+            task.wait(getRandomFarmDelay())
+        end
+
+        local exitRegion = map:FindFirstChild("ExitRegion", true)
+        local currentHRP = GetChar():FindFirstChild("HumanoidRootPart")
+        if not currentHRP then break end
         local failedScan = true
 
-        if not er then
+        if not exitRegion then
             if Camera.CameraSubject ~= hum then Camera.CameraSubject = hum end
-            currHRP.Anchored = true
-            for _, btnModel in pairs(btns) do
+            currentHRP.Anchored = true
+            for _, button in pairs(buttons) do
                 if not _G.TroxzyAutoFarm then break end
-                local bh = btnModel:FindFirstChild("Hitbox")
-                if bh and btnModel:FindFirstChild("TouchInterest", true) and btnModel:FindFirstChildWhichIsA("BillboardGui", true) then
-                    failedScan = false; currHRP.Anchored = false; currHRP.CFrame = CFrame.new(bh.Position - stealthOffset()); hum:ChangeState(Enum.HumanoidStateType.Jumping); task.wait(stealthDelay()); hum:ChangeState(Enum.HumanoidStateType.Running); task.wait(stealthDelay())
+                local bh = button:FindFirstChild("Hitbox")
+                if bh and button:FindFirstChild("TouchInterest", true) and button:FindFirstChildWhichIsA("BillboardGui", true) then
+                    failedScan = false
+                    currentHRP.Anchored = false
+                    currentHRP.CFrame = CFrame.new(bh.Position - stealthOffset())
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    task.wait(stealthDelay())
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                    task.wait(stealthDelay())
                 end
             end
             if failedScan then RunService.Heartbeat:Wait() end
         else
-            applyNoclip(false); currHRP.Anchored = false
-            if Camera.CameraSubject ~= er then Camera.CameraSubject = er end
-            if not Escaped then currHRP.CFrame = GetRandomPoint(er); currHRP.Velocity = Vector3.zero; hum:ChangeState(Enum.HumanoidStateType.Jumping) else Escaped = false; Camera.CameraSubject = hum; hum:ChangeState(Enum.HumanoidStateType.Dead); break end
+            applyNoclip(false)
+            currentHRP.Anchored = false
+            if Camera.CameraSubject ~= exitRegion then Camera.CameraSubject = exitRegion end
+            if not Escaped then
+                currentHRP.CFrame = GetRandomPoint(exitRegion)
+                currentHRP.Velocity = Vector3.zero
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            else
+                Escaped = false
+                Camera.CameraSubject = hum
+                hum:ChangeState(Enum.HumanoidStateType.Dead)
+                break
+            end
         end
     end
 
-    Camera.CameraSubject = hum; applyNoclip(false)
-    if godCon then godCon:Disconnect() end
-    CurrentlyFarming = false; updateStats(curName); rotateMap()
+    Camera.CameraSubject = hum
+    applyNoclip(false)
+    if godMode then godMode:Disconnect() end
+    CurrentlyFarming = false
+    updateStats(currentName)
+    rotateMap()
     if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.success) end
-    clearESPCache(); Stats.currentMap = ""
+    notify("Complete!", "System")
+    clearESPCache()
+    Stats.currentMap = ""
 end
 
 function ConnectMapDetection()
     DisconnectMapDetection()
-    MapDetect = Multiplayer.ChildAdded:Connect(function(newMap) newMap:GetPropertyChangedSignal("Name"):Wait(); if _G.TroxzyAutoFarm and not panicActive then OnMapLoad(newMap) end end)
+    MapDetect = Multiplayer.ChildAdded:Connect(function(newMap)
+        newMap:GetPropertyChangedSignal("Name"):Wait()
+        if _G.TroxzyAutoFarm and not panicActive then
+            OnMapLoad(newMap)
+            notify("Map Detected!", "Info")
+        end
+    end)
     TrackConnection(MapDetect)
 end
 
