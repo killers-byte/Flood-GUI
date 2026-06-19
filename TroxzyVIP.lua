@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM CUSTOM GUI (FIXED)
--- 🔥 No RequestInputAsync
+-- 🔥 KEY SYSTEM CUSTOM GUI
+-- 🔥 REALTIME DASHBOARD + SCRIPT UPTIME
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -169,6 +169,9 @@ end)
 
 repeat task.wait() until keyValid or not Player.Parent
 if not keyValid then return end
+
+-- ==================== SCRIPT START TIME ====================
+local scriptStartTime = os.clock()
 
 -- ==================== SCRIPT UTAMA ====================
 if not Player.Character then Player.CharacterAdded:Wait() end
@@ -639,7 +642,6 @@ local function StartAutoQueue()
     AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
         if not AUTO_QUEUE_ENABLED or panicActive then return end
 
-        -- Segera perbarui Stats.currentMap begitu map muncul
         pcall(function()
             local settings = newMap:WaitForChild("Settings", 5)
             if settings then
@@ -792,7 +794,6 @@ local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return e
 local function OnMapLoad(map)
     clearESPCache()
 
-    -- Segera perbarui nama map
     pcall(function()
         local settings = map:WaitForChild("Settings", 5)
         if settings then
@@ -1138,7 +1139,7 @@ maximizeUI = function()
     t:Play()
 end
 
--- ==================== DASHBOARD PROFESSIONAL LAYOUT (REAL-TIME) ====================
+-- ==================== DASHBOARD WITH UPTIME ====================
 local Dashboard = Instance.new("Frame")
 Dashboard.Size = UDim2.new(0, 230, 0, 0)
 Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0)
@@ -1199,10 +1200,13 @@ local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, DARK_THEME.TextMe
 local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, DARK_THEME.TextMedium)
 local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
 
-createDashDivider(7)
+-- UPTIME LABEL
+local uptimeLabel = createDashLabel("⏳ <b>Uptime:</b> 0m 0s", 7, Color3.fromRGB(150, 200, 255))
 
-local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 8, Color3.fromRGB(100, 255, 100))
-local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 9, Color3.fromRGB(180, 180, 180))
+createDashDivider(8)
+
+local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 9, Color3.fromRGB(100, 255, 100))
+local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 10, Color3.fromRGB(180, 180, 180))
 
 local function updateDashboard()
     if not Dashboard.Visible then return end
@@ -1211,6 +1215,12 @@ local function updateDashboard()
     timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
     local hours = (os.clock() - Stats.sessionStart) / 3600
     speedLabel.Text = "⚡ <b>Rate:</b> " .. ((hours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / hours) or 0) .. " maps/hr"
+
+    -- UPTIME
+    local uptimeSec = math.floor(os.clock() - scriptStartTime)
+    local uptimeMin = math.floor(uptimeSec / 60)
+    uptimeSec = uptimeSec % 60
+    uptimeLabel.Text = "⏳ <b>Uptime:</b> " .. uptimeMin .. "m " .. uptimeSec .. "s"
 
     if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
     elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = Color3.fromRGB(0,230,120)
