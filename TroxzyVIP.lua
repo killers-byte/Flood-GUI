@@ -27,7 +27,7 @@ local Player = Players.LocalPlayer
 if not Player then warn("Player nil"); return end
 
 -- ==================== KEY VALIDATION GUI ====================
-local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/db87fabeae0bd0278df7e1d10ddbe0e98e0a2b2a/TroxzyKey.json"
+local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/95bb7de29f49725991f341a78d19eec9a88fa9d6/TroxzyKey.json"
 
 local keyValid = false
 local attempts = 0
