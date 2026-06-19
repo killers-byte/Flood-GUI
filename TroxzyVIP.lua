@@ -1,8 +1,8 @@
 -- ============================================
 -- TROXZY VIP v20.7 ULTIMATE (PRO EDITION)
--- 🔥 KEY SYSTEM ANTI-SKIP
 -- 🔥 REAL-TIME MAP NAME IN DASHBOARD
 -- 🔥 Dashboard updates every frame
+-- 🔥 KEY SYSTEM AKTIF
 -- ============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -31,48 +31,27 @@ if not Player then warn("Player nil"); return end
 local KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/a87f51974fe191cd47432ae475b5e70a157f80e1/TroxzyKey.json"
 
 local function validateKey()
-    local attempts = 0
-    while attempts < 3 do
-        local input = nil
-        -- Coba gunakan RequestInputAsync (jika didukung)
-        pcall(function()
-            input = Player:RequestInputAsync("🔑 Masukkan Key Troxzy VIP", "TROXZY-XXXX-YYYY-ZZZZ")
-        end)
-        if not input then
-            -- Fallback: gunakan prompt sederhana lewat GUI (opsional, tapi lebih baik kick saja)
-            Player:Kick("Executor tidak mendukung input key. Gunakan executor yang benar!")
-            return false
-        end
-
-        local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
-        if not success then
-            Player:Kick("Gagal terhubung ke server key. Coba lagi nanti.")
-            return false
-        end
-
-        local keys = HttpService:JSONDecode(data)
-        if keys[input] and not keys[input].expired then
-            return true
-        else
-            attempts = attempts + 1
-            if attempts >= 3 then
-                Player:Kick("Key salah 3 kali. Hubungi penjual untuk membeli key resmi.")
-                return false
-            else
-                -- Beri tahu sisa percobaan
-                task.wait(0.5)
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Key Salah",
-                    Text = "Percobaan ke-" .. attempts .. "/3. Coba lagi.",
-                    Duration = 2
-                })
-            end
-        end
+    local input = Player:RequestInputAsync("🔑 Masukkan Key Troxzy VIP", "TROXZY-XXXX-YYYY-ZZZZ")
+    if not input then
+        Player:Kick("Key diperlukan untuk menjalankan script ini.")
+        return false
     end
-    return false
+
+    local success, data = pcall(function() return game:HttpGet(KEYS_URL) end)
+    if not success then
+        Player:Kick("Gagal terhubung ke server key. Coba lagi nanti.")
+        return false
+    end
+
+    local keys = HttpService:JSONDecode(data)
+    if not keys[input] or keys[input].expired then
+        Player:Kick("Key tidak valid atau telah kadaluarsa. Beli key resmi dari penjual.")
+        return false
+    end
+
+    return true
 end
 
--- Panggil validasi DAN HENTIKAN script jika gagal
 if not validateKey() then
     return
 end
