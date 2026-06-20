@@ -1,7 +1,7 @@
 -- ============================================
 -- TROXZY VIP v22.1 "SPECTRAL BLADE" [WIN ENGINE]
 -- Badan Intelijen Negara - AUTO WIN PROTOCOL
--- 🔥 FIXED: PREMIUM AUTHENTICATION, HWID, AUTO-UPDATE & NEW FLUENT UI
+-- 🔥 FIXED: FULL FEATURES RESTORED + FLUENT UI MODERN + HWID + ANTI-LOOP
 -- ============================================
 
 -- [ SUPREME KEY SYSTEM - EMBEDDED & REDESIGNED ]
@@ -22,9 +22,7 @@ local function supremeKeyValidation()
         return os.time()
     end
 
-    if getgenv().keyExpireTime and getgenv().keyExpireTime > GetRealTime() then
-        return true 
-    end
+    if getgenv().keyExpireTime and getgenv().keyExpireTime > GetRealTime() then return true end
     -- ==========================================
 
     local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/e3b5a7a40afbea6f2e31263aa079e0ee82b24176/TroxzyKey.json"
@@ -181,17 +179,46 @@ local CONFIG = {
     TARGET_MAP = "Sandswept Ruins", TARGET_DIFFICULTY = "Crazy", TAS_MODE = "Play", TAS_AUTO_START = false,
     NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false, ESP = false, FULLBRIGHT = false, FOV = false,
     SPEED_VAL = 20, FOV_VAL = 90, AUTO_RECONNECT = true, STEALTH_MODE = true, ADMIN_DETECTOR = true,
-    HIDE_SCRIPT = true, DASHBOARD = true, SMART_ALERTS = true, PANIC_MODE = false, COLLECT_ITEMS = true, AIR_SWIM = true, AUTO_UPDATE = false
+    HIDE_SCRIPT = true, DASHBOARD = true, SMART_ALERTS = true, PANIC_MODE = false, COLLECT_ITEMS = true, AIR_SWIM = true, AUTO_UPDATE = false,
+    CUSTOM_FLOOD_COLORS = false, FLOOD_COLOR = "Blue", ANTI_ADMIN = false, ANTI_REPORT = false, RANDOM_DELAY = true
 }
 
 local Stats = { mapsCompleted = 0, totalTime = 0, sessionStart = os.clock(), adminDetected = 0, adminLeft = 0, currentMap = "" }
 local function loadStats() pcall(function() if isfile("Troxzy_Stats.json") then local d = HttpService:JSONDecode(readfile("Troxzy_Stats.json")); for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end end end); Stats.sessionStart = os.clock() end
 local function saveStats() pcall(function() Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart); writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats)); Stats.sessionStart = os.clock() end) end
-local function getStatsText() return string.format("Maps: %d | Admins: %d", Stats.mapsCompleted, Stats.adminLeft) end
 
 local function isAdminName(str) str = str:lower(); return str:match("^[@_]?[aà]dm?[i1]n[istrator]*$") or str:match("^m[o0]d[erato]*r?$") or str:match("^st[a4]ff$") end
 local function isAdmin(p) return isAdminName(p.Name) or isAdminName(p.DisplayName) end
 local function getAdminPlayers() local admins = {}; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and isAdmin(p) then table.insert(admins, p) end end; return admins end
+
+local function getSpectators()
+    local specs = {}
+    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return specs end
+    local myRoot = Player.Character.HumanoidRootPart
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = p.Character.Humanoid
+            if hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then
+                if (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude < 50 then table.insert(specs, p) end
+            end
+        end
+    end
+    return specs
+end
+
+local function blockAdminRemotes()
+    local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote")
+    if not RemoteFolder then return end
+    local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
+    for _, remote in ipairs(RemoteFolder:GetChildren()) do
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            local lowerName = remote.Name:lower()
+            for _, kw in ipairs(dangerousKeywords) do
+                if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end
+            end
+        end
+    end
+end
 
 local function activateGhostMode()
     if isGhostMode then return end; isGhostMode = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; StopAutoQueue()
@@ -207,11 +234,19 @@ local function handleAdminDetection()
     if count > 0 then
         if count > lastAdminCount and (os.clock() - lastAdminAlert >= 10) then
             lastAdminAlert = os.clock(); Stats.adminDetected = Stats.adminDetected + (count - lastAdminCount)
+            if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
             if getgenv().TomatoAutoFarm or AUTO_QUEUE_ENABLED or TAS_RUNNING then activateGhostMode() end
         end
     else if isGhostMode then deactivateGhostMode() end end
     lastAdminCount = count
 end
+
+if CONFIG.ANTI_REPORT then pcall(function() Players.ReportAbuse = function() end end) end
+
+local floodColorMap = { Blue = Color3.fromRGB(0, 150, 255), Green = Color3.fromRGB(0, 255, 100), Red = Color3.fromRGB(255, 50, 50), Pink = Color3.fromRGB(255, 100, 200), Purple = Color3.fromRGB(150, 50, 255) }
+local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local targetColor = floodColorMap[CONFIG.FLOOD_COLOR] or Color3.fromRGB(0, 150, 255); for _, v in pairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then pcall(function() v.Color = targetColor end) end end end
+local lastFloodColorUpdate = 0
+local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
 
 local function forceReconnect() saveStats(); task.wait(1); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end); task.wait(2); pcall(function() TeleportService:Teleport(game.PlaceId) end) end
 local function attemptReconnect() saveStats(); task.wait(3); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end) end
@@ -230,9 +265,9 @@ local function ExecuteTAS()
 
     TAS_COROUTINE = coroutine.create(function()
         TAS_RUNNING = true; pcall(func); TAS_RUNNING = false; TAS_COROUTINE = nil; if AUTO_QUEUE_ENABLED then mapCompleted = true end
-        if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: READY" end
+        if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "  Status: READY" end
     end)
-    coroutine.resume(TAS_COROUTINE); if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "Status: RUNNING" end
+    coroutine.resume(TAS_COROUTINE); if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "  Status: RUNNING" end
 end
 
 local Multiplayer = Workspace:WaitForChild("Multiplayer")
@@ -249,10 +284,34 @@ local ncCache, ncActive = {}, false
 local function refreshNoclip() ncCache = {}; local char = Player.Character; if char then for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then table.insert(ncCache, v) end end end end
 local function applyNoclip(state) if state == ncActive then return end; ncActive = state; for _, v in ipairs(ncCache) do if v and v.Parent then v.CanCollide = not state end end end
 
+local espCache, lastESPUpdate = {}, 0
+local ESP_MAX_DISTANCE = 100
+local function updateESP()
+    if os.clock() - lastESPUpdate < 0.1 then return end; lastESPUpdate = os.clock()
+    if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end
+    local myRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= Player then
+            if plr.Character and not espCache[plr] then
+                local distOk = not myRoot or (plr.Character:FindFirstChild("HumanoidRootPart") and (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= ESP_MAX_DISTANCE)
+                if distOk then local hl = Instance.new("Highlight"); hl.FillColor = Color3.fromRGB(160, 180, 200); hl.OutlineColor = Color3.fromRGB(255, 255, 255); hl.Parent = plr.Character; espCache[plr] = hl end
+            elseif not plr.Character and espCache[plr] then pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil
+            elseif plr.Character and espCache[plr] and myRoot and plr.Character:FindFirstChild("HumanoidRootPart") then
+                if (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude > ESP_MAX_DISTANCE then pcall(function() espCache[plr]:Destroy() end); espCache[plr] = nil end
+            end
+        end
+    end
+    for plr, hl in pairs(espCache) do if not plr.Parent or (plr.Character and hl.Parent ~= plr.Character) then pcall(function() hl:Destroy() end); espCache[plr] = nil end end
+end
+local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
+
 local panicActive = false; _G.ToggleStates = {}
 local minimizeUI, maximizeUI
-local function activatePanicMode() panicActive = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
-local function deactivatePanicMode() panicActive = false; if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+local function activatePanicMode() panicActive = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); minimizeUI(true); clearESPCache(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
+local function deactivatePanicMode() panicActive = false; maximizeUI(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+
+local lastVisUpdate, lastFOV = 0, 70
+local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
 
 local WIN_SCRIPT_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/win"
 local WinFarmCoroutine, WinFarmRunning, WinDownloading = nil, false, false
@@ -307,13 +366,13 @@ TrackConnection(Player.CharacterAdded:Connect(function() refreshNoclip(); ncActi
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
 
--- TEMA WARNA FLUENT MODERN (Sesuai Gambar)
-local M_BG = Color3.fromRGB(15, 15, 15) -- Warna Sidebar & Base
-local M_CONTENT = Color3.fromRGB(22, 22, 22) -- Warna Container Konten
-local M_ELEMENT = Color3.fromRGB(32, 32, 32) -- Warna Card Elemen
+-- TEMA WARNA FLUENT MODERN
+local M_BG = Color3.fromRGB(15, 15, 15) 
+local M_CONTENT = Color3.fromRGB(22, 22, 22) 
+local M_ELEMENT = Color3.fromRGB(32, 32, 32) 
 local M_TEXT_W = Color3.fromRGB(240, 240, 240)
 local M_TEXT_D = Color3.fromRGB(140, 140, 140)
-local M_ACCENT = Color3.fromRGB(74, 222, 128) -- Hijau modern untuk toggle ON
+local M_ACCENT = Color3.fromRGB(74, 222, 128) 
 local M_BORDER = Color3.fromRGB(45, 45, 45)
 
 ToggleBtn = Instance.new("TextButton")
@@ -327,20 +386,17 @@ Main.BackgroundColor3 = M_BG; Main.BorderSizePixel = 0; Main.Visible = true; Mai
 addCorner(Main, 10); Main.Parent = ScreenGui
 local MainStroke = Instance.new("UIStroke", Main); MainStroke.Color = M_BORDER; MainStroke.Thickness = 1
 
--- Sidebar Container
 local Sidebar = Instance.new("Frame", Main)
 Sidebar.Size = UDim2.new(0, 140, 1, 0); Sidebar.BackgroundColor3 = M_BG; Sidebar.BorderSizePixel = 0; addCorner(Sidebar, 10)
-local SidebarHider = Instance.new("Frame", Sidebar) -- Sembunyikan radius kanan
+local SidebarHider = Instance.new("Frame", Sidebar)
 SidebarHider.Size = UDim2.new(0, 10, 1, 0); SidebarHider.Position = UDim2.new(1, -10, 0, 0); SidebarHider.BackgroundColor3 = M_BG; SidebarHider.BorderSizePixel = 0
 
--- Header di Sidebar (Logo / Title)
 local TitleLabel = Instance.new("TextLabel", Sidebar)
 TitleLabel.Size = UDim2.new(1, -20, 0, 50); TitleLabel.Position = UDim2.new(0, 15, 0, 10)
-TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>by B.I.N</font>"
+TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>By Troxzy</font>"
 TitleLabel.TextColor3 = M_TEXT_W; TitleLabel.Font = Enum.Font.Gotham; TitleLabel.TextSize = 13; TitleLabel.RichText = true
 TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Container Konten Kanan
 local ContentBg = Instance.new("Frame", Main)
 ContentBg.Size = UDim2.new(1, -140, 1, 0); ContentBg.Position = UDim2.new(0, 140, 0, 0)
 ContentBg.BackgroundColor3 = M_CONTENT; ContentBg.BorderSizePixel = 0; addCorner(ContentBg, 10)
@@ -354,7 +410,7 @@ TabListContainer.BackgroundTransparency = 1; TabListContainer.ScrollBarThickness
 local TabListLayout = Instance.new("UIListLayout", TabListContainer)
 TabListLayout.Padding = UDim.new(0, 4); TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-local tabItems = { {name="Automate", icon="⚙️"}, {name="Player", icon="👤"}, {name="Visuals", icon="👁️"}, {name="Settings", icon="🔧"} }
+local tabItems = { {name="Automate", icon="⚙️"}, {name="Player", icon="👤"}, {name="Visuals", icon="👁️"}, {name="Security", icon="🛡️"}, {name="Settings", icon="🔧"} }
 local tabBtns, tabContents = {}, {}
 
 for i, tab in ipairs(tabItems) do
@@ -391,14 +447,13 @@ end
 
 local function AddToggle(tabIdx, name, stateKey)
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1, -10, 0, 45); f.BackgroundColor3 = M_ELEMENT; addCorner(f, 8)
+    f.Size = UDim2.new(1, -10, 0, 40); f.BackgroundColor3 = M_ELEMENT; addCorner(f, 8)
     
     local lbl = Instance.new("TextLabel", f)
     lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.Text = name
     lbl.TextColor3 = M_TEXT_W; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12
     lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Fluent Pill Switch
     local sb = Instance.new("Frame", f)
     sb.Size = UDim2.new(0, 40, 0, 22); sb.Position = UDim2.new(1, -55, 0.5, -11)
     sb.BackgroundColor3 = M_BG; addCorner(sb, 11)
@@ -421,6 +476,7 @@ local function AddToggle(tabIdx, name, stateKey)
         state = not state; setToggleUI(state)
         if stateKey == "AUTO_QUEUE" then AUTO_QUEUE_ENABLED = state; if state then CONFIG.TAS_MODE = "Play"; CONFIG.TAS_AUTO_START = true; mapCompleted = false; StartAutoQueue() else StopAutoQueue() end
         elseif stateKey == "AutoFarm" then getgenv().TomatoAutoFarm = state; if state then StartWinEngine() else StopWinEngine() end
+        elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
         elseif stateKey == "PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
         else CONFIG[stateKey] = state end
     end)
@@ -439,21 +495,73 @@ end
 
 local function AddInput(tabIdx, label, defaultVal, callback)
     local f = Instance.new("Frame", tabContents[tabIdx].scroll)
-    f.Size = UDim2.new(1, -10, 0, 45); f.BackgroundColor3 = M_ELEMENT; addCorner(f, 8)
+    f.Size = UDim2.new(1, -10, 0, 40); f.BackgroundColor3 = M_ELEMENT; addCorner(f, 8)
     local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.Text = label; lbl.TextColor3 = M_TEXT_W; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
     local inp = Instance.new("TextBox", f); inp.Size = UDim2.new(0, 80, 0, 26); inp.Position = UDim2.new(1, -95, 0.5, -13); inp.BackgroundColor3 = M_BG; inp.TextColor3 = M_TEXT_W; inp.PlaceholderText = tostring(defaultVal); inp.Text = tostring(defaultVal); inp.Font = Enum.Font.Gotham; inp.TextSize = 12; addCorner(inp, 6); local strk = Instance.new("UIStroke", inp); strk.Color = M_BORDER; strk.Thickness = 1
     inp.FocusLost:Connect(function() local v = tonumber(inp.Text); if v then callback(v) else inp.Text = tostring(defaultVal) end end)
+end
+
+local function AddInfoLabel(tabIdx, text)
+    local f = Instance.new("Frame", tabContents[tabIdx].scroll)
+    f.Size = UDim2.new(1, -10, 0, 30); f.BackgroundColor3 = M_BG; addCorner(f, 8); local strk = Instance.new("UIStroke", f); strk.Color = M_BORDER; strk.Thickness = 1
+    local lbl = Instance.new("TextLabel", f); lbl.Size = UDim2.new(1, -20, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.Text = text; lbl.TextColor3 = M_TEXT_W; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 11; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return lbl
 end
 
 minimizeUI = function(instant) if instant then Main.Visible = false; isMinimized = true; return end; isMinimized = true; local t = TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,0) }); t:Play(); t.Completed:Connect(function() Main.Visible = false end) end
 maximizeUI = function() isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,520,0,0); TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,360) }):Play() end
 ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
+-- LIVE DASHBOARD RESTORED
+local Dashboard = Instance.new("Frame"); Dashboard.Size = UDim2.new(0, 230, 0, 0); Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0); Dashboard.AnchorPoint = Vector2.new(1, 0); Dashboard.BackgroundColor3 = M_BG; Dashboard.AutomaticSize = Enum.AutomaticSize.Y; Dashboard.Visible = CONFIG.DASHBOARD; addCorner(Dashboard, 8); local dStroke = Instance.new("UIStroke", Dashboard); dStroke.Color = M_BORDER; dStroke.Thickness = 1; Dashboard.Parent = ScreenGui; _G.DashboardUI = Dashboard
+local DPad = Instance.new("UIPadding"); DPad.PaddingTop = UDim.new(0, 12); DPad.PaddingBottom = UDim.new(0, 12); DPad.PaddingLeft = UDim.new(0, 12); DPad.PaddingRight = UDim.new(0, 12); DPad.Parent = Dashboard
+local DLayout = Instance.new("UIListLayout"); DLayout.SortOrder = Enum.SortOrder.LayoutOrder; DLayout.Padding = UDim.new(0, 6); DLayout.Parent = Dashboard
+local function createDashLabel(text, order, color) local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 0, 16); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = color or M_TEXT_W; lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 11; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y; lbl.RichText = true; lbl.LayoutOrder = order; lbl.Parent = Dashboard; return lbl end
+local function createDashDivider(order) local div = Instance.new("Frame"); div.Size = UDim2.new(1, 0, 0, 1); div.BackgroundColor3 = M_BORDER; div.BorderSizePixel = 0; div.LayoutOrder = order; div.Parent = Dashboard; return div end
+
+local dTitle = createDashLabel("<b>⚔️ OVERVIEW</b>", 1, M_ACCENT); dTitle.Font = Enum.Font.GothamBlack; dTitle.TextSize = 12
+createDashDivider(2)
+local mapLabel = createDashLabel("🗺️ <b>Map:</b> Waiting...", 3)
+local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, M_TEXT_D)
+local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, M_TEXT_D)
+local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
+local ghostStatusLabel = createDashLabel("👻 <b>Ghost Mode:</b> Inactive", 7, Color3.fromRGB(180, 180, 180))
+local keyDurationLabel = createDashLabel("🔑 <b>Key Expires In:</b> ...", 8, Color3.fromRGB(255, 200, 100))
+createDashDivider(9)
+local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 10, Color3.fromRGB(100, 255, 100))
+local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 11, Color3.fromRGB(180, 180, 180))
+
+local function updateDashboard()
+    if not Dashboard.Visible then return end
+    local remaining = keyExpireTime - GetRealTime()
+    if remaining <= 0 then Player:Kick("Key expired!"); return end
+    if keyExpireTime > GetRealTime() + 315360000 then keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"; keyDurationLabel.TextColor3 = M_ACCENT
+    else
+        local days = math.floor(remaining / 86400); local hours = math.floor((remaining % 86400) / 3600); local minutes = math.floor((remaining % 3600) / 60)
+        keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. (days > 0 and days.."d " or "") .. hours .. "h " .. minutes .. "m"
+    end
+    mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
+    timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
+    local sessionHours = (os.clock() - Stats.sessionStart) / 3600
+    speedLabel.Text = "⚡ <b>Rate:</b> " .. ((sessionHours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / sessionHours) or 0) .. " maps/hr"
+    
+    if isGhostMode then ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> ACTIVE"; ghostStatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50) else ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> Inactive"; ghostStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180) end
+    if panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80) elseif TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = M_ACCENT elseif AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255) else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = M_TEXT_D end
+    
+    local admins = getAdminPlayers(); if #admins > 0 then local txt = {}; for _, adm in ipairs(admins) do table.insert(txt, " - " .. adm.Name) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(txt, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80) else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
+    local spectators = getSpectators(); if #spectators > 0 then local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
+end
+
 -- TAB 1: Automate
 AddSection(1, "SEAMLESS AUTOMATION")
-AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
 AddToggle(1, "Seamless Auto Queue", "AUTO_QUEUE")
+AddToggle(1, "Auto-Start Play", "TAS_AUTO_START")
+AddButton(1, "Record Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
 AddButton(1, "Force Play Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
+TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
+AddSection(1, "CORE (Win Engine)")
+AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
+AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
 
 -- TAB 2: Player
 AddSection(2, "CHARACTER CONTROL")
@@ -461,6 +569,7 @@ AddToggle(2, "Noclip Bypass", "NOCLIP")
 AddToggle(2, "Speed Modifier", "SPEED")
 AddInput(2, "Speed Value", CONFIG.SPEED_VAL, function(v) CONFIG.SPEED_VAL=v end)
 AddToggle(2, "Infinite Jump", "INF_JUMP")
+AddToggle(2, "God Mode", "GOD_MODE")
 AddToggle(2, "Air Swim (Bypass Water)", "AIR_SWIM")
 
 -- TAB 3: Visuals
@@ -469,14 +578,27 @@ AddToggle(3, "Player ESP", "ESP")
 AddToggle(3, "Fullbright", "FULLBRIGHT")
 AddToggle(3, "FOV Override", "FOV")
 AddInput(3, "Field of View", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL=v end)
+AddToggle(3, "Live Dashboard", "DASHBOARD")
+AddSection(3, "CUSTOM ELEMENTS")
+AddToggle(3, "Custom Flood Colors", "CUSTOM_FLOOD_COLORS")
+local FCLabel = AddInfoLabel(3, "  Current: " .. CONFIG.FLOOD_COLOR)
+AddButton(3, "Cycle Color", false, function() local c={"Blue","Green","Red","Pink","Purple"}; local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1; CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="  Current: "..CONFIG.FLOOD_COLOR end)
 
--- TAB 4: Settings
-AddSection(4, "SYSTEM & SECURITY")
+-- TAB 4: Security
+AddSection(4, "STEALTH & AVOIDANCE")
+AddToggle(4, "Humanized Delay", "RANDOM_DELAY")
 AddToggle(4, "Stealth Movement", "STEALTH_MODE")
-AddToggle(4, "Detect Admins", "ADMIN_DETECTOR")
-AddToggle(4, "Auto Updater", "AUTO_UPDATE")
-AddButton(4, "PANIC MODE (P)", true, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
-AddButton(4, "Check for Updates", false, function()
+AddToggle(4, "Hide GUI Nearby", "HIDE_SCRIPT")
+AddToggle(4, "Detect Admins (Fuzzy)", "ADMIN_DETECTOR")
+AddToggle(4, "Block Admin Remotes", "ANTI_ADMIN")
+AddToggle(4, "Disable Reports", "ANTI_REPORT")
+AddButton(4, "PANIC MODE [P]", true, function() if not panicActive then activatePanicMode() else deactivatePanicMode() end end)
+AddButton(4, "Force Reconnect", true, forceReconnect)
+
+-- TAB 5: Settings
+AddSection(5, "SYSTEM & UPDATES")
+AddToggle(5, "Auto-Updater (On Boot)", "AUTO_UPDATE")
+AddButton(5, "Check for Updates", false, function()
     notify("Checking GitHub...", "Updater")
     task.spawn(function()
         local success, newScript = pcall(function() return game:HttpGet("https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua") end)
@@ -486,7 +608,10 @@ AddButton(4, "Check for Updates", false, function()
         end
     end)
 end)
-AddButton(4, "Minimize Interface", false, function() minimizeUI(false) end)
+AddSection(5, "MISCELLANEOUS")
+AddToggle(5, "Auto Collect Items", "COLLECT_ITEMS")
+AddToggle(5, "Timer Override (3s)", "TIMER_HOOK")
+AddButton(5, "Minimize User Interface", false, function() minimizeUI(false) end)
 
 -- Hotkeys & Loop
 TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == Enum.KeyCode.P then if not panicActive then activatePanicMode() else deactivatePanicMode() end end end))
@@ -503,7 +628,9 @@ TrackConnection(RunService.Heartbeat:Connect(function()
         if CONFIG.AIR_SWIM and hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.Landed); hum.PlatformStand = false; task.wait(0.05); hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
     pcall(handleAdminDetection)
+    pcall(updateDashboard)
 end))
+TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
 
 loadStats(); setupAutoReconnect()
-notify("TROXZY VIP - FLUENT THEME", "System")
+notify("TROXZY VIP - ALL FEATURES RESTORED", "System")
