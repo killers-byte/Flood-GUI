@@ -25,7 +25,7 @@ local function supremeKeyValidation()
     if getgenv().keyExpireTime and getgenv().keyExpireTime > GetRealTime() then return true end
     -- ==========================================
 
-    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/c6267daac5b6d38a600563b7b0cbae72a0d415a0/TroxzyKey.json"
+    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/9274ea73d0e08917868481c5ee77c00dcfa2c144/TroxzyKey.json"
     local keyValid = false
     local attempts = 0
 
