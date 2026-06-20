@@ -710,7 +710,7 @@ RegisterThemeObject(PlayerName, "TextColor3", DARK_THEME.TextBright, LIGHT_THEME
 local Username = Instance.new("TextLabel"); Username.Size = UDim2.new(0,150,0,14); Username.Position = UDim2.new(0,65,0.5,4); Username.Text = "@" .. Player.Name; Username.TextColor3 = DARK_THEME.TextDim; Username.TextSize = 11; Username.Font = Enum.Font.Gotham; Username.BackgroundTransparency = 1; Username.TextXAlignment = Enum.TextXAlignment.Left; Username.Parent = Header
 RegisterThemeObject(Username, "TextColor3", DARK_THEME.TextDim, LIGHT_THEME.TextDim)
 
-local TitleLabel = Instance.new("TextLabel"); TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "SPECTRAL BLADE"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 13; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
+local TitleLabel = Instance.new("TextLabel"); TitleLabel.Size = UDim2.new(0,120,0,20); TitleLabel.Position = UDim2.new(1,-134,0.5,-13); TitleLabel.Text = "TROXZY VIP"; TitleLabel.TextColor3 = DARK_THEME.Accent; TitleLabel.TextSize = 13; TitleLabel.Font = Enum.Font.GothamBlack; TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Right; TitleLabel.Parent = Header
 RegisterThemeObject(TitleLabel, "TextColor3", DARK_THEME.Accent, LIGHT_THEME.Accent)
 
 local Divider = Instance.new("Frame"); Divider.Size = UDim2.new(1, -28, 0, 1); Divider.Position = UDim2.new(0, 14, 0, 60); Divider.BackgroundColor3 = DARK_THEME.Border; Divider.BackgroundTransparency = 0.9; Divider.BorderSizePixel = 0; Divider.Parent = Main
