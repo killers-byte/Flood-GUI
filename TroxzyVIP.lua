@@ -28,7 +28,7 @@ local function supremeKeyValidation()
     -- ==========================================
 
     -- Base URL
-    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/b774475635e6759c41a1841c1707e806319527e9/TroxzyKey.json"
+    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/e3b5a7a40afbea6f2e31263aa079e0ee82b24176/TroxzyKey.json"
     
     local keyValid = false
     local attempts = 0
