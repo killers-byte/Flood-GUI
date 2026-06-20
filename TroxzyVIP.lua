@@ -14,7 +14,7 @@ local function supremeKeyValidation()
     if not Player then return false end
 
     -- Base URL
-    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/7d68d511836dd556243d168974d11b3e97122df9/TroxzyKey.json"
+    local BASE_KEYS_URL = "https://gist.githubusercontent.com/killers-byte/4cd78cad4c3cf8e62e90cd7f8c82624b/raw/2c13a1aba593c3a06ffa001b46c4a4fac7478ee1/TroxzyKey.json"
     
     local keyValid = false
     local attempts = 0
