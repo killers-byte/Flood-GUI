@@ -395,7 +395,7 @@ local API = {
 getgenv().TroxzyAPI = API
 
 -- ==================== LOAD UI DARI GITHUB ====================
-local GITHUB_RAW_UI_URL = "MASUKAN_LINK_RAW_GITHUB_DISINI"
+local GITHUB_RAW_UI_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyUI"
 local success, uiScript = pcall(function() return game:HttpGet(GITHUB_RAW_UI_URL) end)
 if success and uiScript then
     local runUI, err = loadstring(uiScript)
