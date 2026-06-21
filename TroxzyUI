@@ -1,5 +1,6 @@
 -- ============================================
 -- TROXZY VIP v22.1 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
+-- 🔥 SUDAH DILENGKAPI TOGGLE AUTO REBIRTH
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -29,6 +30,7 @@ local getAdminPlayers = API.getAdminPlayers
 local getSpectators = API.getSpectators
 local GetRealTime = API.GetRealTime
 local keyExpireTime = API.KeyTime
+local RebirthAPI = API.Rebirth
 
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
@@ -131,6 +133,11 @@ local function AddToggle(tabIdx, name, stateKey)
         elseif stateKey == "AutoFarm" then getgenv().TomatoAutoFarm = state; if state then StartWinEngine() else StopWinEngine() end
         elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
         elseif stateKey == "PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
+        elseif stateKey == "AUTO_REBIRTH" then
+            if RebirthAPI then
+                RebirthAPI.CONFIG.ENABLED = state
+                if state then RebirthAPI.Start() else RebirthAPI.Stop() end
+            end
         else CONFIG[stateKey] = state end
     end)
 end
@@ -190,7 +197,6 @@ createDashDivider(9)
 local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 10, Color3.fromRGB(100, 255, 100))
 local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 11, Color3.fromRGB(180, 180, 180))
 
--- Fungsi update dashboard (dipanggil backend via hook)
 local function updateDashboard()
     if not Dashboard.Visible then return end
     local remaining = keyExpireTime - GetRealTime()
@@ -212,20 +218,23 @@ local function updateDashboard()
     local spectators = getSpectators(); if #spectators > 0 then local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
 end
 
--- Daftarkan updateDashboard ke API
 API.UIHooks.updateDashboard = updateDashboard
 
--- TAS STATUS LABEL (dapat diakses backend via hook)
-local TAS_STATUS_LABEL
+local TAS_STATUS_LABEL = nil
 API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
 
--- POPULASI UI SESUAI SCRIPT ASLI
+-- ===================== POPULASI UI =====================
 AddSection(1, "SEAMLESS AUTOMATION")
 AddToggle(1, "Seamless Auto Queue", "AUTO_QUEUE")
 AddToggle(1, "Auto-Start Play", "TAS_AUTO_START")
 AddButton(1, "Record Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
 AddButton(1, "Force Play Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
 TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
+
+AddSection(1, "🔄 AUTO REBIRTH")
+AddToggle(1, "Auto Rebirth", "AUTO_REBIRTH")
+AddInfoLabel(1, "  Max Level: " .. (RebirthAPI and RebirthAPI.CONFIG.MAX_LEVEL or 100))
+
 AddSection(1, "CORE (Win Engine)")
 AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
 AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
@@ -275,6 +284,3 @@ AddSection(5, "MISCELLANEOUS")
 AddToggle(5, "Auto Collect Items", "COLLECT_ITEMS")
 AddToggle(5, "Timer Override (3s)", "TIMER_HOOK")
 AddButton(5, "Minimize User Interface", false, function() minimizeUI(false) end)
-
--- Daftarkan hook updateTASStatus yang sudah merujuk ke label
-API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
