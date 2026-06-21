@@ -1,5 +1,5 @@
 -- ============================================
--- TROXZY VIP - FLUENT UI FRONTEND (GITHUB)
+-- TROXZY VIP v22.1 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -28,6 +28,7 @@ local StopWinEngine = API.StopWinEngine
 local getAdminPlayers = API.getAdminPlayers
 local getSpectators = API.getSpectators
 local GetRealTime = API.GetRealTime
+local keyExpireTime = API.KeyTime
 
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
@@ -164,6 +165,7 @@ local function minimizeUI(instant) if instant then Main.Visible = false; isMinim
 local function maximizeUI() isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,520,0,0); TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,360) }):Play() end
 ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
+-- DAFTARKAN HOOKS
 API.UIHooks.minimize = minimizeUI
 API.UIHooks.maximize = maximizeUI
 API.UIHooks.hide = function() if Main then Main.Visible = false end; if ToggleBtn then ToggleBtn.Visible = false end end
@@ -180,21 +182,53 @@ local dTitle = createDashLabel("<b>⚔️ OVERVIEW</b>", 1, M_ACCENT); dTitle.Fo
 createDashDivider(2)
 local mapLabel = createDashLabel("🗺️ <b>Map:</b> Waiting...", 3)
 local timeLabel = createDashLabel("⏱️ <b>Time:</b> 0m", 4, M_TEXT_D)
+local speedLabel = createDashLabel("⚡ <b>Rate:</b> 0 maps/hr", 5, M_TEXT_D)
 local statusLabel = createDashLabel("ℹ️ <b>Status:</b> Idle", 6, Color3.fromRGB(0, 230, 120))
 local ghostStatusLabel = createDashLabel("👻 <b>Ghost Mode:</b> Inactive", 7, Color3.fromRGB(180, 180, 180))
 local keyDurationLabel = createDashLabel("🔑 <b>Key Expires In:</b> ...", 8, Color3.fromRGB(255, 200, 100))
 createDashDivider(9)
 local adminInfoLabel = createDashLabel("🛡️ <b>Admins:</b> None", 10, Color3.fromRGB(100, 255, 100))
+local spectatorInfoLabel = createDashLabel("👁️ <b>Spectators:</b> None", 11, Color3.fromRGB(180, 180, 180))
 
--- UI POPULATING
+-- Fungsi update dashboard (dipanggil backend via hook)
+local function updateDashboard()
+    if not Dashboard.Visible then return end
+    local remaining = keyExpireTime - GetRealTime()
+    if remaining <= 0 then Player:Kick("Key expired!"); return end
+    if keyExpireTime > GetRealTime() + 315360000 then keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"; keyDurationLabel.TextColor3 = M_ACCENT
+    else
+        local days = math.floor(remaining / 86400); local hours = math.floor((remaining % 86400) / 3600); local minutes = math.floor((remaining % 3600) / 60)
+        keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. (days > 0 and days.."d " or "") .. hours .. "h " .. minutes .. "m"
+    end
+    mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
+    timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
+    local sessionHours = (os.clock() - Stats.sessionStart) / 3600
+    speedLabel.Text = "⚡ <b>Rate:</b> " .. ((sessionHours > 0 and Stats.mapsCompleted > 0) and math.floor(Stats.mapsCompleted / sessionHours) or 0) .. " maps/hr"
+    
+    if STATE.isGhostMode then ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> ACTIVE"; ghostStatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50) else ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> Inactive"; ghostStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180) end
+    if STATE.panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80) elseif STATE.TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = M_ACCENT elseif STATE.AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255) else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = M_TEXT_D end
+    
+    local admins = getAdminPlayers(); if #admins > 0 then local txt = {}; for _, adm in ipairs(admins) do table.insert(txt, " - " .. adm.Name) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(txt, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80) else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
+    local spectators = getSpectators(); if #spectators > 0 then local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
+end
+
+-- Daftarkan updateDashboard ke API
+API.UIHooks.updateDashboard = updateDashboard
+
+-- TAS STATUS LABEL (dapat diakses backend via hook)
+local TAS_STATUS_LABEL
+API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
+
+-- POPULASI UI SESUAI SCRIPT ASLI
 AddSection(1, "SEAMLESS AUTOMATION")
 AddToggle(1, "Seamless Auto Queue", "AUTO_QUEUE")
 AddToggle(1, "Auto-Start Play", "TAS_AUTO_START")
 AddButton(1, "Record Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
 AddButton(1, "Force Play Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
-local TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
+TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
 AddSection(1, "CORE (Win Engine)")
 AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
+AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
 
 AddSection(2, "CHARACTER CONTROL")
 AddToggle(2, "Noclip Bypass", "NOCLIP")
@@ -227,21 +261,20 @@ AddButton(4, "Force Reconnect", true, forceReconnect)
 
 AddSection(5, "SYSTEM & UPDATES")
 AddToggle(5, "Auto-Updater (On Boot)", "AUTO_UPDATE")
+AddButton(5, "Check for Updates", false, function()
+    notify("Checking GitHub...", "Updater")
+    task.spawn(function()
+        local success, newScript = pcall(function() return game:HttpGet("https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua") end)
+        if success and newScript and #newScript > 100 then
+            notify("Update found! Reloading...", "Updater"); task.wait(1.5)
+            local func = loadstring(newScript); if func then func() end
+        end
+    end)
+end)
+AddSection(5, "MISCELLANEOUS")
+AddToggle(5, "Auto Collect Items", "COLLECT_ITEMS")
+AddToggle(5, "Timer Override (3s)", "TIMER_HOOK")
 AddButton(5, "Minimize User Interface", false, function() minimizeUI(false) end)
 
--- UI Loop (Dashboard Update)
-task.spawn(function()
-    while task.wait(1) do
-        if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = "  Status: " .. (STATE.TAS_STATUS or "IDLE") end
-        if Dashboard.Visible then
-            local remaining = API.KeyTime - GetRealTime()
-            if remaining <= 0 then Player:Kick("Key expired!"); return end
-            if API.KeyTime > GetRealTime() + 315360000 then keyDurationLabel.Text = "🔑 <b>Key: PERMANENT</b>"; keyDurationLabel.TextColor3 = M_ACCENT else local days = math.floor(remaining / 86400); local hours = math.floor((remaining % 86400) / 3600); local minutes = math.floor((remaining % 3600) / 60); keyDurationLabel.Text = "🔑 <b>Expires In:</b> " .. (days > 0 and days.."d " or "") .. hours .. "h " .. minutes .. "m" end
-            mapLabel.Text = "🗺️ <b>Map:</b> " .. (Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
-            timeLabel.Text = "⏱️ <b>Time:</b> " .. math.floor((os.clock() - Stats.sessionStart) / 60) .. "m"
-            if STATE.isGhostMode then ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> ACTIVE"; ghostStatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50) else ghostStatusLabel.Text = "👻 <b>Ghost Mode:</b> Inactive"; ghostStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180) end
-            if STATE.panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80) elseif STATE.TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = M_ACCENT elseif STATE.AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255) else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = M_TEXT_D end
-            local admins = getAdminPlayers(); if #admins > 0 then local txt = {}; for _, adm in ipairs(admins) do table.insert(txt, " - " .. adm.Name) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(txt, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80) else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
-        end
-    end
-end)
+-- Daftarkan hook updateTASStatus yang sudah merujuk ke label
+API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
