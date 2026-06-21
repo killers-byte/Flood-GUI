@@ -1,9 +1,10 @@
 -- ============================================
 -- TROXZY VIP v22.1 "SPECTRAL BLADE" [BACKEND CORE]
 -- Badan Intelijen Negara - AUTO WIN PROTOCOL
+-- 🔥 FITUR LENGKAP TERMASUK AUTO REBIRTH
 -- ============================================
 
--- [ SUPREME KEY SYSTEM - EMBEDDED & REDESIGNED ]
+-- [ SUPREME KEY SYSTEM ]
 local function supremeKeyValidation()
     local Players = game:GetService("Players")
     local Workspace = game:GetService("Workspace")
@@ -273,10 +274,14 @@ local function ExecuteTAS()
         TAS_RUNNING = false; STATE.TAS_RUNNING = false
         TAS_COROUTINE = nil
         if AUTO_QUEUE_ENABLED then mapCompleted = true; STATE.mapCompleted = true end
-        if API.UIHooks.updateTASStatus then API.UIHooks.updateTASStatus("  Status: READY") end
+        if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then
+            getgenv().TroxzyAPI.UIHooks.updateTASStatus("  Status: READY")
+        end
     end)
     coroutine.resume(TAS_COROUTINE)
-    if API.UIHooks.updateTASStatus then API.UIHooks.updateTASStatus("  Status: RUNNING") end
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then
+        getgenv().TroxzyAPI.UIHooks.updateTASStatus("  Status: RUNNING")
+    end
 end
 
 local Multiplayer = Workspace:WaitForChild("Multiplayer")
@@ -315,8 +320,8 @@ end
 local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
 
 local panicActive = false
-local function activatePanicMode() panicActive = true; STATE.panicActive = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if API.UIHooks.minimize then API.UIHooks.minimize(true) end; clearESPCache(); if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
-local function deactivatePanicMode() panicActive = false; STATE.panicActive = false; if API.UIHooks.maximize then API.UIHooks.maximize() end; if _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+local function activatePanicMode() panicActive = true; STATE.panicActive = true; getgenv().TomatoAutoFarm = false; CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.minimize then getgenv().TroxzyAPI.UIHooks.minimize(true) end; clearESPCache(); if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
+local function deactivatePanicMode() panicActive = false; STATE.panicActive = false; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.maximize then getgenv().TroxzyAPI.UIHooks.maximize() end; if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
 
 local lastVisUpdate, lastFOV = 0, 70
 local function updateVisuals() if os.clock() - lastVisUpdate < 0.5 then return end; lastVisUpdate = os.clock(); Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; if Camera then local tfov = CONFIG.FOV and CONFIG.FOV_VAL or 70; if tfov ~= lastFOV then Tween(Camera, {FieldOfView = tfov}); lastFOV = tfov end end; periodicFloodColorUpdate() end
@@ -371,7 +376,219 @@ end))
 
 TrackConnection(Player.CharacterAdded:Connect(function() refreshNoclip(); ncActive = false; if not Check("InGame") then mapCompleted = false; STATE.mapCompleted = false end end))
 
--- ==================== BANGUN API UNTUK UI ====================
+-- =============================================
+-- 🔥 AUTO REBIRTH SYSTEM v1.0 (FULLY INTEGRATED)
+-- =============================================
+local REBIRTH_CONFIG = {
+    ENABLED = false,
+    CHECK_INTERVAL = 5,
+    AUTO_RESUME = true,
+    MAX_RETRIES = 10,
+    REBIRTH_DELAY_MIN = 2,
+    REBIRTH_DELAY_MAX = 5,
+    USE_REMOTE = true,
+    REMOTE_NAMES = { "Rebirth", "Reborn", "Prestige", "Ascend", "Reset", "NewLife" },
+    BUTTON_NAMES = { "Rebirth", "Reborn", "Prestige", "Ascend", "Reincarnate", "Reset" },
+    LEVEL_ATTRIBUTE = "Level",
+    MAX_LEVEL = 100,
+    LEADERSTAT_NAME = "Level",
+    REBIRTH_STAT_NAME = "Rebirth"
+}
+
+local RebirthState = {
+    isRebirthing = false,
+    rebirthCount = 0,
+    lastRebirthTime = 0,
+    attemptCount = 0,
+    foundRemote = nil,
+    foundButton = nil
+}
+
+local function findRebirthRemote()
+    local paths = { ReplicatedStorage:FindFirstChild("Remote"), ReplicatedStorage:FindFirstChild("Remotes") }
+    for _, folder in ipairs(paths) do
+        if folder then
+            for _, remote in pairs(folder:GetDescendants()) do
+                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("BindableEvent") or remote:IsA("BindableFunction") then
+                    local lowerName = remote.Name:lower()
+                    for _, name in ipairs(REBIRTH_CONFIG.REMOTE_NAMES) do
+                        if lowerName:find(name:lower()) then return remote end
+                    end
+                end
+            end
+        end
+    end
+    -- Cari di path literal
+    local commonPaths = { "Remote.Rebirth", "Remotes.Rebirth", "Events.Rebirth" }
+    for _, path in ipairs(commonPaths) do
+        local success, obj = pcall(function()
+            local parts = string.split(path, ".")
+            local current = ReplicatedStorage
+            for _, part in ipairs(parts) do
+                current = current:FindFirstChild(part)
+                if not current then return nil end
+            end
+            return current
+        end)
+        if success and obj then return obj end
+    end
+    return nil
+end
+
+local function findRebirthButton()
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            local lowerName = obj.Name:lower()
+            for _, name in ipairs(REBIRTH_CONFIG.BUTTON_NAMES) do
+                if lowerName:find(name:lower()) then return obj end
+            end
+        elseif obj:IsA("BasePart") then
+            local clickDetector = obj:FindFirstChild("ClickDetector")
+            if clickDetector then
+                local lowerName = obj.Name:lower()
+                for _, name in ipairs(REBIRTH_CONFIG.BUTTON_NAMES) do
+                    if lowerName:find(name:lower()) then return clickDetector end
+                end
+            end
+        elseif obj:IsA("ProximityPrompt") then
+            local lowerName = obj.Name:lower()
+            for _, name in ipairs(REBIRTH_CONFIG.BUTTON_NAMES) do
+                if lowerName:find(name:lower()) then return obj end
+            end
+        end
+    end
+    return nil
+end
+
+local function getCurrentLevel()
+    local leaderstats = Player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local levelStat = leaderstats:FindFirstChild(REBIRTH_CONFIG.LEADERSTAT_NAME)
+        if levelStat and (levelStat:IsA("IntValue") or levelStat:IsA("NumberValue")) then return levelStat.Value end
+    end
+    local char = Player.Character
+    if char then
+        local levelAttr = char:GetAttribute(REBIRTH_CONFIG.LEVEL_ATTRIBUTE)
+        if levelAttr and type(levelAttr) == "number" then return levelAttr end
+    end
+    local levelAttr2 = Player:GetAttribute(REBIRTH_CONFIG.LEVEL_ATTRIBUTE)
+    if levelAttr2 and type(levelAttr2) == "number" then return levelAttr2 end
+    return 0
+end
+
+local function executeRebirth()
+    if RebirthState.isRebirthing then return end
+    RebirthState.isRebirthing = true
+
+    if REBIRTH_CONFIG.USE_REMOTE then
+        if not RebirthState.foundRemote then RebirthState.foundRemote = findRebirthRemote() end
+        if RebirthState.foundRemote then
+            local success = pcall(function()
+                if RebirthState.foundRemote:IsA("RemoteEvent") or RebirthState.foundRemote:IsA("BindableEvent") then
+                    RebirthState.foundRemote:FireServer()
+                elseif RebirthState.foundRemote:IsA("RemoteFunction") or RebirthState.foundRemote:IsA("BindableFunction") then
+                    RebirthState.foundRemote:InvokeServer()
+                end
+            end)
+            if success then
+                RebirthState.rebirthCount = RebirthState.rebirthCount + 1
+                RebirthState.lastRebirthTime = os.clock()
+                notify("🔄 Rebirth executed via Remote!", "Rebirth System")
+                task.wait(math.random(REBIRTH_CONFIG.REBIRTH_DELAY_MIN, REBIRTH_CONFIG.REBIRTH_DELAY_MAX))
+                RebirthState.isRebirthing = false
+                return true
+            end
+        end
+    end
+
+    if not RebirthState.foundButton then RebirthState.foundButton = findRebirthButton() end
+    if RebirthState.foundButton then
+        local success = pcall(function()
+            if RebirthState.foundButton:IsA("ClickDetector") then
+                fireclickdetector(RebirthState.foundButton)
+            elseif RebirthState.foundButton:IsA("ProximityPrompt") then
+                fireproximityprompt(RebirthState.foundButton)
+            end
+        end)
+        if success then
+            RebirthState.rebirthCount = RebirthState.rebirthCount + 1
+            RebirthState.lastRebirthTime = os.clock()
+            notify("🔄 Rebirth executed via Button!", "Rebirth System")
+            task.wait(math.random(REBIRTH_CONFIG.REBIRTH_DELAY_MIN, REBIRTH_CONFIG.REBIRTH_DELAY_MAX))
+            RebirthState.isRebirthing = false
+            return true
+        end
+    end
+
+    RebirthState.foundRemote = nil
+    RebirthState.foundButton = nil
+    RebirthState.attemptCount = RebirthState.attemptCount + 1
+    if RebirthState.attemptCount >= REBIRTH_CONFIG.MAX_RETRIES then
+        notify("⚠️ Failed to find rebirth after " .. REBIRTH_CONFIG.MAX_RETRIES .. " attempts.", "Rebirth System")
+        RebirthState.attemptCount = 0
+    end
+    RebirthState.isRebirthing = false
+    return false
+end
+
+local AutoRebirthLoop = nil
+local function StartAutoRebirth()
+    if AutoRebirthLoop then return end
+    AutoRebirthLoop = task.spawn(function()
+        while REBIRTH_CONFIG.ENABLED do
+            task.wait(REBIRTH_CONFIG.CHECK_INTERVAL)
+            if not REBIRTH_CONFIG.ENABLED then break end
+            if panicActive then continue end
+            if RebirthState.isRebirthing then continue end
+
+            local currentLevel = getCurrentLevel()
+            if currentLevel >= REBIRTH_CONFIG.MAX_LEVEL then
+                notify("🌟 Level " .. currentLevel .. " reached! Executing rebirth...", "Rebirth System")
+
+                local wasFarming = getgenv().TomatoAutoFarm
+                local wasTAS = TAS_RUNNING
+                local wasQueue = AUTO_QUEUE_ENABLED
+
+                if wasFarming then StopWinEngine() end
+                if wasTAS and TAS_COROUTINE then
+                    pcall(coroutine.close, TAS_COROUTINE)
+                    TAS_COROUTINE = nil
+                    TAS_RUNNING = false
+                end
+
+                task.wait(0.5)
+                local rebirthSuccess = executeRebirth()
+
+                if rebirthSuccess and REBIRTH_CONFIG.AUTO_RESUME then
+                    task.wait(2)
+                    if wasQueue then StartAutoQueue()
+                    elseif wasFarming then getgenv().TomatoAutoFarm = true; StartWinEngine()
+                    elseif wasTAS then task.spawn(ExecuteTAS) end
+                end
+            end
+        end
+    end)
+end
+
+local function StopAutoRebirth()
+    REBIRTH_CONFIG.ENABLED = false
+    AutoRebirthLoop = nil
+end
+
+getgenv().TroxzyAPI_Rebirth = {
+    CONFIG = REBIRTH_CONFIG,
+    STATE = RebirthState,
+    Start = StartAutoRebirth,
+    Stop = StopAutoRebirth,
+    Execute = executeRebirth,
+    GetLevel = getCurrentLevel,
+    FindRemote = findRebirthRemote,
+    FindButton = findRebirthButton
+}
+
+-- =============================================
+-- BANGUN API UNTUK UI
+-- =============================================
 local API = {
     CONFIG = CONFIG,
     STATE = STATE,
@@ -390,12 +607,13 @@ local API = {
     StopWinEngine = StopWinEngine,
     forceReconnect = forceReconnect,
     notify = notify,
-    UIHooks = {} -- akan diisi oleh UI
+    Rebirth = getgenv().TroxzyAPI_Rebirth,
+    UIHooks = {}
 }
 getgenv().TroxzyAPI = API
 
 -- ==================== LOAD UI DARI GITHUB ====================
-local GITHUB_RAW_UI_URL = "https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyUI"
+local GITHUB_RAW_UI_URL = "MASUKAN_LINK_RAW_GITHUB_DISINI"
 local success, uiScript = pcall(function() return game:HttpGet(GITHUB_RAW_UI_URL) end)
 if success and uiScript then
     local runUI, err = loadstring(uiScript)
@@ -425,4 +643,4 @@ TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.K
 TrackConnection(UIS.JumpRequest:Connect(function() if CONFIG.INF_JUMP and Player.Character then local h = Player.Character:FindFirstChild("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end))
 
 loadStats(); setupAutoReconnect()
-notify("TROXZY VIP - BACKEND LOADED", "System")
+notify("TROXZY VIP - ALL FEATURES + AUTO REBIRTH LOADED", "System")
