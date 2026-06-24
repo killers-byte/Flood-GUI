@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v24.10 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
--- 🔥 TANPA LAG TARGET, PERTAHANAN MAKSIMAL
+-- TROXZY VIP v24.11 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
+-- 🔥 UI DIPERBAIKI: AUTO UPDATER + DESTROY HOOK
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -166,7 +166,7 @@ local function AddInfoLabel(tabIdx, text)
     return lbl
 end
 
--- Export UI Hooks ke API agar Script Utama bisa menyembunyikan UI
+-- Export UI Hooks ke API agar Script Utama bisa menyembunyikan/menghancurkan UI
 local isMinimized = false
 local function minimizeUI(instant) if instant then Main.Visible = false; isMinimized = true; return end; isMinimized = true; local t = TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,0) }); t:Play(); t.Completed:Connect(function() Main.Visible = false end) end
 local function maximizeUI() isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,520,0,0); TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,360) }):Play() end
@@ -177,6 +177,12 @@ API.UIHooks.minimize = minimizeUI
 API.UIHooks.maximize = maximizeUI
 API.UIHooks.hide = function() if Main then Main.Visible = false end; if ToggleBtn then ToggleBtn.Visible = false end end
 API.UIHooks.show = function() if Main then Main.Visible = true end; if ToggleBtn then ToggleBtn.Visible = true end end
+-- 🔥 Hook untuk menghancurkan seluruh UI (digunakan sebelum update)
+API.UIHooks.destroy = function()
+    pcall(function() ScreenGui:Destroy() end)
+    pcall(function() _G.ToggleStates = {} end)
+    pcall(function() _G.DashboardUI = nil end)
+end
 
 -- LIVE DASHBOARD
 local Dashboard = Instance.new("Frame"); Dashboard.Size = UDim2.new(0, 230, 0, 0); Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0); Dashboard.AnchorPoint = Vector2.new(1, 0); Dashboard.BackgroundColor3 = M_BG; Dashboard.AutomaticSize = Enum.AutomaticSize.Y; Dashboard.Visible = CONFIG.DASHBOARD; addCorner(Dashboard, 8); local dStroke = Instance.new("UIStroke", Dashboard); dStroke.Color = M_BORDER; dStroke.Thickness = 1; Dashboard.Parent = ScreenGui; _G.DashboardUI = Dashboard
@@ -270,15 +276,13 @@ AddButton(4, "Force Reconnect", true, forceReconnect)
 
 AddSection(5, "SYSTEM & UPDATES")
 AddToggle(5, "Auto-Updater (On Boot)", "AUTO_UPDATE")
+-- 🔥 TOMBOL CHECK FOR UPDATES MENGGUNAKAN API UPDATER BACKEND
 AddButton(5, "Check for Updates", false, function()
-    notify("Checking GitHub...", "Updater")
-    task.spawn(function()
-        local success, newScript = pcall(function() return game:HttpGet("https://raw.githubusercontent.com/killers-byte/Flood-GUI/refs/heads/main/TroxzyVIP.lua") end)
-        if success and newScript and #newScript > 100 then
-            notify("Update found! Reloading...", "Updater"); task.wait(1.5)
-            local func = loadstring(newScript); if func then func() end
-        end
-    end)
+    if API.Updater and API.Updater.CheckForUpdates then
+        API.Updater.CheckForUpdates()
+    else
+        notify("Updater tidak tersedia! Perbarui backend.", "Error")
+    end
 end)
 AddSection(5, "MISCELLANEOUS")
 AddToggle(5, "Auto Collect Items", "COLLECT_ITEMS")
