@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v22.1 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
--- 🔥 DROPDOWN LAG TARGET DIPERBAIKI (VISIBLE & FUNGSIONAL)
+-- TROXZY VIP v24.10 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
+-- 🔥 TANPA LAG TARGET, PERTAHANAN MAKSIMAL
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -31,9 +31,6 @@ local getSpectators = API.getSpectators
 local GetRealTime = API.GetRealTime
 local keyExpireTime = API.KeyTime
 local RebirthAPI = API.Rebirth
-local StartLagTarget = API.StartLagTarget
-local StopLagTarget = API.StopLagTarget
-local GetPlayerNames = API.GetPlayerNames
 
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
@@ -169,130 +166,6 @@ local function AddInfoLabel(tabIdx, text)
     return lbl
 end
 
--- 🔥🔥🔥 FUNGSI DROPDOWN PLAYER DIPERBAIKI 🔥🔥🔥
-local function CreateDropdown(tabIdx, placeholder)
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, -10, 0, 40)
-    container.BackgroundColor3 = M_ELEMENT
-    container.Parent = tabContents[tabIdx].scroll
-    addCorner(container, 8)
-
-    local selectedText = Instance.new("TextLabel", container)
-    selectedText.Size = UDim2.new(1, -40, 1, 0)
-    selectedText.Position = UDim2.new(0, 12, 0, 0)
-    selectedText.Text = placeholder
-    selectedText.TextColor3 = M_TEXT_D
-    selectedText.Font = Enum.Font.GothamMedium
-    selectedText.TextSize = 12
-    selectedText.BackgroundTransparency = 1
-    selectedText.TextXAlignment = Enum.TextXAlignment.Left
-
-    local arrow = Instance.new("TextButton", container)
-    arrow.Size = UDim2.new(0, 30, 1, 0)
-    arrow.Position = UDim2.new(1, -35, 0, 0)
-    arrow.BackgroundColor3 = M_BG
-    arrow.Text = "▼"
-    arrow.TextColor3 = M_TEXT_W
-    arrow.TextSize = 14
-    arrow.Font = Enum.Font.GothamBold
-    addCorner(arrow, 6)
-
-    -- 🔥 Perbaikan: frame daftar dibuat di luar container agar tidak terpotong
-    local listFrame = Instance.new("Frame")
-    listFrame.Size = UDim2.new(1, -10, 0, 0)
-    listFrame.Position = UDim2.new(0, 0, 1, 5)
-    listFrame.BackgroundColor3 = M_BG
-    listFrame.BorderSizePixel = 0
-    listFrame.Visible = false
-    listFrame.ZIndex = 10
-    listFrame.Parent = container
-    addCorner(listFrame, 6)
-
-    local listScroller = Instance.new("ScrollingFrame", listFrame)
-    listScroller.Size = UDim2.new(1, 0, 1, 0)
-    listScroller.BackgroundTransparency = 1
-    listScroller.ScrollBarThickness = 2
-    listScroller.ScrollBarImageColor3 = M_BORDER
-    listScroller.CanvasSize = UDim2.new(0,0,0,0)
-    listScroller.ZIndex = 11
-    listScroller.BorderSizePixel = 0
-
-    local scrollerLayout = Instance.new("UIListLayout", listScroller)
-    scrollerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-    local function refreshList()
-        -- Bersihkan item lama
-        for _, child in ipairs(listScroller:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
-
-        local playerNames = GetPlayerNames()
-        if not playerNames or #playerNames == 0 then
-            -- Fallback jika GetPlayerNames tidak tersedia
-            local allPlayers = Players:GetPlayers()
-            playerNames = {}
-            for _, p in ipairs(allPlayers) do
-                if p ~= Player then table.insert(playerNames, p.Name) end
-            end
-        end
-
-        local totalHeight = 0
-        for _, name in ipairs(playerNames) do
-            local itemBtn = Instance.new("TextButton", listScroller)
-            itemBtn.Size = UDim2.new(1, -10, 0, 26)
-            itemBtn.Text = "  " .. name
-            itemBtn.TextColor3 = M_TEXT_W
-            itemBtn.Font = Enum.Font.GothamMedium
-            itemBtn.TextSize = 12
-            itemBtn.BackgroundColor3 = M_ELEMENT
-            itemBtn.AutoButtonColor = false
-            itemBtn.TextXAlignment = Enum.TextXAlignment.Left
-            itemBtn.ZIndex = 11
-            addCorner(itemBtn, 4)
-
-            itemBtn.MouseButton1Click:Connect(function()
-                selectedText.Text = name
-                selectedText.TextColor3 = M_TEXT_W
-                listFrame.Visible = false
-            end)
-
-            totalHeight = totalHeight + 28
-        end
-
-        listScroller.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 10)
-    end
-
-    arrow.MouseButton1Click:Connect(function()
-        listFrame.Visible = not listFrame.Visible
-        if listFrame.Visible then
-            refreshList()
-            listFrame.Size = UDim2.new(1, 0, 0, math.min(150, listScroller.CanvasSize.Y.Offset + 5))
-        else
-            listFrame.Size = UDim2.new(1, 0, 0, 0)
-        end
-    end)
-
-    -- Tutup dropdown saat kursor meninggalkan area container + listFrame
-    container.MouseLeave:Connect(function()
-        task.wait(0.1)
-        -- Cek apakah mouse masih di dalam container atau listFrame
-        local mousePos = UIS:GetMouseLocation()
-        local containerBounds = container.AbsolutePosition
-        local containerSize = container.AbsoluteSize
-        local inContainer = mousePos.X >= containerBounds.X and mousePos.X <= containerBounds.X + containerSize.X
-            and mousePos.Y >= containerBounds.Y and mousePos.Y <= containerBounds.Y + containerSize.Y + 150
-        if not inContainer then
-            listFrame.Visible = false
-        end
-    end)
-
-    return {
-        GetSelectedName = function() return selectedText.Text end,
-        Refresh = refreshList,
-        Container = container
-    }
-end
-
 -- Export UI Hooks ke API agar Script Utama bisa menyembunyikan UI
 local isMinimized = false
 local function minimizeUI(instant) if instant then Main.Visible = false; isMinimized = true; return end; isMinimized = true; local t = TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,0) }); t:Play(); t.Completed:Connect(function() Main.Visible = false end) end
@@ -394,26 +267,6 @@ AddToggle(4, "Block Admin Remotes", "ANTI_ADMIN")
 AddToggle(4, "Disable Reports", "ANTI_REPORT")
 AddButton(4, "PANIC MODE [P]", true, function() if not STATE.panicActive then activatePanicMode() else deactivatePanicMode() end end)
 AddButton(4, "Force Reconnect", true, forceReconnect)
-
--- ===== LAG TARGET SECTION (DROPDOWN SUDAH DIPERBAIKI) =====
-AddSection(4, "⚡ LAG TARGET (PICK & KICK)")
-local lagDropdown = CreateDropdown(4, "Pilih player...")
-AddButton(4, "Start Lag", true, function()
-    local target = lagDropdown.GetSelectedName()
-    if target and target ~= "Pilih player..." then
-        StartLagTarget(target)
-    else
-        notify("Pilih player dulu!", "Error")
-    end
-end)
-AddButton(4, "Stop Lag", false, function()
-    local target = lagDropdown.GetSelectedName()
-    if target and target ~= "Pilih player..." then
-        StopLagTarget(target)
-    else
-        notify("Pilih player dulu!", "Error")
-    end
-end)
 
 AddSection(5, "SYSTEM & UPDATES")
 AddToggle(5, "Auto-Updater (On Boot)", "AUTO_UPDATE")
