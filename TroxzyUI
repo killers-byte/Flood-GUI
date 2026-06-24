@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v24.15 "SPECTRAL BLADE" - FLUENT UI
--- 🔥 UI DIPERBAIKI: PROFIL ROBLOX, LEFT DRAGGABLE TOGGLE, POTATO MODE
+-- TROXZY VIP v24.17 "SPECTRAL BLADE" - FLUENT UI
+-- 🔥 UPDATE: ZOOM TWEEN (0% LAG), PROFIL ROBLOX, DRAGGABLE
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -17,7 +17,7 @@ local notify, activatePanicMode, deactivatePanicMode, forceReconnect = API.notif
 local applyFloodColors, ExecuteTAS, StartAutoQueue, StopAutoQueue = API.applyFloodColors, API.ExecuteTAS, API.StartAutoQueue, API.StopAutoQueue
 local StartWinEngine, StopWinEngine, getAdminPlayers, getSpectators = API.StartWinEngine, API.StopWinEngine, API.getAdminPlayers, API.getSpectators
 local GetRealTime, keyExpireTime, RebirthAPI = API.GetRealTime, API.KeyTime, API.Rebirth
-local applyPotatoMode = API.applyPotatoMode -- 🔥 Import Potato Mode
+local applyPotatoMode = API.applyPotatoMode
 
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
@@ -32,25 +32,29 @@ local M_ACCENT = Color3.fromRGB(74, 222, 128)
 local M_BORDER = Color3.fromRGB(45, 45, 45)
 
 local function addCorner(obj, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 6); c.Parent = obj end
-local function Tween(obj, props, time) if not obj then return end; TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play() end
 
--- 🔥 NEW TOGGLE BUTTON: KIRI, BISA DIGESER (DRAGGABLE), LOGO KEREN
+-- 🔥 DRAGGABLE TOGGLE BUTTON KIRI
 local ToggleBtn = Instance.new("ImageButton")
 ToggleBtn.Size = UDim2.new(0, 48, 0, 48)
-ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) -- Posisikan di kiri layar
+ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0)
 ToggleBtn.BackgroundColor3 = M_ELEMENT
-ToggleBtn.Image = "rbxassetid://10867490651" -- Logo Assassin/Blade Modern
+ToggleBtn.Image = "rbxassetid://10867490651"
 ToggleBtn.Active = true
-ToggleBtn.Draggable = true -- BISA DIGESER
+ToggleBtn.Draggable = true 
 addCorner(ToggleBtn, 12)
 local ToggleStroke = Instance.new("UIStroke", ToggleBtn); ToggleStroke.Color = M_ACCENT; ToggleStroke.Thickness = 1.5
 ToggleBtn.Parent = ScreenGui
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 520, 0, 360); Main.Position = UDim2.new(0.5, -260, 0.5, -180)
+Main.Size = UDim2.new(0, 520, 0, 360)
+Main.Position = UDim2.new(0.5, -260, 0.5, -180)
 Main.BackgroundColor3 = M_BG; Main.BorderSizePixel = 0; Main.Visible = true; Main.Active = true; Main.Draggable = true
 addCorner(Main, 10); Main.Parent = ScreenGui
 local MainStroke = Instance.new("UIStroke", Main); MainStroke.Color = M_BORDER; MainStroke.Thickness = 1
+
+-- 🔥 SISTEM ANIMASI ANTI-LAG (MENGGUNAKAN UISCALE)
+local MainScale = Instance.new("UIScale", Main)
+MainScale.Scale = 1
 
 local Sidebar = Instance.new("Frame", Main)
 Sidebar.Size = UDim2.new(0, 140, 1, 0); Sidebar.BackgroundColor3 = M_BG; Sidebar.BorderSizePixel = 0; addCorner(Sidebar, 10)
@@ -59,11 +63,10 @@ SidebarHider.Size = UDim2.new(0, 10, 1, 0); SidebarHider.Position = UDim2.new(1,
 
 local TitleLabel = Instance.new("TextLabel", Sidebar)
 TitleLabel.Size = UDim2.new(1, -20, 0, 40); TitleLabel.Position = UDim2.new(0, 15, 0, 5)
-TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>v24.15</font>"
+TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>v24.17</font>"
 TitleLabel.TextColor3 = M_TEXT_W; TitleLabel.Font = Enum.Font.Gotham; TitleLabel.TextSize = 13; TitleLabel.RichText = true
 TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- 🔥 NEW: PROFIL ROBLOX DI SIDEBAR
 local ProfileFrame = Instance.new("Frame", Sidebar)
 ProfileFrame.Size = UDim2.new(1, -20, 0, 42); ProfileFrame.Position = UDim2.new(0, 10, 0, 50)
 ProfileFrame.BackgroundColor3 = M_ELEMENT; addCorner(ProfileFrame, 8)
@@ -84,7 +87,6 @@ ContentBg.BackgroundColor3 = M_CONTENT; ContentBg.BorderSizePixel = 0; addCorner
 local ContentHider = Instance.new("Frame", ContentBg)
 ContentHider.Size = UDim2.new(0, 10, 1, 0); ContentHider.BackgroundColor3 = M_CONTENT; ContentHider.BorderSizePixel = 0
 
--- Sesuaikan posisi TabList agar tidak menabrak Profil
 local TabListContainer = Instance.new("ScrollingFrame", Sidebar)
 TabListContainer.Size = UDim2.new(1, -15, 1, -105); TabListContainer.Position = UDim2.new(0, 10, 0, 100)
 TabListContainer.BackgroundTransparency = 1; TabListContainer.ScrollBarThickness = 0
@@ -92,6 +94,7 @@ local TabListLayout = Instance.new("UIListLayout", TabListContainer); TabListLay
 
 local tabItems = { {name="Automate", icon="⚙️"}, {name="Player", icon="👤"}, {name="Visuals", icon="👁️"}, {name="Security", icon="🛡️"}, {name="Settings", icon="🔧"} }
 local tabBtns, tabContents = {}, {}
+local function TweenFast(obj, props) TweenService:Create(obj, TweenInfo.new(0.15), props):Play() end
 
 for i, tab in ipairs(tabItems) do
     local tabBtn = Instance.new("TextButton", TabListContainer)
@@ -110,8 +113,8 @@ for i, tab in ipairs(tabItems) do
 
     tabBtn.MouseButton1Click:Connect(function()
         for j, btn in ipairs(tabBtns) do
-            if j==i then Tween(btn, {BackgroundColor3 = M_ELEMENT, TextColor3 = M_TEXT_W}); tabContents[j].scroll.Visible = true
-            else Tween(btn, {BackgroundColor3 = M_BG, TextColor3 = M_TEXT_D}); tabContents[j].scroll.Visible = false end
+            if j==i then TweenFast(btn, {BackgroundColor3 = M_ELEMENT, TextColor3 = M_TEXT_W}); tabContents[j].scroll.Visible = true
+            else TweenFast(btn, {BackgroundColor3 = M_BG, TextColor3 = M_TEXT_D}); tabContents[j].scroll.Visible = false end
         end
     end)
 end
@@ -132,8 +135,8 @@ local function AddToggle(tabIdx, name, stateKey)
 
     local function setToggleUI(st)
         state = st
-        Tween(dot, {Position = st and UDim2.new(0, 21, 0.5, -8) or UDim2.new(0, 3, 0.5, -8), BackgroundColor3 = st and Color3.fromRGB(255,255,255) or M_TEXT_D})
-        Tween(sb, {BackgroundColor3 = st and M_ACCENT or M_BG})
+        TweenFast(dot, {Position = st and UDim2.new(0, 21, 0.5, -8) or UDim2.new(0, 3, 0.5, -8), BackgroundColor3 = st and Color3.fromRGB(255,255,255) or M_TEXT_D})
+        TweenFast(sb, {BackgroundColor3 = st and M_ACCENT or M_BG})
     end
     if stateKey then _G.ToggleStates[stateKey] = { state = false, SetState = setToggleUI } end
 
@@ -143,9 +146,8 @@ local function AddToggle(tabIdx, name, stateKey)
         elseif stateKey == "AutoFarm" then getgenv().TomatoAutoFarm = state; if state then StartWinEngine() else StopWinEngine() end
         elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
         elseif stateKey == "PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
-        elseif stateKey == "POTATO_MODE" then applyPotatoMode(state) -- 🔥 Trigger Potato Mode
-        elseif stateKey == "AUTO_REBIRTH" then
-            if RebirthAPI then RebirthAPI.CONFIG.ENABLED = state; if state then RebirthAPI.Start() else RebirthAPI.Stop() end end
+        elseif stateKey == "POTATO_MODE" then applyPotatoMode(state)
+        elseif stateKey == "AUTO_REBIRTH" then if RebirthAPI then RebirthAPI.CONFIG.ENABLED = state; if state then RebirthAPI.Start() else RebirthAPI.Stop() end end
         else CONFIG[stateKey] = state end
     end)
 end
@@ -154,8 +156,8 @@ local function AddButton(tabIdx, name, isRed, callback)
     local b = Instance.new("TextButton", tabContents[tabIdx].scroll)
     b.Size = UDim2.new(1, -10, 0, 35); b.BackgroundColor3 = isRed and Color3.fromRGB(200, 50, 50) or M_BG
     b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamMedium; b.TextColor3 = M_TEXT_W; b.AutoButtonColor = false; addCorner(b, 8); local strk = Instance.new("UIStroke", b); strk.Color = M_BORDER; strk.Thickness = 1
-    b.MouseEnter:Connect(function() Tween(b, {BackgroundColor3 = isRed and Color3.fromRGB(180, 40, 40) or M_ELEMENT}) end)
-    b.MouseLeave:Connect(function() Tween(b, {BackgroundColor3 = isRed and Color3.fromRGB(200, 50, 50) or M_BG}) end)
+    b.MouseEnter:Connect(function() TweenFast(b, {BackgroundColor3 = isRed and Color3.fromRGB(180, 40, 40) or M_ELEMENT}) end)
+    b.MouseLeave:Connect(function() TweenFast(b, {BackgroundColor3 = isRed and Color3.fromRGB(200, 50, 50) or M_BG}) end)
     b.MouseButton1Click:Connect(function() pcall(callback) end)
 end
 
@@ -174,10 +176,25 @@ local function AddInfoLabel(tabIdx, text)
     return lbl
 end
 
--- Export UI Hooks ke API
+-- 🔥 LOGIC ZOOM UI ANTI-LAG (0% CPU STRESS)
 local isMinimized = false
-local function minimizeUI(instant) if instant then Main.Visible = false; isMinimized = true; return end; isMinimized = true; local t = TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,0) }); t:Play(); t.Completed:Connect(function() Main.Visible = false end) end
-local function maximizeUI() isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,520,0,0); TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,360) }):Play() end
+local function minimizeUI(instant)
+    isMinimized = true
+    if instant then 
+        MainScale.Scale = 0; Main.Visible = false 
+    else 
+        local t = TweenService:Create(MainScale, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { Scale = 0 })
+        t:Play()
+        t.Completed:Connect(function() if isMinimized then Main.Visible = false end end)
+    end
+end
+
+local function maximizeUI()
+    isMinimized = false
+    Main.Visible = true
+    TweenService:Create(MainScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+end
+
 ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
 API.UIHooks.minimize = minimizeUI
@@ -223,7 +240,17 @@ local function updateDashboard()
     if STATE.panicActive then statusLabel.Text = "ℹ️ <b>Status:</b> PANIC"; statusLabel.TextColor3 = Color3.fromRGB(255,80,80) elseif STATE.TAS_RUNNING then statusLabel.Text = "ℹ️ <b>Status:</b> TAS PLAYING"; statusLabel.TextColor3 = M_ACCENT elseif STATE.AUTO_QUEUE_ENABLED then statusLabel.Text = "ℹ️ <b>Status:</b> Auto Queue"; statusLabel.TextColor3 = Color3.fromRGB(100,200,255) else statusLabel.Text = "ℹ️ <b>Status:</b> Idle"; statusLabel.TextColor3 = M_TEXT_D end
     
     local admins = getAdminPlayers(); if #admins > 0 then local txt = {}; for _, adm in ipairs(admins) do table.insert(txt, " - " .. adm.Name) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(txt, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80) else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
-    local spectators = getSpectators(); if #spectators > 0 then local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
+    
+    -- 🔥 SPECTATOR SEKARANG SELALU TERTAMPIL DI DASHBOARD (TIDAK NGUMPET)
+    local spectators = getSpectators()
+    if #spectators > 0 then 
+        local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end
+        spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n")
+        spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) 
+    else 
+        spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"
+        spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) 
+    end
 end
 API.UIHooks.updateDashboard = updateDashboard
 
@@ -237,19 +264,15 @@ AddToggle(1, "Auto-Start Play", "TAS_AUTO_START")
 AddButton(1, "Record Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
 AddButton(1, "Force Play Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
 TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
-
 AddSection(1, "🔄 AUTO REBIRTH")
 AddToggle(1, "Auto Rebirth", "AUTO_REBIRTH")
 AddInfoLabel(1, "  Max Level: " .. (RebirthAPI and RebirthAPI.CONFIG.MAX_LEVEL or 100))
-
 AddSection(1, "CORE (Win Engine)")
 AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
 AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
-
--- 🔥 NEW SECTION: OPTIMIZER DI TAB AUTOMATE
 AddSection(1, "PC/HP OPTIMIZER (AFK)")
-AddToggle(1, "Potato Mode (Anti-Crash)", "POTATO_MODE")
-AddInfoLabel(1, "  (Matikan tekstur & turunkan FPS)")
+AddToggle(1, "Extreme Potato Mode", "POTATO_MODE")
+AddInfoLabel(1, "  (Anti-Lag Batch Processing)")
 
 AddSection(2, "CHARACTER CONTROL")
 AddToggle(2, "Noclip Bypass", "NOCLIP")
