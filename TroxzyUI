@@ -1,6 +1,6 @@
 -- ============================================
--- TROXZY VIP v24.11 "SPECTRAL BLADE" - FLUENT UI (GITHUB)
--- 🔥 UI DIPERBAIKI: AUTO UPDATER + DESTROY HOOK
+-- TROXZY VIP v24.15 "SPECTRAL BLADE" - FLUENT UI
+-- 🔥 UI DIPERBAIKI: PROFIL ROBLOX, LEFT DRAGGABLE TOGGLE, POTATO MODE
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -12,25 +12,12 @@ local UIS = game:GetService("UserInputService")
 local Player = Players.LocalPlayer
 local IS_MOBILE = UIS.TouchEnabled
 
--- Ambil Data & Fungsi dari Script Utama
-local CONFIG = API.CONFIG
-local STATE = API.STATE
-local Stats = API.Stats
-local notify = API.notify
-local activatePanicMode = API.activatePanicMode
-local deactivatePanicMode = API.deactivatePanicMode
-local forceReconnect = API.forceReconnect
-local applyFloodColors = API.applyFloodColors
-local ExecuteTAS = API.ExecuteTAS
-local StartAutoQueue = API.StartAutoQueue
-local StopAutoQueue = API.StopAutoQueue
-local StartWinEngine = API.StartWinEngine
-local StopWinEngine = API.StopWinEngine
-local getAdminPlayers = API.getAdminPlayers
-local getSpectators = API.getSpectators
-local GetRealTime = API.GetRealTime
-local keyExpireTime = API.KeyTime
-local RebirthAPI = API.Rebirth
+local CONFIG, STATE, Stats = API.CONFIG, API.STATE, API.Stats
+local notify, activatePanicMode, deactivatePanicMode, forceReconnect = API.notify, API.activatePanicMode, API.deactivatePanicMode, API.forceReconnect
+local applyFloodColors, ExecuteTAS, StartAutoQueue, StopAutoQueue = API.applyFloodColors, API.ExecuteTAS, API.StartAutoQueue, API.StopAutoQueue
+local StartWinEngine, StopWinEngine, getAdminPlayers, getSpectators = API.StartWinEngine, API.StopWinEngine, API.getAdminPlayers, API.getSpectators
+local GetRealTime, keyExpireTime, RebirthAPI = API.GetRealTime, API.KeyTime, API.Rebirth
+local applyPotatoMode = API.applyPotatoMode -- 🔥 Import Potato Mode
 
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
 if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
@@ -47,10 +34,17 @@ local M_BORDER = Color3.fromRGB(45, 45, 45)
 local function addCorner(obj, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 6); c.Parent = obj end
 local function Tween(obj, props, time) if not obj then return end; TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play() end
 
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(0,45,0,45); ToggleBtn.Position = IS_MOBILE and UDim2.new(0.88,0,0.05,0) or UDim2.new(0.015,0,0.015,0)
-ToggleBtn.BackgroundColor3 = M_ELEMENT; ToggleBtn.Text = "T"; ToggleBtn.TextSize = 20; ToggleBtn.Font = Enum.Font.GothamBold; ToggleBtn.TextColor3 = M_TEXT_W
-addCorner(ToggleBtn, 8); ToggleBtn.Parent = ScreenGui
+-- 🔥 NEW TOGGLE BUTTON: KIRI, BISA DIGESER (DRAGGABLE), LOGO KEREN
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Size = UDim2.new(0, 48, 0, 48)
+ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) -- Posisikan di kiri layar
+ToggleBtn.BackgroundColor3 = M_ELEMENT
+ToggleBtn.Image = "rbxassetid://10867490651" -- Logo Assassin/Blade Modern
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true -- BISA DIGESER
+addCorner(ToggleBtn, 12)
+local ToggleStroke = Instance.new("UIStroke", ToggleBtn); ToggleStroke.Color = M_ACCENT; ToggleStroke.Thickness = 1.5
+ToggleBtn.Parent = ScreenGui
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 520, 0, 360); Main.Position = UDim2.new(0.5, -260, 0.5, -180)
@@ -64,10 +58,25 @@ local SidebarHider = Instance.new("Frame", Sidebar)
 SidebarHider.Size = UDim2.new(0, 10, 1, 0); SidebarHider.Position = UDim2.new(1, -10, 0, 0); SidebarHider.BackgroundColor3 = M_BG; SidebarHider.BorderSizePixel = 0
 
 local TitleLabel = Instance.new("TextLabel", Sidebar)
-TitleLabel.Size = UDim2.new(1, -20, 0, 50); TitleLabel.Position = UDim2.new(0, 15, 0, 10)
-TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>By Troxzy</font>"
+TitleLabel.Size = UDim2.new(1, -20, 0, 40); TitleLabel.Position = UDim2.new(0, 15, 0, 5)
+TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#8c8c8c'>v24.15</font>"
 TitleLabel.TextColor3 = M_TEXT_W; TitleLabel.Font = Enum.Font.Gotham; TitleLabel.TextSize = 13; TitleLabel.RichText = true
 TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 🔥 NEW: PROFIL ROBLOX DI SIDEBAR
+local ProfileFrame = Instance.new("Frame", Sidebar)
+ProfileFrame.Size = UDim2.new(1, -20, 0, 42); ProfileFrame.Position = UDim2.new(0, 10, 0, 50)
+ProfileFrame.BackgroundColor3 = M_ELEMENT; addCorner(ProfileFrame, 8)
+local AvatarImg = Instance.new("ImageLabel", ProfileFrame)
+AvatarImg.Size = UDim2.new(0, 30, 0, 30); AvatarImg.Position = UDim2.new(0, 6, 0.5, -15); AvatarImg.BackgroundColor3 = M_BG
+addCorner(AvatarImg, 15)
+pcall(function() AvatarImg.Image = Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420) end)
+local PName = Instance.new("TextLabel", ProfileFrame)
+PName.Size = UDim2.new(1, -45, 0, 15); PName.Position = UDim2.new(0, 42, 0, 6)
+PName.BackgroundTransparency = 1; PName.Text = Player.DisplayName; PName.Font = Enum.Font.GothamBold; PName.TextSize = 10; PName.TextColor3 = M_TEXT_W; PName.TextXAlignment = Enum.TextXAlignment.Left; PName.TextTruncate = Enum.TextTruncate.AtEnd
+local PUser = Instance.new("TextLabel", ProfileFrame)
+PUser.Size = UDim2.new(1, -45, 0, 15); PUser.Position = UDim2.new(0, 42, 0, 20)
+PUser.BackgroundTransparency = 1; PUser.Text = "@" .. Player.Name; PUser.Font = Enum.Font.Gotham; PUser.TextSize = 9; PUser.TextColor3 = M_TEXT_D; PUser.TextXAlignment = Enum.TextXAlignment.Left; PUser.TextTruncate = Enum.TextTruncate.AtEnd
 
 local ContentBg = Instance.new("Frame", Main)
 ContentBg.Size = UDim2.new(1, -140, 1, 0); ContentBg.Position = UDim2.new(0, 140, 0, 0)
@@ -75,8 +84,9 @@ ContentBg.BackgroundColor3 = M_CONTENT; ContentBg.BorderSizePixel = 0; addCorner
 local ContentHider = Instance.new("Frame", ContentBg)
 ContentHider.Size = UDim2.new(0, 10, 1, 0); ContentHider.BackgroundColor3 = M_CONTENT; ContentHider.BorderSizePixel = 0
 
+-- Sesuaikan posisi TabList agar tidak menabrak Profil
 local TabListContainer = Instance.new("ScrollingFrame", Sidebar)
-TabListContainer.Size = UDim2.new(1, -15, 1, -70); TabListContainer.Position = UDim2.new(0, 10, 0, 60)
+TabListContainer.Size = UDim2.new(1, -15, 1, -105); TabListContainer.Position = UDim2.new(0, 10, 0, 100)
 TabListContainer.BackgroundTransparency = 1; TabListContainer.ScrollBarThickness = 0
 local TabListLayout = Instance.new("UIListLayout", TabListContainer); TabListLayout.Padding = UDim.new(0, 4); TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
@@ -133,11 +143,9 @@ local function AddToggle(tabIdx, name, stateKey)
         elseif stateKey == "AutoFarm" then getgenv().TomatoAutoFarm = state; if state then StartWinEngine() else StopWinEngine() end
         elseif stateKey == "DASHBOARD" then CONFIG.DASHBOARD = state; if _G.DashboardUI then _G.DashboardUI.Visible = state end
         elseif stateKey == "PANIC_MODE" then if state then activatePanicMode() else deactivatePanicMode() end
+        elseif stateKey == "POTATO_MODE" then applyPotatoMode(state) -- 🔥 Trigger Potato Mode
         elseif stateKey == "AUTO_REBIRTH" then
-            if RebirthAPI then
-                RebirthAPI.CONFIG.ENABLED = state
-                if state then RebirthAPI.Start() else RebirthAPI.Stop() end
-            end
+            if RebirthAPI then RebirthAPI.CONFIG.ENABLED = state; if state then RebirthAPI.Start() else RebirthAPI.Stop() end end
         else CONFIG[stateKey] = state end
     end)
 end
@@ -166,23 +174,17 @@ local function AddInfoLabel(tabIdx, text)
     return lbl
 end
 
--- Export UI Hooks ke API agar Script Utama bisa menyembunyikan/menghancurkan UI
+-- Export UI Hooks ke API
 local isMinimized = false
 local function minimizeUI(instant) if instant then Main.Visible = false; isMinimized = true; return end; isMinimized = true; local t = TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,0) }); t:Play(); t.Completed:Connect(function() Main.Visible = false end) end
 local function maximizeUI() isMinimized = false; Main.Visible = true; Main.Size = UDim2.new(0,520,0,0); TweenService:Create(Main, TweenInfo.new(0.3), { Size = UDim2.new(0,520,0,360) }):Play() end
 ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
 
--- DAFTARKAN HOOKS
 API.UIHooks.minimize = minimizeUI
 API.UIHooks.maximize = maximizeUI
 API.UIHooks.hide = function() if Main then Main.Visible = false end; if ToggleBtn then ToggleBtn.Visible = false end end
 API.UIHooks.show = function() if Main then Main.Visible = true end; if ToggleBtn then ToggleBtn.Visible = true end end
--- 🔥 Hook untuk menghancurkan seluruh UI (digunakan sebelum update)
-API.UIHooks.destroy = function()
-    pcall(function() ScreenGui:Destroy() end)
-    pcall(function() _G.ToggleStates = {} end)
-    pcall(function() _G.DashboardUI = nil end)
-end
+API.UIHooks.destroy = function() pcall(function() ScreenGui:Destroy() end); pcall(function() _G.ToggleStates = {} end); pcall(function() _G.DashboardUI = nil end) end
 
 -- LIVE DASHBOARD
 local Dashboard = Instance.new("Frame"); Dashboard.Size = UDim2.new(0, 230, 0, 0); Dashboard.Position = UDim2.new(0.985, 0, 0.015, 0); Dashboard.AnchorPoint = Vector2.new(1, 0); Dashboard.BackgroundColor3 = M_BG; Dashboard.AutomaticSize = Enum.AutomaticSize.Y; Dashboard.Visible = CONFIG.DASHBOARD; addCorner(Dashboard, 8); local dStroke = Instance.new("UIStroke", Dashboard); dStroke.Color = M_BORDER; dStroke.Thickness = 1; Dashboard.Parent = ScreenGui; _G.DashboardUI = Dashboard
@@ -223,7 +225,6 @@ local function updateDashboard()
     local admins = getAdminPlayers(); if #admins > 0 then local txt = {}; for _, adm in ipairs(admins) do table.insert(txt, " - " .. adm.Name) end; adminInfoLabel.Text = "🛡️ <b>Admins:</b>\n" .. table.concat(txt, "\n"); adminInfoLabel.TextColor3 = Color3.fromRGB(255,80,80) else adminInfoLabel.Text = "🛡️ <b>Admins:</b> None"; adminInfoLabel.TextColor3 = Color3.fromRGB(100,255,100) end
     local spectators = getSpectators(); if #spectators > 0 then local stxt = {}; for _, spec in ipairs(spectators) do table.insert(stxt, " - " .. spec.DisplayName) end; spectatorInfoLabel.Text = "👁️ <b>Spectators:</b>\n" .. table.concat(stxt, "\n"); spectatorInfoLabel.TextColor3 = Color3.fromRGB(255,200,0) else spectatorInfoLabel.Text = "👁️ <b>Spectators:</b> None"; spectatorInfoLabel.TextColor3 = Color3.fromRGB(180,180,180) end
 end
-
 API.UIHooks.updateDashboard = updateDashboard
 
 local TAS_STATUS_LABEL = nil
@@ -244,6 +245,11 @@ AddInfoLabel(1, "  Max Level: " .. (RebirthAPI and RebirthAPI.CONFIG.MAX_LEVEL o
 AddSection(1, "CORE (Win Engine)")
 AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
 AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
+
+-- 🔥 NEW SECTION: OPTIMIZER DI TAB AUTOMATE
+AddSection(1, "PC/HP OPTIMIZER (AFK)")
+AddToggle(1, "Potato Mode (Anti-Crash)", "POTATO_MODE")
+AddInfoLabel(1, "  (Matikan tekstur & turunkan FPS)")
 
 AddSection(2, "CHARACTER CONTROL")
 AddToggle(2, "Noclip Bypass", "NOCLIP")
@@ -276,14 +282,7 @@ AddButton(4, "Force Reconnect", true, forceReconnect)
 
 AddSection(5, "SYSTEM & UPDATES")
 AddToggle(5, "Auto-Updater (On Boot)", "AUTO_UPDATE")
--- 🔥 TOMBOL CHECK FOR UPDATES MENGGUNAKAN API UPDATER BACKEND
-AddButton(5, "Check for Updates", false, function()
-    if API.Updater and API.Updater.CheckForUpdates then
-        API.Updater.CheckForUpdates()
-    else
-        notify("Updater tidak tersedia! Perbarui backend.", "Error")
-    end
-end)
+AddButton(5, "Check for Updates", false, function() if API.Updater and API.Updater.CheckForUpdates then API.Updater.CheckForUpdates() else notify("Updater tidak tersedia! Perbarui backend.", "Error") end end)
 AddSection(5, "MISCELLANEOUS")
 AddToggle(5, "Auto Collect Items", "COLLECT_ITEMS")
 AddToggle(5, "Timer Override (3s)", "TIMER_HOOK")
