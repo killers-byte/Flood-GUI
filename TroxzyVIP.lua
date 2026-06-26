@@ -370,17 +370,13 @@ end
 -- [ STRICT ADMIN DETECTION ]
 local function isAdmin(p)
     if not p then return false end
-    -- Owner game
     if p.UserId == game.CreatorId then return true end
-    -- Roblox Admin group
     local success, isRobloxAdmin = pcall(function() return p:IsInGroup(1200769) end)
     if success and isRobloxAdmin then return true end
-    -- GUI Admin di PlayerGui
     local pGui = p:FindFirstChild("PlayerGui")
     if pGui then
         if pGui:FindFirstChild("HDAdminGUIs") or pGui:FindFirstChild("Adonis_UI") or pGui:FindFirstChild("KohlsAdmin") or pGui:FindFirstChild("AdminUI") then return true end
     end
-    -- Leaderstats admin/mod/owner
     local leaderstats = p:FindFirstChild("leaderstats")
     if leaderstats then
         for _, stat in ipairs(leaderstats:GetChildren()) do
@@ -391,7 +387,6 @@ local function isAdmin(p)
             end
         end
     end
-    -- Behavior flagged
     if PlayerAnalytics[p] and PlayerAnalytics[p].flaggedAdmin then return true end
     return false
 end
@@ -545,9 +540,9 @@ local function ExecuteTAS()
     if not success then return end
     local func, compileErr = loadstring(scriptContent)
     if not func then return end
-    TAS_COROUTINE = coroutine.create(function() STATE.TAS_RUNNING = true; pcall(func); STATE.TAS_RUNNING = false; TAS_COROUTINE = nil; if STATE.AUTO_QUEUE_ENABLED then STATE.mapCompleted = true end; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("  Status: READY") end end)
+    TAS_COROUTINE = coroutine.create(function() STATE.TAS_RUNNING = true; pcall(func); STATE.TAS_RUNNING = false; TAS_COROUTINE = nil; if STATE.AUTO_QUEUE_ENABLED then STATE.mapCompleted = true end; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("Status: READY") end end)
     coroutine.resume(TAS_COROUTINE)
-    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("  Status: RUNNING") end
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("Status: RUNNING") end
 end
 _G.ExecuteTAS = ExecuteTAS
 
@@ -612,8 +607,8 @@ local function applyGodMode()
     end
 end
 
-local function activatePanicMode() STATE.panicActive = true; getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.minimize then getgenv().TroxzyAPI.UIHooks.minimize(true) end; clearESPCache(); if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
-local function deactivatePanicMode() STATE.panicActive = false; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.maximize then getgenv().TroxzyAPI.UIHooks.maximize() end; if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+local function activatePanicMode() STATE.panicActive = true; getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false; applyNoclip(false); pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.minimize then getgenv().TroxzyAPI.UIHooks.minimize(true) end; clearESPCache(); end
+local function deactivatePanicMode() STATE.panicActive = false; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.maximize then getgenv().TroxzyAPI.UIHooks.maximize() end end
 
 local lastVisUpdate = 0
 local function updateVisuals() 
