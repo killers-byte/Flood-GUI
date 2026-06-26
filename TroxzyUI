@@ -1,6 +1,6 @@
 -- ============================================
 -- TROXZY VIP v24.18 "SPECTRAL BLADE" - FLUENT UI (MOBILE)
--- 🔥 DASHBOARD TERPADU + SEMUA FITUR LENGKAP
+-- 🔥 DASHBOARD TERPADU + TAS STATUS FIX
 -- ============================================
 local API = getgenv().TroxzyAPI
 if not API then warn("Troxzy Backend API not found!") return end
@@ -239,7 +239,6 @@ addActionBtn("🔄 HOP", API.QuickHop, Color3.fromRGB(50,150,200))
 addActionBtn("⏯️ FARM", API.ToggleAutoFarm, M_ELEMENT)
 addActionBtn("🔃 RECONNECT", forceReconnect, M_ELEMENT)
 
--- Update Dashboard (dipanggil dari loop lambat backend)
 function API.UIHooks.updateDashboard()
     if not Main.Visible then return end
     local remaining = keyExpireTime - GetRealTime()
@@ -288,7 +287,9 @@ AddToggle(2, "Seamless Auto Queue", "AUTO_QUEUE")
 AddToggle(2, "Auto-Start Play", "TAS_AUTO_START")
 AddButton(2, "Record Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS) end)
 AddButton(2, "Force Play Route", false, function() if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end; CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS) end)
-AddInfoLabel(2, "  Status: READY")
+local TAS_STATUS_LABEL = AddInfoLabel(2, "  Status: READY")
+API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
+
 AddSection(2, "🔄 AUTO REBIRTH")
 AddToggle(2, "Auto Rebirth", "AUTO_REBIRTH")
 AddInfoLabel(2, "  Max Level: " .. (RebirthAPI and RebirthAPI.CONFIG.MAX_LEVEL or 100))
