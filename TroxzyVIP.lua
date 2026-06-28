@@ -184,7 +184,7 @@ local function loadStats() pcall(function() if isfile("Troxzy_Stats.json") then 
 local function saveStats() pcall(function() Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart); writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats)); Stats.sessionStart = os.clock() end) end
 
 local function serverHop()
-    notify("⚠️ Bailing out! Admin Detected. Initiating Server Hop...", "STEALTH OPS")
+    notify("Bailing out! Admin Detected. Initiating Server Hop...", "STEALTH OPS")
     saveStats()
     local servers = {}
     local success, result = pcall(function()
@@ -429,7 +429,7 @@ local UPDATE_CONFIG = {
 }
 local function fetchVersion(url) local success, data = pcall(function() return game:HttpGet(url) end); if success and data then return string.match(data, "%S+") end; return nil end
 local function performUpdate()
-    notify("🔄 Update ditemukan! Eksekusi Protokol Pembersihan Total...", "Auto Updater")
+    notify("Update ditemukan! Eksekusi Protokol Pembersihan Total...", "Auto Updater")
     pcall(function() StopWinEngine() end); pcall(function() StopAutoQueue() end)
     if _G.TroxzyConnections then for _, conn in pairs(_G.TroxzyConnections) do pcall(function() conn:Disconnect() end) end; _G.TroxzyConnections = {} end
     pcall(function() if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks and getgenv().TroxzyAPI.UIHooks.destroy then getgenv().TroxzyAPI.UIHooks.destroy() end end)
@@ -443,9 +443,9 @@ local function performUpdate()
     local scriptData = nil
     local success, data = pcall(function() return game:HttpGet(UPDATE_CONFIG.UPDATE_SCRIPT_URL) end)
     if success and data and #data > 100 then scriptData = data else for _, url in ipairs(UPDATE_CONFIG.FALLBACK_URLS) do success, data = pcall(function() return game:HttpGet(url) end); if success and data and #data > 100 then scriptData = data; break end end end
-    if scriptData then notify("⚡ Memasang & merestart script baru...", "Auto Updater"); task.wait(0.8); local func, err = loadstring(scriptData); if func then getgenv().TroxzyAPI = nil; func() else notify("❌ Gagal memuat compile: " .. tostring(err), "Auto Updater") end else notify("❌ Gagal mengunduh update.", "Auto Updater") end
+    if scriptData then notify("? Memasang & merestart script baru...", "Auto Updater"); task.wait(0.8); local func, err = loadstring(scriptData); if func then getgenv().TroxzyAPI = nil; func() else notify("? Gagal memuat compile: " .. tostring(err), "Auto Updater") end else notify("? Gagal mengunduh update.", "Auto Updater") end
 end
-local function checkForUpdates() local latestVersion = fetchVersion(UPDATE_CONFIG.VERSION_CHECK_URL); if latestVersion then if latestVersion ~= UPDATE_CONFIG.CURRENT_VERSION then notify("🆕 Update tersedia! " .. UPDATE_CONFIG.CURRENT_VERSION .. " → " .. latestVersion, "Auto Updater"); task.wait(0.5); performUpdate() else notify("✅ Versi terbaru digunakan (" .. UPDATE_CONFIG.CURRENT_VERSION .. ").", "Auto Updater") end else performUpdate() end end
+local function checkForUpdates() local latestVersion = fetchVersion(UPDATE_CONFIG.VERSION_CHECK_URL); if latestVersion then if latestVersion ~= UPDATE_CONFIG.CURRENT_VERSION then notify("Update tersedia! " .. UPDATE_CONFIG.CURRENT_VERSION .. " ? " .. latestVersion, "Auto Updater"); task.wait(0.5); performUpdate() else notify("? Versi terbaru digunakan (" .. UPDATE_CONFIG.CURRENT_VERSION .. ").", "Auto Updater") end else performUpdate() end end
 if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
 
 -- Hybrid Auto Queue
@@ -476,7 +476,7 @@ function StartAutoQueue()
         if not STATE.AUTO_QUEUE_ENABLED then STATE.HybridActive = false; return end
         STATE.mapCompleted = false
         if not Check("InGame") then
-            notify("⚠️ Timeout 15s (" .. mapName .. "), gagal teleport. Fallback ke Auto Farm.", "Hybrid System")
+            notify("Timeout 15s (" .. mapName .. "), gagal teleport. Fallback ke Auto Farm.", "Hybrid System")
             if STATE.TAS_RUNNING and TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil; STATE.TAS_RUNNING = false end
             getgenv().TomatoAutoFarm = true; STATE.CurrentlyFarming = true
             StopWinEngine(); StartWinEngine()
@@ -484,11 +484,11 @@ function StartAutoQueue()
         end
         task.wait(0.5)
         if isMapInTAS(mapName) then
-            notify("🚀 TAS Support (" .. mapName .. ")! Eksekusi TAS...", "Hybrid System")
+            notify("TAS Support (" .. mapName .. ")! Eksekusi TAS...", "Hybrid System")
             getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false
             StopWinEngine(); task.spawn(ExecuteTAS)
         else
-            notify("⚡ TAS Tidak Support (" .. mapName .. ")! Switch ke Auto Farm...", "Hybrid System")
+            notify("? TAS Tidak Support (" .. mapName .. ")! Switch ke Auto Farm...", "Hybrid System")
             if STATE.TAS_RUNNING and TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil; STATE.TAS_RUNNING = false end
             getgenv().TomatoAutoFarm = true; STATE.CurrentlyFarming = true
             StopWinEngine(); StartWinEngine()
@@ -508,7 +508,7 @@ end
 task.spawn(function() while task.wait(0.5) do if (STATE.AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not STATE.panicActive and not STATE.isGhostMode then local char = Player.Character; if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not STATE.TAS_RUNNING and not STATE.CurrentlyFarming then STATE.moveToLift = true; liftTarget = findLiftPosition() else STATE.moveToLift = false end else STATE.moveToLift = false end end end)
 TrackConnection(RunService.Heartbeat:Connect(function() if STATE.moveToLift and (STATE.AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not STATE.panicActive and not STATE.TAS_RUNNING then local char = Player.Character; local hum = char and char:FindFirstChild("Humanoid"); local hrp = char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp and hum.Health > 0 and not Check("InGame") and not Check("InLift") and liftTarget then if (liftTarget - hrp.Position).Magnitude > 3 then hum:MoveTo(liftTarget); hum.WalkSpeed = 25 else pcall(function() AddedWaiting:FireServer() end); STATE.moveToLift = false end end end end))
 
--- Auto Rebirth
+-- Auto Rebirth (DIPERBAIKI SECARA SPESIFIK BUAT UI CLICK OLEH BIN)
 local REBIRTH_CONFIG = { ENABLED = true, CHECK_INTERVAL = 3, AUTO_RESUME = true, MAX_RETRIES = 5, REBIRTH_DELAY_MIN = 2, REBIRTH_DELAY_MAX = 5, MAX_LEVEL = 100, LEADERSTAT_NAME = "Level", REMOTE_NAMES = { "rebirth", "reborn", "prestige", "ascend", "reset", "newlife", "dorebirth" }, BUTTON_NAMES = { "rebirth", "reborn", "prestige", "ascend", "reincarnate" }, LEVEL_ATTRIBUTE = "Level", REBIRTH_STAT_NAME = "Rebirth" }
 local RebirthState = { isRebirthing = false, rebirthCount = 0, lastRebirthTime = 0, attemptCount = 0, foundRemote = nil, foundButton = nil }
 
@@ -570,29 +570,95 @@ end
 
 local function executeRebirth()
     if RebirthState.isRebirthing then return end; RebirthState.isRebirthing = true
-    if not RebirthState.foundRemote then RebirthState.foundRemote = findRebirthRemote() end
-    if RebirthState.foundRemote then 
-        local success = pcall(function() 
-            if RebirthState.foundRemote:IsA("RemoteEvent") or RebirthState.foundRemote:IsA("BindableEvent") then 
-                RebirthState.foundRemote:FireServer()
-                task.wait(math.random(150, 400) / 1000)
-                RebirthState.foundRemote:FireServer(1)
-            elseif RebirthState.foundRemote:IsA("RemoteFunction") or RebirthState.foundRemote:IsA("BindableFunction") then 
-                RebirthState.foundRemote:InvokeServer()
-                task.wait(math.random(150, 400) / 1000)
-                RebirthState.foundRemote:InvokeServer(1) 
-            end 
-        end)
-        if success then RebirthState.rebirthCount = RebirthState.rebirthCount + 1; RebirthState.lastRebirthTime = os.clock(); notify("🔄 Rebirth Dieksekusi Secara Otomatis!", "Auto Rebirth"); task.wait(math.random(REBIRTH_CONFIG.REBIRTH_DELAY_MIN, REBIRTH_CONFIG.REBIRTH_DELAY_MAX)); RebirthState.isRebirthing = false; return true end 
+    local successClick = false
+    local pGui = Player:FindFirstChild("PlayerGui")
+    
+    -- [ LOGIC BARU: CARI TOMBOL EXP & OKE SESUAI PERMINTAAN MULIA ]
+    if pGui then
+        local expBtn = nil
+        local okeBtn = nil
+        for _, v in pairs(pGui:GetDescendants()) do
+            if (v:IsA("GuiButton") or v:IsA("ImageButton") or v:IsA("TextButton")) then
+                if v.Name:lower():find("exp") or v.Name:lower():find("xp") or v.Name:lower():find("level") then
+                    expBtn = v
+                    break
+                end
+            end
+        end
+        
+        if expBtn then
+            pcall(function()
+                if getconnections then
+                    for _, conn in ipairs(getconnections(expBtn.MouseButton1Click)) do conn:Fire() end
+                else
+                    firesignal(expBtn.MouseButton1Click)
+                end
+            end)
+            
+            task.wait(0.5) -- Nunggu popup Kelahiran Kembali
+            
+            for _, v in pairs(pGui:GetDescendants()) do
+                if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible then
+                    local txtLabel = v:FindFirstChildWhichIsA("TextLabel")
+                    local txt = txtLabel and txtLabel.Text:lower() or v.Name:lower()
+                    if txt:find("oke") or txt:find("yes") or txt:find("ya") or txt:find("confirm") then
+                        okeBtn = v
+                        break
+                    end
+                end
+            end
+            
+            if okeBtn then
+                pcall(function()
+                    if getconnections then
+                        for _, conn in ipairs(getconnections(okeBtn.MouseButton1Click)) do conn:Fire() end
+                    else
+                        firesignal(okeBtn.MouseButton1Click)
+                    end
+                end)
+                successClick = true
+                RebirthState.rebirthCount = RebirthState.rebirthCount + 1
+                RebirthState.lastRebirthTime = os.clock()
+                notify("🔥 Auto Rebirth via UI Dieksekusi!", "Auto Rebirth")
+            end
+        end
     end
-    if not RebirthState.foundButton then RebirthState.foundButton = findRebirthButton() end
-    if RebirthState.foundButton then 
-        local success = pcall(function() if RebirthState.foundButton:IsA("ClickDetector") then fireclickdetector(RebirthState.foundButton) elseif RebirthState.foundButton:IsA("ProximityPrompt") then fireproximityprompt(RebirthState.foundButton) end end)
-        if success then RebirthState.rebirthCount = RebirthState.rebirthCount + 1; RebirthState.lastRebirthTime = os.clock(); notify("🔄 Rebirth via Tombol Dieksekusi!", "Auto Rebirth"); task.wait(math.random(REBIRTH_CONFIG.REBIRTH_DELAY_MIN, REBIRTH_CONFIG.REBIRTH_DELAY_MAX)); RebirthState.isRebirthing = false; return true end 
+
+    -- Fallback ke remote kalau UI Click gagal
+    if not successClick then
+        if not RebirthState.foundRemote then RebirthState.foundRemote = findRebirthRemote() end
+        if RebirthState.foundRemote then 
+            local success = pcall(function() 
+                if RebirthState.foundRemote:IsA("RemoteEvent") or RebirthState.foundRemote:IsA("BindableEvent") then 
+                    RebirthState.foundRemote:FireServer()
+                    task.wait(math.random(150, 400) / 1000)
+                    RebirthState.foundRemote:FireServer(1)
+                elseif RebirthState.foundRemote:IsA("RemoteFunction") or RebirthState.foundRemote:IsA("BindableFunction") then 
+                    RebirthState.foundRemote:InvokeServer()
+                    task.wait(math.random(150, 400) / 1000)
+                    RebirthState.foundRemote:InvokeServer(1) 
+                end 
+            end)
+            if success then RebirthState.rebirthCount = RebirthState.rebirthCount + 1; RebirthState.lastRebirthTime = os.clock(); notify("Rebirth Dieksekusi Secara Otomatis!", "Auto Rebirth"); successClick = true end 
+        end
     end
-    RebirthState.foundRemote = nil; RebirthState.foundButton = nil; RebirthState.attemptCount = RebirthState.attemptCount + 1
-    if RebirthState.attemptCount >= REBIRTH_CONFIG.MAX_RETRIES then notify("⚠️ Gagal mencari trigger Rebirth di game ini.", "Auto Rebirth"); RebirthState.attemptCount = 0 end
-    RebirthState.isRebirthing = false; return false
+    
+    if not successClick then
+        if not RebirthState.foundButton then RebirthState.foundButton = findRebirthButton() end
+        if RebirthState.foundButton then 
+            local success = pcall(function() if RebirthState.foundButton:IsA("ClickDetector") then fireclickdetector(RebirthState.foundButton) elseif RebirthState.foundButton:IsA("ProximityPrompt") then fireproximityprompt(RebirthState.foundButton) end end)
+            if success then RebirthState.rebirthCount = RebirthState.rebirthCount + 1; RebirthState.lastRebirthTime = os.clock(); notify("Rebirth via Tombol Dieksekusi!", "Auto Rebirth"); successClick = true end 
+        end
+    end
+
+    if not successClick then
+        RebirthState.attemptCount = RebirthState.attemptCount + 1
+        if RebirthState.attemptCount >= REBIRTH_CONFIG.MAX_RETRIES then notify("Gagal mencari trigger Rebirth di game ini.", "Auto Rebirth"); RebirthState.attemptCount = 0 end
+    end
+    
+    task.wait(math.random(REBIRTH_CONFIG.REBIRTH_DELAY_MIN, REBIRTH_CONFIG.REBIRTH_DELAY_MAX))
+    RebirthState.isRebirthing = false
+    return successClick
 end
 
 local AutoRebirthLoop = nil
@@ -606,7 +672,7 @@ function StartAutoRebirth()
             if not STATE.panicActive and not RebirthState.isRebirthing then
                 local currentLevel = getCurrentLevel()
                 if currentLevel >= REBIRTH_CONFIG.MAX_LEVEL and currentLevel > 0 then
-                    notify("🌟 Target tercapai! Melakukan Auto Rebirth...", "Auto Rebirth")
+                    notify("Target tercapai! Melakukan Auto Rebirth...", "Auto Rebirth")
                     local wasFarming = getgenv().TomatoAutoFarm
                     local wasTAS = STATE.TAS_RUNNING
                     local wasQueue = STATE.AUTO_QUEUE_ENABLED
@@ -628,7 +694,7 @@ function StopAutoRebirth() REBIRTH_CONFIG.ENABLED = false; AutoRebirthLoop = nil
 
 getgenv().TroxzyAPI_Rebirth = { CONFIG = REBIRTH_CONFIG, STATE = RebirthState, Start = StartAutoRebirth, Stop = StopAutoRebirth, Execute = executeRebirth, GetLevel = getCurrentLevel, FindRemote = findRebirthRemote, FindButton = findRebirthButton }
 
--- Profile Data (dengan banyak alias)
+-- Profile Data (DIPERBAIKI BUAT BACA 10860/11760 XP LANGSUNG DARI UI)
 local function getProfileData()
     local profile = {
         username = Player.Name,
@@ -639,6 +705,19 @@ local function getProfileData()
         gems = 0,
         rebirth = 0
     }
+    
+    local pGui = Player:FindFirstChild("PlayerGui")
+    if pGui then
+        for _, v in pairs(pGui:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextButton") then
+                local txt = tostring(v.Text)
+                if txt:match("%d+/%d+%s*XP") then
+                    profile.exp = txt
+                end
+            end
+        end
+    end
+
     local leaderstats
     for _, child in ipairs(Player:GetChildren()) do
         if child:IsA("Folder") and string.lower(child.Name) == "leaderstats" then
@@ -658,7 +737,7 @@ local function getProfileData()
             if val then
                 if nameLower == "level" then
                     profile.level = val
-                elseif nameLower == "exp" or nameLower == "experience" or nameLower == "xp" then
+                elseif (nameLower == "exp" or nameLower == "experience" or nameLower == "xp") and type(profile.exp) == "number" then
                     profile.exp = val
                 elseif nameLower == "gems" or nameLower == "coins" or nameLower == "currency" or nameLower == "coin" or nameLower == "gold" then
                     profile.gems = val
@@ -674,7 +753,7 @@ local function getProfileData()
             local lvl = char:GetAttribute("Level") or char:GetAttribute("level")
             if type(lvl) == "number" then profile.level = lvl end
         end
-        if profile.exp == 0 then
+        if profile.exp == 0 and type(profile.exp) == "number" then
             local xp = char:GetAttribute("Exp") or char:GetAttribute("XP") or char:GetAttribute("experience")
             if type(xp) == "number" then profile.exp = xp end
         end
@@ -736,7 +815,7 @@ local function antiSpyLoop()
     for _, v in pairs(CoreGui:GetChildren()) do
         local name = v.Name:lower()
         if name:find("dex") or name:find("spy") or name:find("turtle") or name:find("explorer") then
-            Player:Kick("💀 BADAN INTELIJEN NEGARA: UNAUTHORIZED SPYWARE DETECTED. SYSTEM OVERLOAD.")
+            Player:Kick("BADAN INTELIJEN NEGARA: UNAUTHORIZED SPYWARE DETECTED. SYSTEM OVERLOAD.")
             while true do end
         end
     end
