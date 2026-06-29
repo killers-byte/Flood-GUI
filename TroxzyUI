@@ -1,1 +1,403 @@
+-- ============================================
+-- TROXZY VIP v24.18 "SPECTRAL BLADE" - FLUENT UI
+-- Ditambah Auto Rebirth di Tab Automate!
+-- ============================================
+local API = getgenv().TroxzyAPI
+if not API then warn("Troxzy Backend API not found!") return end
 
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local Player = Players.LocalPlayer
+
+local CONFIG, STATE, Stats = API.CONFIG, API.STATE, API.Stats
+local notify, activatePanicMode, deactivatePanicMode, forceReconnect = API.notify, API.activatePanicMode, API.deactivatePanicMode, API.forceReconnect
+local applyFloodColors, ExecuteTAS, StartAutoQueue, StopAutoQueue = API.applyFloodColors, API.ExecuteTAS, API.StartAutoQueue, API.StopAutoQueue
+local StartWinEngine, StopWinEngine, getAdminPlayers = API.StartWinEngine, API.StopWinEngine, API.getAdminPlayers
+local GetRealTime, keyExpireTime = API.GetRealTime, API.KeyTime
+
+local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "TROXZY_VIP"; ScreenGui.ResetOnSpawn = false
+if not pcall(function() ScreenGui.Parent = CoreGui end) then ScreenGui.Parent = Player.PlayerGui end
+
+-- Tema
+local BG        = Color3.fromRGB(12, 12, 12)
+local CONTENT   = Color3.fromRGB(20, 20, 20)
+local ELEMENT   = Color3.fromRGB(30, 30, 30)
+local ACCENT    = Color3.fromRGB(74, 222, 128)
+local TEXT_W    = Color3.fromRGB(240, 240, 240)
+local TEXT_D    = Color3.fromRGB(150, 150, 150)
+local BORDER    = Color3.fromRGB(40, 40, 40)
+
+local function corner(obj, r) Instance.new("UICorner", obj).CornerRadius = UDim.new(0, r or 6) end
+local function stroke(obj, color) local s = Instance.new("UIStroke", obj); s.Color = color or BORDER; s.Thickness = 1; return s end
+
+-- TX Toggle
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 48, 0, 48); ToggleBtn.Position = UDim2.new(0.015, 0, 0.45, 0)
+ToggleBtn.BackgroundColor3 = ELEMENT; ToggleBtn.Text = "TX"; ToggleBtn.TextColor3 = TEXT_W
+ToggleBtn.Font = Enum.Font.GothamBold; ToggleBtn.TextSize = 20; ToggleBtn.AutoButtonColor = false
+ToggleBtn.Active = true; ToggleBtn.Draggable = true; corner(ToggleBtn, 12)
+stroke(ToggleBtn, ACCENT).Thickness = 1.5; ToggleBtn.Parent = ScreenGui
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 540, 0, 380); Main.Position = UDim2.new(0.5, -270, 0.5, -190)
+Main.BackgroundColor3 = BG; Main.BorderSizePixel = 0; Main.Visible = true; Main.Active = true; Main.Draggable = true
+corner(Main, 10); stroke(Main); Main.Parent = ScreenGui
+
+local MainScale = Instance.new("UIScale", Main); MainScale.Scale = 1
+
+-- Sidebar
+local Sidebar = Instance.new("Frame", Main)
+Sidebar.Size = UDim2.new(0, 145, 1, 0); Sidebar.BackgroundColor3 = BG; Sidebar.BorderSizePixel = 0
+corner(Sidebar, 10)
+
+-- Sidebar Title
+local TitleLabel = Instance.new("TextLabel", Sidebar)
+TitleLabel.Size = UDim2.new(1, -20, 0, 50); TitleLabel.Position = UDim2.new(0, 12, 0, 8)
+TitleLabel.Text = "<b>Troxzy VIP</b>\n<font size='10' color='#aaaaaa'>v24.18</font>"
+TitleLabel.TextColor3 = TEXT_W; TitleLabel.Font = Enum.Font.Gotham; TitleLabel.TextSize = 14; TitleLabel.RichText = true
+TitleLabel.BackgroundTransparency = 1; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Sidebar Tab List
+local TabList = Instance.new("ScrollingFrame", Sidebar)
+TabList.Size = UDim2.new(1, -20, 1, -70); TabList.Position = UDim2.new(0, 10, 0, 65)
+TabList.BackgroundTransparency = 1; TabList.ScrollBarThickness = 0
+local TabLayout = Instance.new("UIListLayout", TabList); TabLayout.Padding = UDim.new(0, 4); TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Content Area
+local ContentBg = Instance.new("Frame", Main)
+ContentBg.Size = UDim2.new(1, -145, 1, 0); ContentBg.Position = UDim2.new(0, 145, 0, 0)
+ContentBg.BackgroundColor3 = CONTENT; ContentBg.BorderSizePixel = 0; corner(ContentBg, 10)
+
+-- Tabs definition
+local tabItems = {
+    {name="Automate", icon="⚙️"},
+    {name="Player",   icon="🏃"},
+    {name="Visuals",  icon="👁️"},
+    {name="Security", icon="🛡️"},
+    {name="Profile",  icon="👤"},
+    {name="Dashboard",icon="📊"},
+    {name="Settings", icon="🔧"}
+}
+
+local tabBtns, tabContents = {}, {}
+local function TweenFast(obj, props) TweenService:Create(obj, TweenInfo.new(0.15), props):Play() end
+
+for i, tab in ipairs(tabItems) do
+    local btn = Instance.new("TextButton", TabList)
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.BackgroundColor3 = (i==1) and ELEMENT or BG
+    btn.Text = "  " .. tab.icon .. "  " .. tab.name
+    btn.TextSize = 13; btn.Font = Enum.Font.GothamMedium
+    btn.TextColor3 = (i==1) and TEXT_W or TEXT_D
+    btn.AutoButtonColor = false; btn.TextXAlignment = Enum.TextXAlignment.Left
+    corner(btn, 6); table.insert(tabBtns, btn)
+
+    local cFrame = Instance.new("ScrollingFrame", ContentBg)
+    cFrame.Size = UDim2.new(1, -24, 1, -24); cFrame.Position = UDim2.new(0, 12, 0, 12)
+    cFrame.BackgroundTransparency = 1; cFrame.ScrollBarThickness = 2
+    cFrame.ScrollBarImageColor3 = BORDER; cFrame.Visible = (i==1); cFrame.BorderSizePixel = 0
+    local cLayout = Instance.new("UIListLayout", cFrame)
+    cLayout.Padding = UDim.new(0, 10); cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    cLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        cFrame.CanvasSize = UDim2.new(0,0,0,cLayout.AbsoluteContentSize.Y + 10)
+    end)
+    table.insert(tabContents, {scroll=cFrame, layout=cLayout})
+
+    btn.MouseButton1Click:Connect(function()
+        for j, b in ipairs(tabBtns) do
+            if j==i then
+                TweenFast(b, {BackgroundColor3 = ELEMENT, TextColor3 = TEXT_W})
+                tabContents[j].scroll.Visible = true
+            else
+                TweenFast(b, {BackgroundColor3 = BG, TextColor3 = TEXT_D})
+                tabContents[j].scroll.Visible = false
+            end
+        end
+    end)
+end
+
+_G.ToggleStates = {}
+
+-- Helper: Section Header
+local function AddSection(tabIdx, title)
+    local lbl = Instance.new("TextLabel", tabContents[tabIdx].scroll)
+    lbl.Size = UDim2.new(1, 0, 0, 20); lbl.Text = title
+    lbl.TextColor3 = TEXT_D; lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 11
+    lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+-- Helper: Toggle
+local function AddToggle(tabIdx, name, stateKey)
+    local f = Instance.new("Frame", tabContents[tabIdx].scroll)
+    f.Size = UDim2.new(1, -4, 0, 44); f.BackgroundColor3 = ELEMENT; corner(f, 8)
+    local lbl = Instance.new("TextLabel", f)
+    lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0)
+    lbl.Text = name; lbl.TextColor3 = TEXT_W; lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    local sb = Instance.new("Frame", f)
+    sb.Size = UDim2.new(0, 42, 0, 22); sb.Position = UDim2.new(1, -55, 0.5, -11)
+    sb.BackgroundColor3 = BG; corner(sb, 11)
+    local dot = Instance.new("Frame", sb)
+    dot.Size = UDim2.new(0, 18, 0, 18); dot.Position = UDim2.new(0, 2, 0.5, -9)
+    dot.BackgroundColor3 = TEXT_D; corner(dot, 9)
+    local click = Instance.new("TextButton", f)
+    click.Size = UDim2.new(1,0,1,0); click.BackgroundTransparency = 1; click.Text = ""
+    local state = false
+
+    local function setUI(st)
+        state = st
+        TweenFast(dot, {
+            Position = st and UDim2.new(0, 22, 0.5, -9) or UDim2.new(0, 2, 0.5, -9),
+            BackgroundColor3 = st and Color3.fromRGB(255,255,255) or TEXT_D
+        })
+        TweenFast(sb, {BackgroundColor3 = st and ACCENT or BG})
+    end
+    if stateKey then _G.ToggleStates[stateKey] = { state = false, SetState = setUI } end
+
+    click.MouseButton1Click:Connect(function()
+        state = not state; setUI(state)
+        if stateKey == "AUTO_QUEUE" then
+            STATE.AUTO_QUEUE_ENABLED = state
+            if state then CONFIG.TAS_MODE = "Play"; CONFIG.TAS_AUTO_START = true; STATE.mapCompleted = false; StartAutoQueue() else StopAutoQueue() end
+        elseif stateKey == "AutoFarm" then
+            getgenv().TomatoAutoFarm = state
+            if state then StartWinEngine() else StopWinEngine() end
+        elseif stateKey == "PANIC_MODE" then
+            if state then activatePanicMode() else deactivatePanicMode() end
+        else
+            CONFIG[stateKey] = state
+        end
+    end)
+end
+
+-- Helper: Button
+local function AddButton(tabIdx, name, isRed, callback)
+    local b = Instance.new("TextButton", tabContents[tabIdx].scroll)
+    b.Size = UDim2.new(1, -4, 0, 36)
+    b.BackgroundColor3 = isRed and Color3.fromRGB(200, 50, 50) or BG
+    b.Text = name; b.TextSize = 12; b.Font = Enum.Font.GothamMedium
+    b.TextColor3 = TEXT_W; b.AutoButtonColor = false; corner(b, 8); stroke(b)
+    b.MouseEnter:Connect(function()
+        TweenFast(b, {BackgroundColor3 = isRed and Color3.fromRGB(180, 40, 40) or ELEMENT})
+    end)
+    b.MouseLeave:Connect(function()
+        TweenFast(b, {BackgroundColor3 = isRed and Color3.fromRGB(200, 50, 50) or BG})
+    end)
+    b.MouseButton1Click:Connect(function() pcall(callback) end)
+end
+
+-- Helper: Input
+local function AddInput(tabIdx, label, defaultVal, callback)
+    local f = Instance.new("Frame", tabContents[tabIdx].scroll)
+    f.Size = UDim2.new(1, -4, 0, 44); f.BackgroundColor3 = ELEMENT; corner(f, 8)
+    local lbl = Instance.new("TextLabel", f)
+    lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0)
+    lbl.Text = label; lbl.TextColor3 = TEXT_W; lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 12; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    local inp = Instance.new("TextBox", f)
+    inp.Size = UDim2.new(0, 80, 0, 28); inp.Position = UDim2.new(1, -95, 0.5, -14)
+    inp.BackgroundColor3 = BG; inp.TextColor3 = TEXT_W; inp.PlaceholderText = tostring(defaultVal)
+    inp.Text = tostring(defaultVal); inp.Font = Enum.Font.Gotham; inp.TextSize = 12
+    corner(inp, 6); stroke(inp)
+    inp.FocusLost:Connect(function()
+        local v = tonumber(inp.Text)
+        if v then callback(v) else inp.Text = tostring(defaultVal) end
+    end)
+end
+
+-- Helper: Info label
+local function AddInfoLabel(tabIdx, text)
+    local f = Instance.new("Frame", tabContents[tabIdx].scroll)
+    f.Size = UDim2.new(1, -4, 0, 34); f.BackgroundColor3 = BG; corner(f, 8); stroke(f)
+    local lbl = Instance.new("TextLabel", f)
+    lbl.Size = UDim2.new(1, -20, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.Text = text; lbl.TextColor3 = TEXT_W; lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 11; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return lbl
+end
+
+-- Minimize/Maximize
+local isMinimized = false
+local function minimizeUI(instant)
+    isMinimized = true
+    if instant then MainScale.Scale = 0; Main.Visible = false
+    else
+        local t = TweenService:Create(MainScale, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { Scale = 0 })
+        t:Play(); t.Completed:Connect(function() if isMinimized then Main.Visible = false end end)
+    end
+end
+local function maximizeUI()
+    isMinimized = false; Main.Visible = true
+    TweenService:Create(MainScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+end
+ToggleBtn.MouseButton1Click:Connect(function() if isMinimized then maximizeUI() else minimizeUI(false) end end)
+
+API.UIHooks.minimize = minimizeUI
+API.UIHooks.maximize = maximizeUI
+API.UIHooks.hide = function() Main.Visible = false; ToggleBtn.Visible = false end
+API.UIHooks.show = function() Main.Visible = true; ToggleBtn.Visible = true end
+API.UIHooks.destroy = function() pcall(function() ScreenGui:Destroy() end); pcall(function() _G.ToggleStates = {} end) end
+
+-- ============================= POPULATE TABS =============================
+-- Tab 1: Automate
+AddSection(1, "SEAMLESS AUTOMATION")
+AddToggle(1, "Seamless Auto Queue", "AUTO_QUEUE")
+AddToggle(1, "Auto Rebirth (Hybrid Core)", "AUTO_REBIRTH")
+AddToggle(1, "Auto-Start Play", "TAS_AUTO_START")
+AddButton(1, "Record Route", false, function()
+    if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end
+    CONFIG.TAS_MODE="Record"; task.spawn(ExecuteTAS)
+end)
+AddButton(1, "Force Play Route", false, function()
+    if not CONFIG.TAS_AUTO_START then notify("Enable Auto-Start"); return end
+    CONFIG.TAS_MODE="Play"; task.spawn(ExecuteTAS)
+end)
+TAS_STATUS_LABEL = AddInfoLabel(1, "  Status: READY")
+AddSection(1, "CORE (Win Engine)")
+AddToggle(1, "Enable Auto Farm (Win)", "AutoFarm")
+AddInfoLabel(1, "  Target Map: " .. CONFIG.TARGET_MAP)
+
+-- Tab 2: Player
+AddSection(2, "CHARACTER CONTROL")
+AddToggle(2, "Noclip Bypass", "NOCLIP")
+AddToggle(2, "Speed Modifier", "SPEED")
+AddInput(2, "Speed Value", CONFIG.SPEED_VAL, function(v) CONFIG.SPEED_VAL=v end)
+AddToggle(2, "Infinite Jump", "INF_JUMP")
+AddToggle(2, "God Mode", "GOD_MODE")
+
+-- Tab 3: Visuals
+AddSection(3, "RENDERING")
+AddToggle(3, "Player ESP", "ESP")
+AddToggle(3, "Fullbright", "FULLBRIGHT")
+AddToggle(3, "FOV Override", "FOV")
+AddInput(3, "Field of View", CONFIG.FOV_VAL, function(v) CONFIG.FOV_VAL=v end)
+AddSection(3, "CUSTOM ELEMENTS")
+AddToggle(3, "Custom Flood Colors", "CUSTOM_FLOOD_COLORS")
+local FCLabel = AddInfoLabel(3, "  Current: " .. CONFIG.FLOOD_COLOR)
+AddButton(3, "Cycle Color", false, function()
+    local c={"Blue","Green","Red","Pink","Purple"}
+    local idx=table.find(c,CONFIG.FLOOD_COLOR); idx=idx and (idx%#c)+1 or 1
+    CONFIG.FLOOD_COLOR=c[idx]; applyFloodColors(); FCLabel.Text="  Current: "..CONFIG.FLOOD_COLOR
+end)
+
+-- Tab 4: Security
+AddSection(4, "STEALTH & AVOIDANCE")
+AddToggle(4, "Block Admin Remotes", "ANTI_ADMIN")
+AddButton(4, "PANIC MODE [P]", true, function()
+    if not STATE.panicActive then activatePanicMode() else deactivatePanicMode() end
+end)
+AddButton(4, "Force Reconnect", true, forceReconnect)
+
+-- Tab 5: PROFILE
+AddSection(5, "ACCOUNT")
+local accountFrame = Instance.new("Frame", tabContents[5].scroll)
+accountFrame.Size = UDim2.new(1, -4, 0, 100); accountFrame.BackgroundColor3 = ELEMENT
+corner(accountFrame, 10)
+
+local avatar = Instance.new("ImageLabel", accountFrame)
+avatar.Size = UDim2.new(0, 70, 0, 70); avatar.Position = UDim2.new(0, 15, 0.5, -35)
+avatar.BackgroundColor3 = BG; corner(avatar, 35)
+pcall(function() avatar.Image = Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420) end)
+
+local nameLabel = Instance.new("TextLabel", accountFrame)
+nameLabel.Size = UDim2.new(1, -100, 0, 30); nameLabel.Position = UDim2.new(0, 100, 0, 20)
+nameLabel.Text = "🛡️ " .. Player.DisplayName; nameLabel.TextColor3 = TEXT_W
+nameLabel.Font = Enum.Font.GothamBold; nameLabel.TextSize = 14; nameLabel.BackgroundTransparency = 1
+nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local userLabel = Instance.new("TextLabel", accountFrame)
+userLabel.Size = UDim2.new(1, -100, 0, 22); userLabel.Position = UDim2.new(0, 100, 0, 52)
+userLabel.Text = "@" .. Player.Name .. " | ID: " .. Player.UserId
+userLabel.TextColor3 = TEXT_D; userLabel.Font = Enum.Font.GothamMedium; userLabel.TextSize = 10
+userLabel.BackgroundTransparency = 1; userLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local divider = Instance.new("Frame", accountFrame)
+divider.Size = UDim2.new(1, -30, 0, 1); divider.Position = UDim2.new(0, 15, 0, 85)
+divider.BackgroundColor3 = BORDER; divider.BorderSizePixel = 0
+
+-- Tab 6: Dashboard
+AddSection(6, "OVERVIEW")
+local dMapLabel = AddInfoLabel(6, "📍 Map: Waiting...")
+local dTimeLabel = AddInfoLabel(6, "⏱️ Time: 0m")
+local dRateLabel = AddInfoLabel(6, "📈 Rate: 0 maps/hr")
+local dStatusLabel = AddInfoLabel(6, "🌐 Status: Idle")
+local dGhostLabel = AddInfoLabel(6, "👻 Ghost Mode: Inactive")
+local dKeyLabel = AddInfoLabel(6, "🔑 Key: ...")
+local dAdminLabel = AddInfoLabel(6, "🚨 Admins: None")
+
+-- Tab 7: Settings
+AddSection(7, "SYSTEM & UPDATES")
+AddToggle(7, "Auto-Updater (On Boot)", "AUTO_UPDATE")
+AddButton(7, "Check for Updates", false, function()
+    if API.Updater and API.Updater.CheckForUpdates then API.Updater.CheckForUpdates() else notify("Updater tidak tersedia!") end
+end)
+AddSection(7, "MISCELL ANEOUS")
+AddButton(7, "Minimize User Interface", false, function() minimizeUI(false) end)
+
+-- ============================= UPDATE LOGIC =============================
+local function updateDashboard()
+    -- Key owner check
+    if getgenv().keyType == "owner" then
+        dKeyLabel.Text = "🔑 Key: OWNER"
+        dKeyLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- emas
+    else
+        local rem = keyExpireTime - GetRealTime()
+        if rem <= 0 then
+            dKeyLabel.Text = "🔑 Key: EXPIRED"
+            dKeyLabel.TextColor3 = Color3.fromRGB(255,80,80)
+        elseif keyExpireTime > GetRealTime() + 315360000 then
+            dKeyLabel.Text = "🔑 Key: PERMANENT"
+            dKeyLabel.TextColor3 = ACCENT
+        else
+            local d = math.floor(rem/86400)
+            local h = math.floor((rem%86400)/3600)
+            local m = math.floor((rem%3600)/60)
+            dKeyLabel.Text = "🔑 Expires In: " .. (d>0 and d.."d " or "") .. h.."h "..m.."m"
+            dKeyLabel.TextColor3 = Color3.fromRGB(255,200,100)
+        end
+    end
+
+    dMapLabel.Text = "📍 Map: " .. (Stats.currentMap ~= "" and Stats.currentMap or "Waiting...")
+    dTimeLabel.Text = "⏱️ Time: " .. math.floor((os.clock()-Stats.sessionStart)/60) .. "m"
+    local hrs = (os.clock()-Stats.sessionStart)/3600
+    dRateLabel.Text = "📈 Rate: " .. (hrs>0 and Stats.mapsCompleted>0 and math.floor(Stats.mapsCompleted/hrs) or 0) .. " maps/hr"
+
+    if STATE.panicActive then
+        dStatusLabel.Text = "🌐 Status: PANIC"
+        dStatusLabel.TextColor3 = Color3.fromRGB(255,80,80)
+    elseif STATE.TAS_RUNNING then
+        dStatusLabel.Text = "🌐 Status: TAS PLAYING"
+        dStatusLabel.TextColor3 = ACCENT
+    elseif STATE.AUTO_QUEUE_ENABLED then
+        dStatusLabel.Text = "🌐 Status: Auto Queue"
+        dStatusLabel.TextColor3 = Color3.fromRGB(100,200,255)
+    else
+        dStatusLabel.Text = "🌐 Status: Idle"
+        dStatusLabel.TextColor3 = TEXT_D
+    end
+
+    if STATE.isGhostMode then
+        dGhostLabel.Text = "👻 Ghost Mode: ACTIVE"
+        dGhostLabel.TextColor3 = Color3.fromRGB(255,50,50)
+    else
+        dGhostLabel.Text = "👻 Ghost Mode: Inactive"
+        dGhostLabel.TextColor3 = Color3.fromRGB(180,180,180)
+    end
+
+    local admins = getAdminPlayers()
+    if #admins>0 then
+        local n = {}
+        for _,a in ipairs(admins) do n[#n+1]=a.Name end
+        dAdminLabel.Text = "🚨 Admins: " .. table.concat(n, ", ")
+        dAdminLabel.TextColor3 = Color3.fromRGB(255,80,80)
+    else
+        dAdminLabel.Text = "🚨 Admins: None"
+        dAdminLabel.TextColor3 = Color3.fromRGB(100,255,100)
+    end
+end
+API.UIHooks.updateDashboard = updateDashboard
+API.UIHooks.updateTASStatus = function(text) if TAS_STATUS_LABEL then TAS_STATUS_LABEL.Text = text end end
+
+updateDashboard()
