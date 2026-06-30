@@ -1,0 +1,767 @@
+-- ============================================
+-- 🔥 TROXZY VIP v24.18 "SPECTRAL BLADE" [BACKEND CORE - GOD TIER OVERDRIVE]
+-- Badan Intelijen Negara - STRICT ADMIN DETECT + HYBRID FIX + STEALTH OPS + AUTO REBIRTH + LIVE GUI SCRAPER
+-- ============================================
+
+-- [ 🔐 SUPREME KEY SYSTEM ]
+local function supremeKeyValidation()
+    local Players = game:GetService("Players")
+    local Workspace = game:GetService("Workspace")
+    local HttpService = game:GetService("HttpService")
+    local TweenService = game:GetService("TweenService")
+    local Player = Players.LocalPlayer
+    if not Player then return false end
+
+    local function GetRealTime()
+        local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end)
+        if ok and srvTime and srvTime > 1000000 then return srvTime end
+        return os.time()
+    end
+
+    if getgenv().keyExpireTime and getgenv().keyExpireTime > GetRealTime() then return true end
+
+    local BASE_KEYS_URL = "https://key.troxzy.workers.dev/"
+    local keyValid = false
+    local attempts = 0
+
+    local function parseExpiry(expiry)
+        getgenv().keyType = nil
+        if expiry == "owner" then
+            getgenv().keyType = "owner"
+            return 9999999999
+        end
+        if expiry == "permanent" then
+            getgenv().keyType = "permanent"
+            return 9999999999
+        end
+        if type(expiry) == "string" then
+            local year, month, day = string.match(expiry, "^(%d%d%d%d)-(%d%d)-(%d%d)$")
+            if year and month and day then
+                year, month, day = tonumber(year), tonumber(month), tonumber(day)
+                local isLeap = function(y) return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) end
+                local daysInMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                local days = 0
+                for y = 1970, year - 1 do days = days + (isLeap(y) and 366 or 365) end
+                for m = 1, month - 1 do days = days + daysInMonth[m]; if m == 2 and isLeap(year) then days = days + 1 end end
+                days = days + (day - 1)
+                return (days * 86400) + 86399 - (7 * 3600)
+            end
+        end
+        return nil
+    end
+
+    local KeyScreen = Instance.new("ScreenGui", game:GetService("CoreGui"))
+    KeyScreen.Name = "TroxzyKeyAuth"
+    
+    local Frame = Instance.new("Frame", KeyScreen)
+    Frame.Size = UDim2.new(0, 320, 0, 180)
+    Frame.Position = UDim2.new(0.5, -160, 0.5, -90)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Frame.BorderSizePixel = 0
+    local UICorner = Instance.new("UICorner", Frame); UICorner.CornerRadius = UDim.new(0, 12)
+    local UIStroke = Instance.new("UIStroke", Frame); UIStroke.Color = Color3.fromRGB(60, 60, 60); UIStroke.Thickness = 1
+    
+    local Title = Instance.new("TextLabel", Frame)
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.Text = "🔐 VIP AUTHENTICATION"
+    Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+    Title.Font = Enum.Font.GothamBold; Title.TextSize = 13; Title.BackgroundTransparency = 1
+
+    local Input = Instance.new("TextBox", Frame)
+    Input.Size = UDim2.new(0, 280, 0, 36); Input.Position = UDim2.new(0.5, -140, 0, 50)
+    Input.BackgroundColor3 = Color3.fromRGB(30, 30, 30); Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Input.PlaceholderText = "🔑 Paste your key here..."
+    Input.TextSize = 12; Input.Font = Enum.Font.GothamMedium
+    Input.ClearTextOnFocus = false
+    local InputCorner = Instance.new("UICorner", Input); InputCorner.CornerRadius = UDim.new(0, 8)
+    local InputStroke = Instance.new("UIStroke", Input); InputStroke.Color = Color3.fromRGB(60, 60, 60); InputStroke.Thickness = 1
+
+    local Submit = Instance.new("TextButton", Frame)
+    Submit.Size = UDim2.new(0, 280, 0, 36); Submit.Position = UDim2.new(0.5, -140, 0, 96)
+    Submit.BackgroundColor3 = Color3.fromRGB(220, 220, 220); Submit.Text = "🔓 Unlock"
+    Submit.TextColor3 = Color3.fromRGB(20, 20, 20)
+    Submit.Font = Enum.Font.GothamBold; Submit.TextSize = 12; Submit.AutoButtonColor = false
+    local SubmitCorner = Instance.new("UICorner", Submit); SubmitCorner.CornerRadius = UDim.new(0, 8)
+
+    local ErrorLabel = Instance.new("TextLabel", Frame)
+    ErrorLabel.Size = UDim2.new(1, 0, 0, 20); ErrorLabel.Position = UDim2.new(0, 0, 0, 140)
+    ErrorLabel.Text = ""; ErrorLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+    ErrorLabel.Font = Enum.Font.GothamMedium; ErrorLabel.TextSize = 11; ErrorLabel.BackgroundTransparency = 1
+
+    Submit.MouseEnter:Connect(function() TweenService:Create(Submit, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play() end)
+    Submit.MouseLeave:Connect(function() TweenService:Create(Submit, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(220, 220, 220)}):Play() end)
+
+    local function checkKey(rawInput)
+        local input = string.match(rawInput, "^%s*(.-)%s*$")
+        if not input or input == "" then ErrorLabel.Text = "❌ Key cannot be empty!"; return end
+        
+        Submit.Text = "⏳ Verifying..."
+        Submit.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        local nocacheUrl = BASE_KEYS_URL .. "?t=" .. tostring(os.time())
+        local success, data = pcall(function() return game:HttpGet(nocacheUrl) end)
+        if not success then ErrorLabel.Text = "🌐 Connection failed."; Submit.Text = "🔓 Unlock"; Submit.BackgroundColor3 = Color3.fromRGB(220, 220, 220); return end
+        
+        local ok, keys = pcall(function() return HttpService:JSONDecode(data) end)
+        if not ok then ErrorLabel.Text = "📡 Server data error."; Submit.Text = "🔓 Unlock"; Submit.BackgroundColor3 = Color3.fromRGB(220, 220, 220); return end
+        
+        local keyData = keys[input]
+        if not keyData then
+            attempts = attempts + 1
+            if attempts >= 3 then Player:Kick("💀 TROXZY: Too many invalid attempts.") else ErrorLabel.Text = "🚫 Invalid Key! (" .. attempts .. "/3)"; Input.Text = "" end
+            Submit.Text = "🔓 Unlock"; Submit.BackgroundColor3 = Color3.fromRGB(220, 220, 220); return
+        end
+        
+        local playerUserID = tostring(Player.UserId)
+        if not keyData.hwid or keyData.hwid == "" then Player:Kick("🔗 Key not linked. Provide UserID (" .. playerUserID .. ") to Admin."); return end
+        if tostring(keyData.hwid) ~= playerUserID then Player:Kick("🔒 SECURITY: Key bound to another account!"); return end
+        if not keyData.expiry then Player:Kick("📅 Missing expiry field."); return end
+        
+        local expireTime = parseExpiry(keyData.expiry)
+        if not expireTime then Player:Kick("📆 Invalid date format."); return end
+        if GetRealTime() > expireTime then Player:Kick("⌛ Key Expired!"); return end
+        
+        Submit.BackgroundColor3 = Color3.fromRGB(40, 200, 80); Submit.Text = "✅ Success!"
+        task.wait(0.5); keyValid = true; getgenv().keyExpireTime = expireTime; KeyScreen:Destroy()
+    end
+
+    Submit.MouseButton1Click:Connect(function() checkKey(Input.Text) end)
+    Input.FocusLost:Connect(function(enterPressed) if enterPressed then checkKey(Input.Text) end end)
+    repeat task.wait() until keyValid or not Player.Parent
+    return keyValid
+end
+
+if not supremeKeyValidation() then return end
+
+-- ==================== 🧠 MAIN SCRIPT CORE ====================
+local keyExpireTime = getgenv().keyExpireTime or 0
+local function GetRealTime() local Workspace = game:GetService("Workspace"); local ok, srvTime = pcall(function() return math.floor(Workspace:GetServerTimeNow()) end); if ok and srvTime and srvTime > 1000000 then return srvTime end; return os.time() end
+if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(1)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UIS = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Player = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+getgenv().TomatoAutoFarm = false; getgenv().TomatoConnections = getgenv().TomatoConnections or {}; _G.TroxzyAutoFarm = false
+
+local TAS_COROUTINE = nil
+local AutoQueueListener = nil
+local liftTarget = nil
+local lastAdminCount = 0
+local lastAdminAlert = 0
+local SoundPool = {}
+
+local ESP_IDENTIFIER = "TX_ESP_" .. tostring(math.random(100000, 999999))
+
+local function getPooledSound() if #SoundPool > 0 then local s = table.remove(SoundPool); if s and s.Parent then return s end end; local s = Instance.new("Sound"); s.Volume = 0.5; return s end
+local function returnSoundToPool(s) if s then s:Stop(); s.Parent = nil; table.insert(SoundPool, s) end end
+local SOUND_IDS = { alert = 9116456845, warning = 9120388711 }
+local function playSound(id) pcall(function() local s = getPooledSound(); s.SoundId = "rbxassetid://" .. id; s.Parent = Workspace; s:Play(); task.delay(3, function() returnSoundToPool(s) end) end) end
+
+if _G.TroxzyConnections then for _, conn in pairs(_G.TroxzyConnections) do pcall(function() conn:Disconnect() end) end end
+_G.TroxzyConnections = {}
+local function TrackConnection(conn) table.insert(_G.TroxzyConnections, conn); return conn end
+local function notify(msg, title) pcall(function() StarterGui:SetCore("SendNotification", { Title = title or "🔥 Troxzy VIP", Text = msg, Duration = 4 }) end) end
+
+local CONFIG = {
+    TARGET_MAP = "Sandswept Ruins", TARGET_DIFFICULTY = "Crazy", TAS_MODE = "Play", TAS_AUTO_START = false,
+    NOCLIP = false, GOD_MODE = false, SPEED = false, INF_JUMP = false, ESP = false, FULLBRIGHT = false, FOV = false,
+    SPEED_VAL = 20, FOV_VAL = 90, AUTO_RECONNECT = true, STEALTH_MODE = true, ADMIN_DETECTOR = true,
+    HIDE_SCRIPT = true, DASHBOARD = true, SMART_ALERTS = true, AIR_SWIM = true, AUTO_UPDATE = false,
+    CUSTOM_FLOOD_COLORS = false, FLOOD_COLOR = "Blue", ANTI_ADMIN = false, RANDOM_DELAY = true, 
+    AUTO_HOP_ADMIN = true, SPOOF_NAME = true, CLEAN_CHAR = true, ANTI_SS = true, ANTI_SPY = true,
+    AUTO_REBIRTH = false 
+}
+
+local STATE = { 
+    AUTO_QUEUE_ENABLED = false, TAS_RUNNING = false, panicActive = false, 
+    isGhostMode = false, moveToLift = false, mapCompleted = false, CurrentlyFarming = false,
+    CurrentAdmins = "None", HybridActive = false
+}
+
+local Stats = { mapsCompleted = 0, totalTime = 0, sessionStart = os.clock(), adminDetected = 0, adminLeft = 0, currentMap = "" }
+local function loadStats() pcall(function() if isfile("Troxzy_Stats.json") then local d = HttpService:JSONDecode(readfile("Troxzy_Stats.json")); for k, v in pairs(d) do if Stats[k] ~= nil then Stats[k] = v end end end end); Stats.sessionStart = os.clock() end
+local function saveStats() pcall(function() Stats.totalTime = Stats.totalTime + (os.clock() - Stats.sessionStart); writefile("Troxzy_Stats.json", HttpService:JSONEncode(Stats)); Stats.sessionStart = os.clock() end) end
+
+local function serverHop()
+    notify("⚠️ Bailing out! Admin Detected. Initiating Server Hop...", "🛡️ STEALTH OPS")
+    saveStats()
+    local servers = {}
+    local success, result = pcall(function()
+        local req = request or http_request or (syn and syn.request)
+        if req then
+            local resp = req({Url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"})
+            if resp and resp.StatusCode == 200 then return HttpService:JSONDecode(resp.Body) end
+        end
+    end)
+    if success and result and result.data then
+        for _, v in pairs(result.data) do
+            if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < (v.maxPlayers - 1) and v.id ~= game.JobId then
+                table.insert(servers, 1, v.id)
+            end
+        end
+    end
+    if #servers > 0 then
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], Player)
+    else
+        TeleportService:Teleport(game.PlaceId)
+    end
+end
+
+local function forceReconnect()
+    saveStats()
+    task.wait(1)
+    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end)
+    task.wait(2)
+    pcall(function() TeleportService:Teleport(game.PlaceId) end)
+end
+
+local function isAdmin(p)
+    if not p then return false end
+    if p.UserId == game.CreatorId then return true end
+    local success, isRobloxAdmin = pcall(function() return p:IsInGroup(1200769) end)
+    if success and isRobloxAdmin then return true end
+    local pGui = p:FindFirstChild("PlayerGui")
+    if pGui then
+        if pGui:FindFirstChild("HDAdminGUIs") or pGui:FindFirstChild("Adonis_UI") or pGui:FindFirstChild("KohlsAdmin") or pGui:FindFirstChild("AdminUI") then return true end
+    end
+    local leaderstats = p:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, stat in ipairs(leaderstats:GetChildren()) do
+            local lowerName = stat.Name:lower()
+            if lowerName == "admin" or lowerName == "mod" or lowerName == "rank" or lowerName == "role" or lowerName == "staff" then
+                local val = tostring(stat.Value):lower()
+                if val == "admin" or val == "mod" or val == "owner" or val == "dev" or val == "staff" or val == "creator" or val == "headadmin" then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function Check(flag) local char = Player.Character; if not char then return false end; local hrp = char:FindFirstChild("HumanoidRootPart"); if not hrp then return false end; if flag == "InLift" then return hrp.Position.X < 50 and hrp.Position.Z > 70 elseif flag == "InGame" then return hrp.Position.X > 50 end return false end
+local function getAdminPlayers() local admins = {}; for _, p in pairs(Players:GetPlayers()) do if p ~= Player and isAdmin(p) then table.insert(admins, p) end end; return admins end
+local function getAdminNames() local names = {}; for _, p in ipairs(getAdminPlayers()) do table.insert(names, p.Name) end; return names end
+
+local function blockAdminRemotes()
+    local RemoteFolder = ReplicatedStorage:FindFirstChild("Remote")
+    if not RemoteFolder then return end
+    local dangerousKeywords = { "kick", "ban", "punish", "jail", "teleport", "freeze", "spectate", "kill", "crash" }
+    for _, remote in ipairs(RemoteFolder:GetChildren()) do if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then local lowerName = remote.Name:lower(); for _, kw in ipairs(dangerousKeywords) do if lowerName:find(kw) then remote.OnClientEvent:Connect(function() end); break end end end end
+end
+
+local function activateGhostMode()
+    if STATE.isGhostMode then return end
+    STATE.isGhostMode = true
+    getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false
+    StopWinEngine()
+    if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE) end
+    TAS_COROUTINE = nil; STATE.TAS_RUNNING = false
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.StopAutoQueue then getgenv().TroxzyAPI.StopAutoQueue() end
+    pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end)
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.hide then getgenv().TroxzyAPI.UIHooks.hide() end
+    if CONFIG.SMART_ALERTS then playSound(SOUND_IDS.alert) end
+end
+local function deactivateGhostMode()
+    if not STATE.isGhostMode then return end
+    STATE.isGhostMode = false
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.show then getgenv().TroxzyAPI.UIHooks.show() end
+end
+
+local function updateAdminDetection()
+    if not CONFIG.ADMIN_DETECTOR then return end
+    local adminCount = #getAdminPlayers()
+    if adminCount > 0 then
+        if adminCount > lastAdminCount and (os.clock() - lastAdminAlert >= 10) then
+            lastAdminAlert = os.clock()
+            Stats.adminDetected = Stats.adminDetected + (adminCount - lastAdminCount)
+            if CONFIG.ANTI_ADMIN then blockAdminRemotes() end
+            if CONFIG.AUTO_HOP_ADMIN then serverHop() else if not STATE.isGhostMode then activateGhostMode() end end
+        end
+    else
+        if STATE.isGhostMode then deactivateGhostMode() end
+        lastAdminCount = 0
+    end
+    lastAdminCount = adminCount
+end
+
+local floodColorMap = { Blue = Color3.fromRGB(0, 150, 255), Green = Color3.fromRGB(0, 255, 100), Red = Color3.fromRGB(255, 50, 50), Pink = Color3.fromRGB(255, 100, 200), Purple = Color3.fromRGB(150, 50, 255) }
+local function applyFloodColors() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local targetColor = floodColorMap[CONFIG.FLOOD_COLOR] or Color3.fromRGB(0, 150, 255); for _, v in pairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and (v.Name:lower():find("water") or v.Name:lower():find("acid") or v.Name:lower():find("lava") or v.Name:lower():find("flood")) then pcall(function() v.Color = targetColor end) end end end
+local lastFloodColorUpdate = 0
+local function periodicFloodColorUpdate() if not CONFIG.CUSTOM_FLOOD_COLORS then return end; local now = os.clock(); if now - lastFloodColorUpdate < 0.5 then return end; lastFloodColorUpdate = now; applyFloodColors() end
+
+local function attemptReconnect() saveStats(); task.wait(3); pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Player) end) end
+local function setupAutoReconnect() if not CONFIG.AUTO_RECONNECT then return end; TrackConnection(Player:GetPropertyChangedSignal("Parent"):Connect(function() if not Player.Parent then attemptReconnect() end end)); TrackConnection(TeleportService.TeleportInitFailed:Connect(attemptReconnect)) end
+
+local function ExecuteTAS()
+    if not CONFIG.TAS_AUTO_START then notify("⚙️ TAS Auto-Start is OFF."); return end
+    if STATE.TAS_RUNNING then 
+        if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE) end
+        TAS_COROUTINE = nil; STATE.TAS_RUNNING = false; task.wait(0.2) 
+    end
+    getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false;
+    local url = CONFIG.TAS_MODE == "Record" and "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/CREATOR/creator.luau" or "https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TAS/PLAYER/newtasplayer.luau"
+    local success, scriptContent = pcall(function() return game:HttpGet(url) end)
+    if not success then return end
+    local func, compileErr = loadstring(scriptContent)
+    if not func then return end
+    TAS_COROUTINE = coroutine.create(function() STATE.TAS_RUNNING = true; pcall(func); STATE.TAS_RUNNING = false; TAS_COROUTINE = nil; if STATE.AUTO_QUEUE_ENABLED then STATE.mapCompleted = true end; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("  ✅ Status: READY") end end)
+    coroutine.resume(TAS_COROUTINE)
+    if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.updateTASStatus then getgenv().TroxzyAPI.UIHooks.updateTASStatus("  🏃 Status: RUNNING") end
+end
+_G.ExecuteTAS = ExecuteTAS
+
+local Multiplayer = Workspace:WaitForChild("Multiplayer")
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+local AddedWaiting = RemoteFolder:WaitForChild("AddedWaiting")
+
+local wasNoclipActive = false
+TrackConnection(RunService.Stepped:Connect(function()
+    if CONFIG.NOCLIP and not STATE.CurrentlyFarming and Player.Character then
+        for _, part in ipairs(Player.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+        wasNoclipActive = true
+    elseif not CONFIG.NOCLIP and wasNoclipActive and Player.Character then
+        for _, part in ipairs(Player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+        wasNoclipActive = false
+    end
+end))
+TrackConnection(Player.CharacterAdded:Connect(function() wasNoclipActive = false end))
+
+local espCache = {}
+local lastESPUpdate = 0
+local function updateESP()
+    if os.clock() - lastESPUpdate < 0.05 then return end; lastESPUpdate = os.clock()
+    if not CONFIG.ESP then for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {}; return end
+    local allPlayers = Players:GetPlayers()
+    for plr, hl in pairs(espCache) do if not plr.Parent or not plr.Character or hl.Parent ~= plr.Character then pcall(function() hl:Destroy() end); espCache[plr] = nil end end
+    for _, plr in ipairs(allPlayers) do
+        if plr ~= Player and plr.Character and not espCache[plr] then
+            local hl = Instance.new("Highlight")
+            hl.Name = ESP_IDENTIFIER; hl.FillTransparency = 0.3; hl.OutlineTransparency = 0.1; hl.Parent = plr.Character
+            espCache[plr] = hl
+        end
+        if espCache[plr] then
+            local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+            local otherRoot = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+            if root and otherRoot then
+                local dist = (root.Position - otherRoot.Position).Magnitude
+                if dist < 15 then espCache[plr].FillColor = Color3.fromRGB(255, 80, 80); espCache[plr].OutlineColor = Color3.fromRGB(255, 50, 50)
+                elseif dist < 40 then espCache[plr].FillColor = Color3.fromRGB(255, 200, 50); espCache[plr].OutlineColor = Color3.fromRGB(255, 150, 50)
+                else espCache[plr].FillColor = Color3.fromRGB(160, 180, 200); espCache[plr].OutlineColor = Color3.fromRGB(255, 255, 255) end
+            end
+        end
+    end
+end
+local function clearESPCache() for _, hl in pairs(espCache) do pcall(function() hl:Destroy() end) end; espCache = {} end
+_G.clearESPCache = clearESPCache
+
+local function applyGodMode()
+    if not CONFIG.GOD_MODE then return end
+    local char = Player.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum then return end
+    if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+    hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+end
+
+local function activatePanicMode() STATE.panicActive = true; getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false; CONFIG.NOCLIP = false; pcall(function() Player.Character.Humanoid.WalkSpeed = 16 end); if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.minimize then getgenv().TroxzyAPI.UIHooks.minimize(true) end; clearESPCache(); if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(true) end end
+local function deactivatePanicMode() STATE.panicActive = false; if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks.maximize then getgenv().TroxzyAPI.UIHooks.maximize() end; if _G.ToggleStates and _G.ToggleStates["PANIC_MODE"] then _G.ToggleStates["PANIC_MODE"].SetState(false) end end
+
+local lastVisUpdate = 0
+local function updateVisuals() 
+    if os.clock() - lastVisUpdate < 0.5 then return end; 
+    lastVisUpdate = os.clock(); 
+    Lighting.Brightness = CONFIG.FULLBRIGHT and 2 or 1; 
+    Lighting.FogEnd = CONFIG.FULLBRIGHT and 99999 or 10000; 
+    periodicFloodColorUpdate() 
+end
+
+local WIN_SCRIPT_URL = "https://win.troxzy.workers.dev/"
+local WinFarmCoroutine, WinFarmRunning, WinDownloading = nil, false, false
+
+local function SoftAntiResetGuard()
+    if not STATE.CurrentlyFarming then return end
+    local char = Player.Character; if not char then return end
+    local hum = char:FindFirstChild("Humanoid"); if not hum then return end
+    if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+    local blockedStates = { Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Seated, Enum.HumanoidStateType.PlatformStand }
+    for _, state in ipairs(blockedStates) do hum:SetStateEnabled(state, false) end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root and root.Position.Y < -200 then root.CFrame = CFrame.new(root.Position.X, 50, root.Position.Z); root.Velocity = Vector3.zero end
+end
+
+function StartWinEngine()
+    if WinFarmRunning or WinDownloading then return end
+    WinDownloading = true
+    WinFarmCoroutine = nil
+    local success, scriptContent = pcall(function() return game:HttpGet(WIN_SCRIPT_URL) end)
+    if not success or not scriptContent then WinDownloading = false; getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false; notify("❌ Gagal mengunduh script Auto Farm!", "Error"); return end
+    local func, err = loadstring(scriptContent)
+    if not func then WinDownloading = false; getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false; notify("⚠️ Kesalahan kompilasi script Auto Farm!", "Error"); return end
+    WinDownloading = false; WinFarmRunning = true; STATE.CurrentlyFarming = true; getgenv().TomatoAutoFarm = true
+    WinFarmCoroutine = coroutine.create(function() local ok, result = pcall(func); if not ok then warn("[AutoFarm] Error:", result) end; WinFarmRunning = false; STATE.CurrentlyFarming = false; WinFarmCoroutine = nil end)
+    coroutine.resume(WinFarmCoroutine)
+end
+
+function StopWinEngine()
+    if WinFarmCoroutine then pcall(coroutine.close, WinFarmCoroutine) end
+    WinFarmCoroutine = nil; WinFarmRunning = false; STATE.CurrentlyFarming = false; getgenv().TomatoAutoFarm = false
+end
+
+local function executeAutoRebirth()
+    if not CONFIG.AUTO_REBIRTH then return end
+    local pGui = Player:FindFirstChild("PlayerGui")
+    if not pGui then return end
+    for _, gui in pairs(pGui:GetDescendants()) do
+        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+            local text = (gui:IsA("TextButton") and gui.Text:lower()) or gui.Name:lower()
+            if text:find("rebirth") or text:find("kelahiran") then
+                if gui.Visible then
+                    pcall(function()
+                        if getconnections then
+                            for _, conn in pairs(getconnections(gui.MouseButton1Click)) do
+                                conn:Function()
+                            end
+                        end
+                    end)
+                    task.wait(0.5) 
+                    for _, conf in pairs(pGui:GetDescendants()) do
+                        if conf:IsA("TextButton") or conf:IsA("ImageButton") then
+                            local confText = (conf:IsA("TextButton") and conf.Text:lower()) or conf.Name:lower()
+                            if confText:find("confirm") or confText:find("konfirmasi") or confText:find("yes") or confText:find("ya") then
+                                if conf.Visible then
+                                    pcall(function()
+                                        if getconnections then
+                                            for _, conn in pairs(getconnections(conf.MouseButton1Click)) do
+                                                conn:Function()
+                                            end
+                                        end
+                                    end)
+                                    notify("🔄 Auto Rebirth Berhasil Dieksekusi!", "🌟 Hybrid System")
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+task.spawn(function()
+    while task.wait(2) do
+        if CONFIG.AUTO_REBIRTH and not STATE.panicActive and not STATE.isGhostMode and not Check("InGame") then
+            pcall(executeAutoRebirth)
+        end
+    end
+end)
+
+-- ==========================================
+-- 💥 SYSTEM HYBRID: LIVE GUI DATA SCRAPER 💥
+-- ==========================================
+local LiveStats = { Level = "0", XP = "0/0", Coins = "0", Gems = "0", Rebirths = "0" }
+local function ScrapeFE2Data()
+    local pGui = Player:FindFirstChild("PlayerGui")
+    if not pGui then return end
+    
+    local tempStats = { Level = LiveStats.Level, XP = LiveStats.XP, Coins = LiveStats.Coins, Gems = LiveStats.Gems, Rebirths = LiveStats.Rebirths }
+    
+    for _, obj in ipairs(pGui:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Visible then
+            local txt = obj.Text
+            
+            -- Ekstrak XP dan XP Max
+            if txt:match("%d+/%d+ XP") then 
+                tempStats.XP = txt:gsub(" XP", "") 
+            end
+            
+            -- Ekstrak Rebirth Multiplier
+            if txt:match("^x%d+$") then 
+                tempStats.Rebirths = txt:gsub("x", "") 
+            end
+            
+            -- Ekstrak pure numbers (Koin, Gems, Level)
+            if txt:match("^%d+$") or txt:match("^%d+,%d+$") then
+                local name = obj.Name:lower()
+                local pName = obj.Parent and obj.Parent.Name:lower() or ""
+                
+                if name:find("coin") or pName:find("coin") or name:find("point") or pName:find("point") then
+                    tempStats.Coins = txt
+                elseif name:find("gem") or pName:find("gem") or name:find("diamond") then
+                    tempStats.Gems = txt
+                elseif name:find("level") or pName:find("level") or name:find("lvl") then
+                    tempStats.Level = txt
+                end
+            end
+        end
+    end
+    
+    -- Kalo UI Level gak punya nama spesifik, kita cari text disebelah label XP 
+    if tempStats.Level == "0" or tempStats.Level == LiveStats.Level then
+        for _, obj in ipairs(pGui:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Text:match("%d+/%d+ XP") and obj.Parent then
+                for _, sib in ipairs(obj.Parent:GetChildren()) do
+                    if sib:IsA("TextLabel") and sib.Text:match("^%d+$") then
+                        tempStats.Level = sib.Text
+                    end
+                end
+            end
+        end
+    end
+
+    LiveStats.Level = tempStats.Level
+    LiveStats.XP = tempStats.XP
+    LiveStats.Coins = tempStats.Coins
+    LiveStats.Gems = tempStats.Gems
+    LiveStats.Rebirths = tempStats.Rebirths
+end
+
+-- Looping otomatis nge-scrape data tanpa ketahuan game engine
+task.spawn(function()
+    while task.wait(1) do
+        pcall(ScrapeFE2Data)
+    end
+end)
+-- ==========================================
+
+local findLiftPosition = function() for _, obj in pairs(Workspace.Lobby:GetDescendants()) do if obj:IsA("BasePart") and obj.Name:lower():find("lift") then return obj.Position + Vector3.new(0, 5, 0) end end; return Vector3.new(25, 7, 85) end
+local SUPPORTED_TAS_MAPS = { "Abandoned Cemetery", "Abandoned Facility", "Abandoned Junkyard", "Active Volcanic Mines", "Antiquated Railways", "Aquatic Reservoir", "Archipelago", "Arctic Grotto", "Axiom", "Bathroom Leak", "Beep Block Station", "Beneath The Ruins", "Blue Moon", "Buried Oasis", "Cadaver Creek", "Calamity Kingdom", "Castle Tides", "Cave System", "Central Mass Array", "Chaoz Japan", "Classic Canyon", "Closing Hours", "Club Quarry", "Construction Thrill", "Crystal Caverns", "Cyberpunk District", "Dark Sci-Forest", "Decaying Silo", "Decrepit Seas", "Desolate Domain", "Despotic Ruins", "Distorted Ignis Dimension", "Dormant Vale", "Dreamscape Skylines", "Eerie Peaks", "Factory Center", "Fall Equinox", "Fallen (Classic)", "Fallen", "Familiar Ruins", "Flood Island", "Flooded Studio", "Footlight Lane", "Forgotten Tombs", "Forsaken Era", "Frostbite Coastline", "Gloomy Manor", "Golden Passage", "Graveyard Cliffside", "Grumbling Mineshafts", "Hovering Enclaves", "Icy Spires", "Ignis Peaks", "Infiltration", "Lava Tower", "Lost City of Gold", "Lost Desert", "Lost Woods", "Luminance", "Magmatic Mines", "Marigold Meadows", "Marred Dreams", "Mysterium", "Mystic Fortress", "Nimble Valley", "Northern Mill", "Oriental Grove", "Outlier of a Coppice Carcass", "Pascha Equinox", "Pitfall Temple", "Poisonous Chasm", "Poisonous Forest", "Poisonous Valley", "Relic Valley", "Retro Coast", "Rustic Jungle", "Sakura Falls", "Sandstorm Dunes", "Sandswept Ruins", "Sapphire Falls", "Satomi Springs", "Sedimentary Temple", "Shimmering Delta", "Sinking Ship", "Sky Sanctuary", "Snowscape Odyssey", "Snowy Peaks", "Snowy Stronghold", "Spider Dungeon", "Star Manor", "Starry Fields", "Submerging Coastland", "Sulphureous Sea", "Summit", "Sunken Citadel", "Sunlit Villas", "Toxic Woods", "Toybox Trouble", "Whirlwind Wasteland", "Whispering Nocturnal", "Wild Savannah", "Wildwood Waterways", "Windswept Valley", "Wintertide Haven", "Zemblanity" }
+local isMapInTAS = function(mapName) for _, map in ipairs(SUPPORTED_TAS_MAPS) do if string.lower(map) == string.lower(mapName) then return true end end; return false end
+
+local UPDATE_CONFIG = {
+    ENABLED = true, CURRENT_VERSION = "v24.18",
+    VERSION_CHECK_URL = "https://version.troxzy.workers.dev/",
+    UPDATE_SCRIPT_URL = "https://troxzyvip.troxzy.workers.dev/",
+    FALLBACK_URLS = { "https://troxzyvip.troxzy.workers.dev/" }
+}
+local function fetchVersion(url) local success, data = pcall(function() return game:HttpGet(url) end); if success and data then return string.match(data, "%S+") end; return nil end
+local function performUpdate()
+    notify("🔄 Update ditemukan! Eksekusi Protokol Pembersihan Total...", "🛠️ Auto Updater")
+    pcall(function() StopWinEngine() end); pcall(function() StopAutoQueue() end)
+    if _G.TroxzyConnections then for _, conn in pairs(_G.TroxzyConnections) do pcall(function() conn:Disconnect() end) end; _G.TroxzyConnections = {} end
+    pcall(function() if getgenv().TroxzyAPI and getgenv().TroxzyAPI.UIHooks and getgenv().TroxzyAPI.UIHooks.destroy then getgenv().TroxzyAPI.UIHooks.destroy() end end)
+    local function purgeTroxzyGuis(container) 
+        for _, obj in ipairs(container:GetChildren()) do 
+            if obj:IsA("ScreenGui") and (string.find(obj.Name:lower(), "troxzy") or string.find(obj.Name:lower(), "tx_")) then pcall(function() obj:Destroy() end) end 
+        end 
+    end
+    pcall(function() purgeTroxzyGuis(CoreGui) end); pcall(function() purgeTroxzyGuis(Player:WaitForChild("PlayerGui")) end)
+    pcall(function() clearESPCache() end)
+    local scriptData = nil
+    local success, data = pcall(function() return game:HttpGet(UPDATE_CONFIG.UPDATE_SCRIPT_URL) end)
+    if success and data and #data > 100 then scriptData = data else for _, url in ipairs(UPDATE_CONFIG.FALLBACK_URLS) do success, data = pcall(function() return game:HttpGet(url) end); if success and data and #data > 100 then scriptData = data; break end end end
+    if scriptData then notify("⚡ Memasang & merestart script baru...", "🛠️ Auto Updater"); task.wait(0.8); local func, err = loadstring(scriptData); if func then getgenv().TroxzyAPI = nil; func() else notify("❌ Gagal memuat compile: " .. tostring(err), "🛠️ Auto Updater") end else notify("❌ Gagal mengunduh update.", "🛠️ Auto Updater") end
+end
+local function checkForUpdates() local latestVersion = fetchVersion(UPDATE_CONFIG.VERSION_CHECK_URL); if latestVersion then if latestVersion ~= UPDATE_CONFIG.CURRENT_VERSION then notify("🆕 Update tersedia! " .. UPDATE_CONFIG.CURRENT_VERSION .. " → " .. latestVersion, "🛠️ Auto Updater"); task.wait(0.5); performUpdate() else notify("✅ Versi terbaru digunakan (" .. UPDATE_CONFIG.CURRENT_VERSION .. ").", "🛠️ Auto Updater") end else performUpdate() end end
+if CONFIG.AUTO_UPDATE then task.spawn(function() task.wait(3); checkForUpdates() end) end
+
+function StartAutoQueue()
+    if AutoQueueListener then AutoQueueListener:Disconnect() end
+    STATE.moveToLift = false; STATE.mapCompleted = false
+    AutoQueueListener = Multiplayer.ChildAdded:Connect(function(newMap)
+        if not STATE.AUTO_QUEUE_ENABLED or STATE.panicActive or STATE.isGhostMode then return end
+        if STATE.HybridActive then return end
+        STATE.HybridActive = true
+        local s = newMap:WaitForChild("Settings", 8) 
+        if not s then STATE.HybridActive = false; return end 
+        local mapName = "NewMap"; local retryCount = 0
+        while (mapName == "NewMap" or mapName == "Map" or mapName == "") and retryCount < 30 do
+            local attrName = s:GetAttribute("MapName")
+            if not attrName then 
+                local val = s:FindFirstChild("MapName")
+                if val and val:IsA("StringValue") then attrName = val.Value end 
+            end
+            mapName = attrName or newMap.Name
+            if mapName == "NewMap" or mapName == "Map" or mapName == "" then 
+                task.wait(0.2); retryCount = retryCount + 1 
+            end
+        end
+        Stats.currentMap = mapName
+        local timeout = os.clock() + 15 
+        repeat task.wait(0.1) until Check("InGame") or not STATE.AUTO_QUEUE_ENABLED or os.clock() > timeout
+        if not STATE.AUTO_QUEUE_ENABLED then STATE.HybridActive = false; return end
+        STATE.mapCompleted = false
+        if not Check("InGame") then
+            notify("⏰ Timeout 15s (" .. mapName .. "), gagal teleport. Fallback ke Auto Farm.", "Hybrid System")
+            if STATE.TAS_RUNNING and TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil; STATE.TAS_RUNNING = false end
+            getgenv().TomatoAutoFarm = true; STATE.CurrentlyFarming = true
+            StopWinEngine(); StartWinEngine()
+            STATE.HybridActive = false; return
+        end
+        task.wait(0.5)
+        if isMapInTAS(mapName) then
+            notify("🚀 TAS Support (" .. mapName .. ")! Eksekusi TAS...", "Hybrid System")
+            getgenv().TomatoAutoFarm = false; STATE.CurrentlyFarming = false
+            StopWinEngine(); task.spawn(ExecuteTAS)
+        else
+            notify("⚡ TAS Tidak Support (" .. mapName .. ")! Switch ke Auto Farm...", "Hybrid System")
+            if STATE.TAS_RUNNING and TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE); TAS_COROUTINE = nil; STATE.TAS_RUNNING = false end
+            getgenv().TomatoAutoFarm = true; STATE.CurrentlyFarming = true
+            StopWinEngine(); StartWinEngine()
+        end
+        STATE.HybridActive = false
+    end)
+    STATE.AUTO_QUEUE_ENABLED = true
+end
+
+function StopAutoQueue() 
+    if AutoQueueListener then AutoQueueListener:Disconnect(); AutoQueueListener = nil end
+    STATE.moveToLift = false; STATE.AUTO_QUEUE_ENABLED = false; STATE.HybridActive = false
+    if TAS_COROUTINE then pcall(coroutine.close, TAS_COROUTINE) end
+    TAS_COROUTINE = nil; STATE.TAS_RUNNING = false 
+end
+
+task.spawn(function() while task.wait(0.5) do if (STATE.AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not STATE.panicActive and not STATE.isGhostMode then local char = Player.Character; if char and char:FindFirstChild("HumanoidRootPart") and not Check("InGame") and not Check("InLift") and not STATE.TAS_RUNNING and not STATE.CurrentlyFarming then STATE.moveToLift = true; liftTarget = findLiftPosition() else STATE.moveToLift = false end else STATE.moveToLift = false end end end)
+TrackConnection(RunService.Heartbeat:Connect(function() if STATE.moveToLift and (STATE.AUTO_QUEUE_ENABLED or getgenv().TomatoAutoFarm) and not STATE.panicActive and not STATE.TAS_RUNNING then local char = Player.Character; local hum = char and char:FindFirstChild("Humanoid"); local hrp = char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp and hum.Health > 0 and not Check("InGame") and not Check("InLift") and liftTarget then if (liftTarget - hrp.Position).Magnitude > 3 then hum:MoveTo(liftTarget); hum.WalkSpeed = 25 else pcall(function() AddedWaiting:FireServer() end); STATE.moveToLift = false end end end end))
+
+-- Ekspor LiveStats API
+local API = {
+    CONFIG = CONFIG, STATE = STATE, Stats = Stats, KeyTime = keyExpireTime, GetRealTime = GetRealTime, 
+    getAdminPlayers = getAdminPlayers, getAdminNames = getAdminNames,
+    activatePanicMode = activatePanicMode, deactivatePanicMode = deactivatePanicMode, applyFloodColors = applyFloodColors,
+    ExecuteTAS = ExecuteTAS, StartAutoQueue = StartAutoQueue, StopAutoQueue = StopAutoQueue,
+    StartWinEngine = StartWinEngine, StopWinEngine = StopWinEngine, forceReconnect = forceReconnect,
+    notify = notify, Updater = { CheckForUpdates = checkForUpdates, PerformUpdate = performUpdate },
+    UIHooks = {},
+    LiveStats = LiveStats -- 💥 INTEGRASI KE UI
+}
+getgenv().TroxzyAPI = API
+
+local UI_URL = "https://ui.troxzy.workers.dev/" 
+local success, uiScript = pcall(function() return game:HttpGet(UI_URL) end)
+if success and uiScript then
+    local runUI, err = loadstring(uiScript)
+    if runUI then runUI() else warn("UI Load Error: " .. tostring(err)) end
+end
+ 
+-- 🛡️ Stealth & Anti-Spy
+local function applyWatermark()
+    if not CONFIG.ANTI_SS then return end
+    if CoreGui:FindFirstChild("TX_WATERMARK") then return end
+    local sg = Instance.new("ScreenGui", CoreGui)
+    sg.Name = "TX_WATERMARK"
+    sg.IgnoreGuiInset = true; sg.DisplayOrder = 99999
+    local txt = Instance.new("TextLabel", sg)
+    txt.Size = UDim2.new(1, 0, 0, 25)
+    txt.Position = UDim2.new(0.5, 0, 0.5, 0)
+    txt.AnchorPoint = Vector2.new(0.5, 0.5)
+    txt.BackgroundTransparency = 1
+    txt.Text = "💧 TROXZY VIP - FLOOD ESCAPE 2"
+    txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+    txt.TextTransparency = 0.8
+    txt.TextSize = 25
+    txt.Rotation = 0
+    txt.Font = Enum.Font.GothamBlack
+    txt.TextXAlignment = Enum.TextXAlignment.Center
+    txt.TextYAlignment = Enum.TextYAlignment.Center
+end
+
+local function antiSpyLoop()
+    if not CONFIG.ANTI_SPY then return end
+    for _, v in pairs(CoreGui:GetChildren()) do
+        local name = v.Name:lower()
+        if name:find("dex") or name:find("spy") or name:find("turtle") or name:find("explorer") then
+            Player:Kick("💀 BADAN INTELIJEN NEGARA: UNAUTHORIZED SPYWARE DETECTED. SYSTEM OVERLOAD.")
+            while true do end
+        end
+    end
+end
+
+local function stealthCharacterUpdate()
+    local char = Player.Character
+    if not char then return end
+    if CONFIG.SPOOF_NAME then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum and hum.DisplayName ~= "Troxzy_Ghost" then
+            hum.DisplayName = "Troxzy_Ghost"
+        end
+    end
+    if CONFIG.CLEAN_CHAR then
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("CharacterMesh") then
+                pcall(function() v:Destroy() end)
+            end
+        end
+    end
+end
+
+TrackConnection(RunService.Heartbeat:Connect(function(dt)
+    if CONFIG.SPEED and not STATE.CurrentlyFarming then
+        local char = Player.Character
+        if char then
+            local hum = char:FindFirstChild("Humanoid")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if hum and root and hum.MoveDirection.Magnitude > 0 then
+                local speedBoost = (CONFIG.SPEED_VAL - 16) * dt
+                if speedBoost > 0 then
+                    root.CFrame = root.CFrame + (hum.MoveDirection * speedBoost)
+                end
+            end
+        end
+    end
+end))
+
+local lastHeartbeat = 0
+local slowTick = 0
+TrackConnection(RunService.Heartbeat:Connect(function()
+    if os.clock() - lastHeartbeat < 0.1 then return end; lastHeartbeat = os.clock()
+    
+    STATE.CurrentAdmins = (#getAdminPlayers() > 0) and table.concat(getAdminNames(), ", ") or "None"
+    
+    pcall(SoftAntiResetGuard)
+    pcall(function()
+        local ch = Player.Character; if not ch then return end; local hum = ch:FindFirstChild("Humanoid"); if not hum then return end
+        if not STATE.CurrentlyFarming then hum.WalkSpeed = STATE.moveToLift and 20 or 16 end
+        
+        if CONFIG.AIR_SWIM then hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false); if hum:GetState() == Enum.HumanoidStateType.Swimming then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end else hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true) end
+        applyGodMode()
+    end)
+    
+    updateAdminDetection()
+    stealthCharacterUpdate()
+    applyWatermark()
+    
+    slowTick = slowTick + 1
+    if slowTick > 20 then
+        antiSpyLoop()
+        slowTick = 0
+    end
+    
+    if API.UIHooks.updateDashboard then pcall(API.UIHooks.updateDashboard) end
+end))
+
+TrackConnection(RunService.Heartbeat:Connect(function() pcall(updateESP); pcall(updateVisuals) end))
+
+TrackConnection(RunService.RenderStepped:Connect(function()
+    if CONFIG.FOV and Camera then Camera.FieldOfView = CONFIG.FOV_VAL end
+end))
+
+TrackConnection(UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == Enum.KeyCode.P then if not STATE.panicActive then activatePanicMode() else deactivatePanicMode() end end end))
+TrackConnection(UIS.JumpRequest:Connect(function()
+    if CONFIG.INF_JUMP and Player.Character then
+        local h = Player.Character:FindFirstChild("Humanoid")
+        if h then h:ChangeState(Enum.HumanoidStateType.Jumping); h.Jump = true end
+    end
+end))
+
+loadStats(); setupAutoReconnect()
+
+notify("🔥 TROXZY VIP - OVERDRIVED BIN CORE AKTIF", "System")
