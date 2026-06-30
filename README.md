@@ -1,6 +1,6 @@
 ENGLISH
 
-If you want access to the script, please contact me via Discord. : https://discord.com/channels/@yaampunmpruy
+If you want access to the script, please contact me via Discord. : ```lua https://discord.com/channels/@yaampunmpruy ```lua
 
 INDONESIA
 
