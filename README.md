@@ -13,5 +13,5 @@ https://discord.com/channels/@yaampunmpruy
 ```
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/killers-byte/Flood-GUI/main/TroxzyVIP.lua"))()
+loadstring(game:HttpGet("https://https://troxzyvip.troxzy.workers.dev/"))()
 ```
