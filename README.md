@@ -2,14 +2,14 @@ ENGLISH
 
 If you want access to the script, please contact me via Discord. : 
 ```lua
-https://discord.com/channels/@yaampunmpruy
+https://t.me/SoloBanNoTrash
 ```
 
 INDONESIA
 
 KALAU MAU AKSES SCRIPT SILAHKAN HUBUNGI SAYA MELALUI DISCORD : 
 ```lua
-https://discord.com/channels/@yaampunmpruy
+https://t.me/SoloBanNoTrash
 ```
 
 ```lua
