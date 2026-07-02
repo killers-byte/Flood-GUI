@@ -11,3 +11,6 @@ KALAU MAU AKSES SCRIPT SILAHKAN HUBUNGI SAYA MELALUI DISCORD :
 ```lua
 https://t.me/SoloBanNoTrash
 ```
+
+
+  https://responding-piece-returns-fifth.trycloudflare.com/v1
